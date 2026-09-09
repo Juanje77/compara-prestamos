@@ -4,7 +4,7 @@
 // dentro del rango de mercado informado por el sistema financiero.
 // SIEMPRE verificar la tasa vigente en el sitio oficial de cada banco antes de decidir.
 
-export type TipoPrestamo = 'personal' | 'prendario' | 'hipotecario'
+export type TipoPrestamo = 'personal' | 'prendario' | 'hipotecario' | 'jubilados'
 
 export interface LoanOffer {
   id: string
@@ -444,10 +444,104 @@ export const PRESTAMOS_HIPOTECARIOS: LoanOffer[] = [
   },
 ]
 
+export const PRESTAMOS_JUBILADOS: LoanOffer[] = [
+  {
+    id: 'anses-jubilados',
+    banco: 'ANSES (a través de bancos adheridos)',
+    tipo: 'jubilados',
+    tna: 56,
+    cft: 95,
+    montoMin: 100000,
+    montoMax: 50000000,
+    plazoMinMeses: 6,
+    plazoMaxMeses: 72,
+    requisitos: 'Programa de créditos para jubilados y pensionados. Se descuenta directamente del haber. Excluye pensiones no contributivas. Cuota no puede superar el 35% del ingreso neto.',
+    sitioWeb: 'https://www.anses.gob.ar',
+    verificado: true,
+    fuente: 'Infobae, may 2026 (TNA 56% / TEA 72,92%)',
+  },
+  {
+    id: 'nacion-jubilados',
+    banco: 'Banco Nación (Jubilados)',
+    tipo: 'jubilados',
+    tna: 56,
+    cft: 92,
+    montoMin: 100000,
+    montoMax: 50000000,
+    plazoMinMeses: 6,
+    plazoMaxMeses: 72,
+    requisitos: 'Para jubilados y pensionados de ANSES que cobran por Banco Nación. Descuento directo del haber.',
+    sitioWeb: 'https://www.bna.com.ar',
+    verificado: true,
+    fuente: 'LMNeuquén / Plan Gobierno, jun 2026',
+  },
+  {
+    id: 'provincia-jubilados',
+    banco: 'Banco Provincia (Jubilados)',
+    tipo: 'jubilados',
+    tna: 60,
+    cft: 100,
+    montoMin: 100000,
+    montoMax: 40000000,
+    plazoMinMeses: 6,
+    plazoMaxMeses: 60,
+    requisitos: 'Para jubilados y pensionados que cobran por Banco Provincia. Descuento directo del haber.',
+    sitioWeb: 'https://www.bancoprovincia.com.ar',
+    verificado: false,
+    nota: 'Estimado dentro del rango de mercado informado para jubilados en 2026.',
+  },
+  {
+    id: 'ciudad-jubilados',
+    banco: 'Banco Ciudad (Jubilados)',
+    tipo: 'jubilados',
+    tna: 62,
+    cft: 103,
+    montoMin: 100000,
+    montoMax: 30000000,
+    plazoMinMeses: 6,
+    plazoMaxMeses: 60,
+    requisitos: 'Para jubilados y pensionados que cobran por Banco Ciudad. Descuento directo del haber.',
+    sitioWeb: 'https://www.bancociudad.com.ar',
+    verificado: false,
+    nota: 'Estimado dentro del rango de mercado informado para jubilados en 2026.',
+  },
+  {
+    id: 'macro-jubilados',
+    banco: 'Banco Macro (Jubilados)',
+    tipo: 'jubilados',
+    tna: 65,
+    cft: 108,
+    montoMin: 100000,
+    montoMax: 30000000,
+    plazoMinMeses: 6,
+    plazoMaxMeses: 60,
+    requisitos: 'Para jubilados y pensionados que cobran por Banco Macro. Descuento directo del haber.',
+    sitioWeb: 'https://www.macro.com.ar',
+    verificado: false,
+    nota: 'Estimado dentro del rango de mercado informado para jubilados en 2026.',
+  },
+  {
+    id: 'galicia-jubilados',
+    banco: 'Banco Galicia (Jubilados)',
+    tipo: 'jubilados',
+    tna: 68,
+    cft: 112,
+    montoMin: 100000,
+    montoMax: 25000000,
+    plazoMinMeses: 6,
+    plazoMaxMeses: 60,
+    requisitos: 'Para jubilados y pensionados que cobran por Banco Galicia. Descuento directo del haber.',
+    sitioWeb: 'https://www.bancogalicia.com',
+    verificado: false,
+    nota: 'Estimado dentro del rango de mercado informado para jubilados en 2026.',
+  },
+]
+
 export const TODOS_LOS_PRESTAMOS: Record<TipoPrestamo, LoanOffer[]> = {
   personal: PRESTAMOS_PERSONALES,
   prendario: PRESTAMOS_PRENDARIOS,
   hipotecario: PRESTAMOS_HIPOTECARIOS,
+  jubilados: PRESTAMOS_JUBILADOS,
 }
 
 export const FUENTES = [
@@ -456,4 +550,6 @@ export const FUENTES = [
   { titulo: 'Préstamos personales por hasta $100 millones - Infobae', url: 'https://www.infobae.com/economia/2026/05/27/prestamos-personales-por-hasta-100-millones-quienes-pueden-pedir-los-creditos-de-libre-destino-de-los-principales-bancos/' },
   { titulo: 'Banco Nación: plan autos 0km hasta 48 cuotas - Infobae', url: 'https://www.infobae.com/economia/2026/08/11/el-banco-nacion-lanzo-un-plan-para-comprar-autos-0-km-hasta-en-48-cuotas-que-modelos-incluye-y-quienes-pueden-acceder/' },
   { titulo: 'Créditos hipotecarios UVA 2026: Bancos, Tasas y Requisitos', url: 'https://roomix.ai/blog/creditos-hipotecarios-uva-guia-2026' },
+  { titulo: 'Créditos para jubilados y pensionados - Infobae, may 2026', url: 'https://www.infobae.com/economia/2026/05/19/creditos-para-jubilados-y-pensionados-cual-es-el-monto-maximo-que-se-puede-pedir-y-como-hacer-el-tramite/' },
+  { titulo: 'Préstamo Banco Nación a jubilados - LMNeuquén, jun 2026', url: 'https://www.lmneuquen.com/pais/simulador-del-prestamo-banco-nacion-jubilados-cual-es-el-monto-maximo-junio-2026-segun-el-caso-n1241110' },
 ]

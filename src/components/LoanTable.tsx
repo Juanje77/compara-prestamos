@@ -8,6 +8,9 @@ type Columna = 'cft' | 'tna' | 'cuotaMensual' | 'costoTotal' | 'banco'
 interface Props {
   ofertas: OfertaCalculada[]
   tipo: TipoPrestamo
+  seleccionados?: string[]
+  onToggleSeleccion?: (id: string) => void
+  maxSeleccion?: number
 }
 
 const HEADERS: { key: Columna; label: string }[] = [
@@ -18,7 +21,7 @@ const HEADERS: { key: Columna; label: string }[] = [
   { key: 'costoTotal', label: 'Costo total' },
 ]
 
-export function LoanTable({ ofertas, tipo }: Props) {
+export function LoanTable({ ofertas, tipo, seleccionados = [], onToggleSeleccion, maxSeleccion = 3 }: Props) {
   const [orden, setOrden] = useState<Columna>('cft')
   const [asc, setAsc] = useState(true)
 
@@ -46,6 +49,7 @@ export function LoanTable({ ofertas, tipo }: Props) {
       <table className="w-full min-w-[720px] text-left text-sm">
         <thead>
           <tr style={{ borderBottom: '1px solid var(--gridline)' }}>
+            {onToggleSeleccion && <th className="w-10 px-4 py-3" aria-label="Comparar" />}
             {HEADERS.map((h) => (
               <th
                 key={h.key}
@@ -71,6 +75,19 @@ export function LoanTable({ ofertas, tipo }: Props) {
                 background: o.id === mejorId ? 'color-mix(in srgb, var(--status-good) 8%, transparent)' : undefined,
               }}
             >
+              {onToggleSeleccion && (
+                <td className="px-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={seleccionados.includes(o.id)}
+                    disabled={!seleccionados.includes(o.id) && seleccionados.length >= maxSeleccion}
+                    onChange={() => onToggleSeleccion(o.id)}
+                    aria-label={`Comparar ${o.banco}`}
+                    className="h-4 w-4 accent-current"
+                    style={{ color: 'var(--series-blue)' }}
+                  />
+                </td>
+              )}
               <td className="px-4 py-3 font-medium whitespace-nowrap">
                 <div className="flex items-center gap-2">
                   {o.id === mejorId && (

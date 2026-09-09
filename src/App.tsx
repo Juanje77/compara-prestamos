@@ -2,16 +2,77 @@ import { useMemo, useState } from 'react'
 import { FUENTES, TODOS_LOS_PRESTAMOS, type TipoPrestamo } from './data/loans'
 import { calcularOferta, rankearPorCFT } from './lib/finance'
 import { formatoMoneda } from './lib/finance'
+import { obtenerHistorial, guardarSimulacion, eliminarSimulacion } from './lib/history'
 import { RankingChart } from './components/RankingChart'
 import { LoanTable } from './components/LoanTable'
 import { BestOfferCard } from './components/BestOfferCard'
 import { BrandHeader } from './components/BrandHeader'
 import { WhatsAppBanner, WhatsAppFloatingButton } from './components/WhatsAppContact'
+import { CompareView } from './components/CompareView'
+import { HistoryPanel } from './components/HistoryPanel'
 
-const TABS: { key: TipoPrestamo; label: string; montoDefault: number; plazoDefault: number }[] = [
-  { key: 'personal', label: 'Préstamos personales', montoDefault: 5000000, plazoDefault: 24 },
-  { key: 'prendario', label: 'Préstamos prendarios (autos)', montoDefault: 15000000, plazoDefault: 48 },
-  { key: 'hipotecario', label: 'Créditos hipotecarios (UVA)', montoDefault: 60000000, plazoDefault: 240 },
+interface TabConfig {
+  key: TipoPrestamo
+  label: string
+  montoDefault: number
+  montoMin: number
+  montoMax: number
+  montoStep: number
+  plazoDefault: number
+  plazoMin: number
+  plazoMax: number
+  plazoStep: number
+}
+
+const TABS: TabConfig[] = [
+  {
+    key: 'personal',
+    label: 'Préstamos personales',
+    montoDefault: 5000000,
+    montoMin: 100000,
+    montoMax: 40000000,
+    montoStep: 100000,
+    plazoDefault: 24,
+    plazoMin: 6,
+    plazoMax: 60,
+    plazoStep: 6,
+  },
+  {
+    key: 'prendario',
+    label: 'Préstamos prendarios (autos)',
+    montoDefault: 15000000,
+    montoMin: 500000,
+    montoMax: 60000000,
+    montoStep: 100000,
+    plazoDefault: 48,
+    plazoMin: 6,
+    plazoMax: 60,
+    plazoStep: 6,
+  },
+  {
+    key: 'hipotecario',
+    label: 'Créditos hipotecarios (UVA)',
+    montoDefault: 60000000,
+    montoMin: 5000000,
+    montoMax: 200000000,
+    montoStep: 1000000,
+    plazoDefault: 240,
+    plazoMin: 60,
+    plazoMax: 360,
+    plazoStep: 12,
+  },
+  {
+    key: 'jubilados',
+    label: 'Jubilados / ANSES',
+    montoDefault: 2000000,
+    montoMin: 100000,
+    montoMax: 50000000,
+    montoStep: 100000,
+    plazoDefault: 24,
+    plazoMin: 6,
+    plazoMax: 72,
+    plazoStep: 6,
+  },
 ]
 
 function App() {
@@ -20,12 +81,16 @@ function App() {
 
   const [monto, setMonto] = useState(tabConfig.montoDefault)
   const [plazo, setPlazo] = useState(tabConfig.plazoDefault)
+  const [seleccionados, setSeleccionados] = useState<string[]>([])
+  const [historial, setHistorial] = useState(() => obtenerHistorial())
+  const [guardadoOk, setGuardadoOk] = useState(false)
 
   function cambiarTab(next: TipoPrestamo) {
     const cfg = TABS.find((t) => t.key === next)!
     setTipo(next)
     setMonto(cfg.montoDefault)
     setPlazo(cfg.plazoDefault)
+    setSeleccionados([])
   }
 
   const ofertas = useMemo(() => {
@@ -35,6 +100,27 @@ function App() {
   }, [tipo, monto, plazo])
 
   const mejor = ofertas[0]
+  const ofertasSeleccionadas = ofertas.filter((o) => seleccionados.includes(o.id))
+
+  function toggleSeleccion(id: string) {
+    setSeleccionados((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id)
+      if (prev.length >= 3) return prev
+      return [...prev, id]
+    })
+  }
+
+  function handleGuardarSimulacion() {
+    guardarSimulacion(tipo, monto, plazo, ofertas)
+    setHistorial(obtenerHistorial())
+    setGuardadoOk(true)
+    setTimeout(() => setGuardadoOk(false), 2500)
+  }
+
+  function handleEliminarSimulacion(id: string) {
+    eliminarSimulacion(id)
+    setHistorial(obtenerHistorial())
+  }
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
@@ -83,9 +169,9 @@ function App() {
           <div className="mt-1 flex items-center gap-3">
             <input
               type="range"
-              min={tipo === 'hipotecario' ? 5000000 : tipo === 'prendario' ? 500000 : 100000}
-              max={tipo === 'hipotecario' ? 200000000 : tipo === 'prendario' ? 60000000 : 40000000}
-              step={tipo === 'hipotecario' ? 1000000 : 100000}
+              min={tabConfig.montoMin}
+              max={tabConfig.montoMax}
+              step={tabConfig.montoStep}
               value={monto}
               onChange={(e) => setMonto(Number(e.target.value))}
               className="w-full accent-current"
@@ -102,9 +188,9 @@ function App() {
           <div className="mt-1 flex items-center gap-3">
             <input
               type="range"
-              min={tipo === 'hipotecario' ? 60 : 6}
-              max={tipo === 'hipotecario' ? 360 : 60}
-              step={tipo === 'hipotecario' ? 12 : 6}
+              min={tabConfig.plazoMin}
+              max={tabConfig.plazoMax}
+              step={tabConfig.plazoStep}
               value={plazo}
               onChange={(e) => setPlazo(Number(e.target.value))}
               className="w-full accent-current"
@@ -116,12 +202,39 @@ function App() {
       </section>
 
       {mejor && (
-        <section className="mb-8">
+        <section className="mb-4">
           <BestOfferCard oferta={mejor} tipo={tipo} />
         </section>
       )}
 
+      <div className="mb-8 flex flex-wrap items-center gap-3">
+        <button
+          onClick={handleGuardarSimulacion}
+          className="rounded-full px-5 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          style={{ background: 'var(--series-blue)' }}
+        >
+          💾 Guardar simulación
+        </button>
+        {guardadoOk && (
+          <span className="text-sm font-medium" style={{ color: 'var(--status-good-text)' }}>
+            ✓ Guardada en tu historial
+          </span>
+        )}
+        {seleccionados.length > 0 && (
+          <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
+            {seleccionados.length} seleccionada(s) para comparar — marcá el check en la tabla de abajo.
+          </span>
+        )}
+      </div>
+
       <WhatsAppBanner />
+
+      <CompareView
+        ofertas={ofertasSeleccionadas}
+        tipo={tipo}
+        onQuitar={toggleSeleccion}
+        onCerrar={() => setSeleccionados([])}
+      />
 
       <section className="mb-8">
         <h2 className="mb-3 text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
@@ -133,11 +246,23 @@ function App() {
       </section>
 
       <section className="mb-10">
-        <h2 className="mb-3 text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-          Detalle de todas las ofertas
-        </h2>
-        <LoanTable ofertas={ofertas} tipo={tipo} />
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+            Detalle de todas las ofertas
+          </h2>
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            Marcá el check para comparar hasta 3 ofertas lado a lado
+          </p>
+        </div>
+        <LoanTable
+          ofertas={ofertas}
+          tipo={tipo}
+          seleccionados={seleccionados}
+          onToggleSeleccion={toggleSeleccion}
+        />
       </section>
+
+      <HistoryPanel historial={historial} onEliminar={handleEliminarSimulacion} />
 
       <footer className="border-t pt-6 pb-10 text-xs" style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
         <p className="mb-2 font-medium" style={{ color: 'var(--text-secondary)' }}>
@@ -151,6 +276,9 @@ function App() {
           la tasa vigente antes de decidir. El cálculo de cuota usa el sistema francés de amortización; los
           créditos hipotecarios UVA ajustan el capital por inflación mes a mes, por lo que la cuota informada
           es solo la inicial.
+        </p>
+        <p className="mb-2 max-w-3xl">
+          Tu historial de simulaciones se guarda únicamente en este navegador (no se envía a ningún servidor).
         </p>
         <p className="mb-1 font-medium" style={{ color: 'var(--text-secondary)' }}>
           Fuentes
