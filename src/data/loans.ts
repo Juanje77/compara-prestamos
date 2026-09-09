@@ -6,6 +6,8 @@
 
 export type TipoPrestamo = 'personal' | 'prendario' | 'hipotecario' | 'jubilados'
 
+export type CondicionLaboral = 'empleado' | 'monotributista'
+
 export interface LoanOffer {
   id: string
   banco: string
@@ -24,6 +26,11 @@ export interface LoanOffer {
   verificado: boolean
   fuente?: string
   nota?: string
+  /**
+   * Condiciones laborales que realmente pueden acceder a ESTA tasa/oferta puntual.
+   * Si se omite, se asume que aplica a cualquier condición laboral (línea general).
+   */
+  segmentos?: CondicionLaboral[]
 }
 
 export const PRESTAMOS_PERSONALES: LoanOffer[] = [
@@ -37,10 +44,27 @@ export const PRESTAMOS_PERSONALES: LoanOffer[] = [
     montoMax: 100000000,
     plazoMinMeses: 6,
     plazoMaxMeses: 60,
-    requisitos: 'Requiere acreditación de haberes en el banco para la mejor tasa.',
+    requisitos: 'Requiere acreditación de haberes en el banco para la mejor tasa (solo relación de dependencia).',
     sitioWeb: 'https://www.bna.com.ar',
     verificado: true,
     fuente: 'Infobae / Segundo Enfoque, may-jul 2026',
+    segmentos: ['empleado'],
+  },
+  {
+    id: 'nacion-monotributista',
+    banco: 'Banco Nación (Monotributistas/Autónomos)',
+    tipo: 'personal',
+    tna: 63,
+    cft: 108,
+    montoMin: 10000,
+    montoMax: 50000000,
+    plazoMinMeses: 6,
+    plazoMaxMeses: 72,
+    requisitos: 'Línea a tasa fija para monotributistas, autónomos y empleados que perciban ingresos por Banco Nación. La cuota no puede superar el 30% del haber. Hasta 6 meses de gracia.',
+    sitioWeb: 'https://www.bna.com.ar',
+    verificado: true,
+    fuente: 'Infobae / LMNeuquén, jul 2025 (TNA 63% fija); CFT estimado',
+    segmentos: ['monotributista', 'empleado'],
   },
   {
     id: 'macro-personal',
@@ -52,10 +76,11 @@ export const PRESTAMOS_PERSONALES: LoanOffer[] = [
     montoMax: 100000000,
     plazoMinMeses: 6,
     plazoMaxMeses: 60,
-    requisitos: 'Requiere cuenta sueldo en Banco Macro para la mejor tasa.',
+    requisitos: 'Requiere cuenta sueldo en Banco Macro para la mejor tasa (solo relación de dependencia).',
     sitioWeb: 'https://www.macro.com.ar',
     verificado: true,
     fuente: 'Segundo Enfoque, may 2026',
+    segmentos: ['empleado'],
   },
   {
     id: 'santander-personal',
@@ -552,4 +577,6 @@ export const FUENTES = [
   { titulo: 'Créditos hipotecarios UVA 2026: Bancos, Tasas y Requisitos', url: 'https://roomix.ai/blog/creditos-hipotecarios-uva-guia-2026' },
   { titulo: 'Créditos para jubilados y pensionados - Infobae, may 2026', url: 'https://www.infobae.com/economia/2026/05/19/creditos-para-jubilados-y-pensionados-cual-es-el-monto-maximo-que-se-puede-pedir-y-como-hacer-el-tramite/' },
   { titulo: 'Préstamo Banco Nación a jubilados - LMNeuquén, jun 2026', url: 'https://www.lmneuquen.com/pais/simulador-del-prestamo-banco-nacion-jubilados-cual-es-el-monto-maximo-junio-2026-segun-el-caso-n1241110' },
+  { titulo: 'Créditos para monotributistas hasta $50 millones - Infobae, jul 2025', url: 'https://www.infobae.com/economia/2025/07/11/creditos-por-hasta-50-millones-a-tasa-fija-para-monotributistas-como-acceder/' },
+  { titulo: 'Préstamos para monotributistas: tasas 2026 - MDZ Online', url: 'https://www.mdzol.com/dinero/prestamos-monotributistas-quienes-pueden-solicitarlos-y-que-tasas-se-aplican-n1455629' },
 ]

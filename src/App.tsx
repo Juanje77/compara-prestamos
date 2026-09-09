@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { FUENTES, TODOS_LOS_PRESTAMOS, type TipoPrestamo } from './data/loans'
+import { FUENTES, TODOS_LOS_PRESTAMOS, type CondicionLaboral, type TipoPrestamo } from './data/loans'
 import { calcularOferta, rankearPorCFT } from './lib/finance'
 import { formatoMoneda } from './lib/finance'
 import { obtenerHistorial, guardarSimulacion, eliminarSimulacion } from './lib/history'
@@ -10,6 +10,13 @@ import { BrandHeader } from './components/BrandHeader'
 import { WhatsAppBanner, WhatsAppFloatingButton } from './components/WhatsAppContact'
 import { CompareView } from './components/CompareView'
 import { HistoryPanel } from './components/HistoryPanel'
+import { SituacionCrediticia } from './components/SituacionCrediticia'
+
+const CONDICIONES: { key: CondicionLaboral | 'todos'; label: string }[] = [
+  { key: 'todos', label: 'Todos' },
+  { key: 'empleado', label: 'Empleado en relación de dependencia' },
+  { key: 'monotributista', label: 'Monotributista / Autónomo' },
+]
 
 interface TabConfig {
   key: TipoPrestamo
@@ -81,6 +88,7 @@ function App() {
 
   const [monto, setMonto] = useState(tabConfig.montoDefault)
   const [plazo, setPlazo] = useState(tabConfig.plazoDefault)
+  const [condicionLaboral, setCondicionLaboral] = useState<CondicionLaboral | 'todos'>('todos')
   const [seleccionados, setSeleccionados] = useState<string[]>([])
   const [historial, setHistorial] = useState(() => obtenerHistorial())
   const [guardadoOk, setGuardadoOk] = useState(false)
@@ -94,10 +102,12 @@ function App() {
   }
 
   const ofertas = useMemo(() => {
-    const base = TODOS_LOS_PRESTAMOS[tipo]
+    const base = TODOS_LOS_PRESTAMOS[tipo].filter(
+      (o) => condicionLaboral === 'todos' || !o.segmentos || o.segmentos.includes(condicionLaboral),
+    )
     const calculadas = base.map((o) => calcularOferta(o, monto, plazo))
     return rankearPorCFT(calculadas)
-  }, [tipo, monto, plazo])
+  }, [tipo, monto, plazo, condicionLaboral])
 
   const mejor = ofertas[0]
   const ofertasSeleccionadas = ofertas.filter((o) => seleccionados.includes(o.id))
@@ -199,6 +209,34 @@ function App() {
             <span className="tabular w-20 shrink-0 text-right font-semibold">{plazo} m</span>
           </div>
         </label>
+
+        {tipo === 'personal' && (
+          <label className="block sm:col-span-2">
+            <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+              Condición laboral
+            </span>
+            <p className="mb-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+              No todos los bancos ofrecen la misma tasa a empleados en relación de dependencia que a
+              monotributistas/autónomos — filtrá para ver solo lo que aplica a tu caso.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {CONDICIONES.map((c) => (
+                <button
+                  key={c.key}
+                  onClick={() => setCondicionLaboral(c.key)}
+                  className="rounded-full border px-3 py-1.5 text-xs font-medium"
+                  style={
+                    condicionLaboral === c.key
+                      ? { background: 'var(--series-blue)', borderColor: 'var(--series-blue)', color: 'white' }
+                      : { borderColor: 'var(--border)', color: 'var(--text-secondary)' }
+                  }
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          </label>
+        )}
       </section>
 
       {mejor && (
@@ -228,6 +266,8 @@ function App() {
       </div>
 
       <WhatsAppBanner />
+
+      <SituacionCrediticia />
 
       <CompareView
         ofertas={ofertasSeleccionadas}
@@ -279,6 +319,8 @@ function App() {
         </p>
         <p className="mb-2 max-w-3xl">
           Tu historial de simulaciones se guarda únicamente en este navegador (no se envía a ningún servidor).
+          La consulta de situación crediticia se hace directo contra la Central de Deudores del BCRA — no
+          almacenamos tu CUIT/CUIL ni el resultado en ningún lado.
         </p>
         <p className="mb-1 font-medium" style={{ color: 'var(--text-secondary)' }}>
           Fuentes
