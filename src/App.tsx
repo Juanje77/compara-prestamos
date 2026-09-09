@@ -5,6 +5,8 @@ import { formatoMoneda } from './lib/finance'
 import { RankingChart } from './components/RankingChart'
 import { LoanTable } from './components/LoanTable'
 import { BestOfferCard } from './components/BestOfferCard'
+import { BrandHeader } from './components/BrandHeader'
+import { WhatsAppBanner, WhatsAppFloatingButton } from './components/WhatsAppContact'
 
 const TABS: { key: TipoPrestamo; label: string; montoDefault: number; plazoDefault: number }[] = [
   { key: 'personal', label: 'Préstamos personales', montoDefault: 5000000, plazoDefault: 24 },
@@ -36,6 +38,8 @@ function App() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+      <BrandHeader />
+
       <header className="mb-8">
         <p className="text-sm font-semibold tracking-wide" style={{ color: 'var(--series-blue)' }}>
           🇦🇷 Comparador de préstamos
@@ -117,6 +121,8 @@ function App() {
         </section>
       )}
 
+      <WhatsAppBanner />
+
       <section className="mb-8">
         <h2 className="mb-3 text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
           Ranking por Costo Financiero Total (CFT anual)
@@ -159,6 +165,8 @@ function App() {
           ))}
         </ul>
       </footer>
+
+      <WhatsAppFloatingButton />
     </div>
   )
 }
