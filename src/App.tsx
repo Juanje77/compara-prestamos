@@ -11,6 +11,9 @@ import { WhatsAppBanner, WhatsAppFloatingButton } from './components/WhatsAppCon
 import { CompareView } from './components/CompareView'
 import { HistoryPanel } from './components/HistoryPanel'
 import { SituacionCrediticia } from './components/SituacionCrediticia'
+import { AmortizationModal } from './components/AmortizationModal'
+import { IncomeCalculator } from './components/IncomeCalculator'
+import { Glosario } from './components/Glosario'
 
 const CONDICIONES: { key: CondicionLaboral | 'todos'; label: string }[] = [
   { key: 'todos', label: 'Todos' },
@@ -92,6 +95,7 @@ function App() {
   const [seleccionados, setSeleccionados] = useState<string[]>([])
   const [historial, setHistorial] = useState(() => obtenerHistorial())
   const [guardadoOk, setGuardadoOk] = useState(false)
+  const [verCuotasId, setVerCuotasId] = useState<string | null>(null)
 
   function cambiarTab(next: TipoPrestamo) {
     const cfg = TABS.find((t) => t.key === next)!
@@ -101,13 +105,18 @@ function App() {
     setSeleccionados([])
   }
 
+  const ofertasBase = useMemo(
+    () =>
+      TODOS_LOS_PRESTAMOS[tipo].filter(
+        (o) => condicionLaboral === 'todos' || !o.segmentos || o.segmentos.includes(condicionLaboral),
+      ),
+    [tipo, condicionLaboral],
+  )
+
   const ofertas = useMemo(() => {
-    const base = TODOS_LOS_PRESTAMOS[tipo].filter(
-      (o) => condicionLaboral === 'todos' || !o.segmentos || o.segmentos.includes(condicionLaboral),
-    )
-    const calculadas = base.map((o) => calcularOferta(o, monto, plazo))
+    const calculadas = ofertasBase.map((o) => calcularOferta(o, monto, plazo))
     return rankearPorCFT(calculadas)
-  }, [tipo, monto, plazo, condicionLaboral])
+  }, [ofertasBase, monto, plazo])
 
   const mejor = ofertas[0]
   const ofertasSeleccionadas = ofertas.filter((o) => seleccionados.includes(o.id))
@@ -265,6 +274,10 @@ function App() {
         )}
       </div>
 
+      {tipo !== 'hipotecario' && (
+        <IncomeCalculator ofertasBase={ofertasBase} plazo={plazo} onAplicarMonto={setMonto} />
+      )}
+
       <WhatsAppBanner />
 
       <SituacionCrediticia />
@@ -299,10 +312,13 @@ function App() {
           tipo={tipo}
           seleccionados={seleccionados}
           onToggleSeleccion={toggleSeleccion}
+          onVerCuotas={setVerCuotasId}
         />
       </section>
 
       <HistoryPanel historial={historial} onEliminar={handleEliminarSimulacion} />
+
+      <Glosario />
 
       <footer className="border-t pt-6 pb-10 text-xs" style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
         <p className="mb-2 font-medium" style={{ color: 'var(--text-secondary)' }}>
@@ -337,6 +353,15 @@ function App() {
       </footer>
 
       <WhatsAppFloatingButton />
+
+      {verCuotasId &&
+        (() => {
+          const oferta = ofertas.find((o) => o.id === verCuotasId)
+          if (!oferta) return null
+          return (
+            <AmortizationModal oferta={oferta} monto={monto} plazo={plazo} onCerrar={() => setVerCuotasId(null)} />
+          )
+        })()}
     </div>
   )
 }

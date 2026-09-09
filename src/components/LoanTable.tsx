@@ -11,6 +11,7 @@ interface Props {
   seleccionados?: string[]
   onToggleSeleccion?: (id: string) => void
   maxSeleccion?: number
+  onVerCuotas?: (id: string) => void
 }
 
 const HEADERS: { key: Columna; label: string }[] = [
@@ -21,7 +22,14 @@ const HEADERS: { key: Columna; label: string }[] = [
   { key: 'costoTotal', label: 'Costo total' },
 ]
 
-export function LoanTable({ ofertas, tipo, seleccionados = [], onToggleSeleccion, maxSeleccion = 3 }: Props) {
+export function LoanTable({
+  ofertas,
+  tipo,
+  seleccionados = [],
+  onToggleSeleccion,
+  maxSeleccion = 3,
+  onVerCuotas,
+}: Props) {
   const [orden, setOrden] = useState<Columna>('cft')
   const [asc, setAsc] = useState(true)
 
@@ -64,6 +72,7 @@ export function LoanTable({ ofertas, tipo, seleccionados = [], onToggleSeleccion
             <th className="px-4 py-3 font-medium" style={{ color: 'var(--text-muted)' }}>
               Requisitos
             </th>
+            {onVerCuotas && <th className="px-4 py-3" aria-label="Ver cuotas" />}
           </tr>
         </thead>
         <tbody>
@@ -122,6 +131,17 @@ export function LoanTable({ ofertas, tipo, seleccionados = [], onToggleSeleccion
               <td className="max-w-[280px] px-4 py-3 text-xs" style={{ color: 'var(--text-secondary)' }}>
                 {o.requisitos}
               </td>
+              {onVerCuotas && (
+                <td className="px-4 py-3 whitespace-nowrap">
+                  <button
+                    onClick={() => onVerCuotas(o.id)}
+                    className="text-xs font-medium hover:underline"
+                    style={{ color: 'var(--series-blue)' }}
+                  >
+                    Ver cuotas
+                  </button>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

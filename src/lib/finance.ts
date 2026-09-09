@@ -38,6 +38,42 @@ export function rankearPorCFT(ofertas: OfertaCalculada[]): OfertaCalculada[] {
   return [...ofertas].sort((a, b) => a.cft - b.cft)
 }
 
+export interface FilaAmortizacion {
+  numero: number
+  cuota: number
+  interes: number
+  capital: number
+  saldo: number
+}
+
+/** Tabla de amortización mes a mes por sistema francés (cuota fija, interés decreciente). */
+export function generarTablaAmortizacion(monto: number, tnaPct: number, plazoMeses: number): FilaAmortizacion[] {
+  const i = tnaPct / 100 / 12
+  const cuota = cuotaFrancesa(monto, tnaPct, plazoMeses)
+  const filas: FilaAmortizacion[] = []
+  let saldo = monto
+
+  for (let numero = 1; numero <= plazoMeses; numero++) {
+    const interes = saldo * i
+    const capital = numero === plazoMeses ? saldo : cuota - interes
+    saldo = Math.max(0, saldo - capital)
+    filas.push({ numero, cuota: numero === plazoMeses ? capital + interes : cuota, interes, capital, saldo })
+  }
+
+  return filas
+}
+
+/**
+ * Monto máximo de préstamo accesible dada una cuota mensual máxima (p. ej. un % del ingreso),
+ * despejando el capital de la fórmula del sistema francés. Es la inversa de `cuotaFrancesa`.
+ */
+export function montoMaximoPorCuota(cuotaMaxima: number, tnaPct: number, plazoMeses: number): number {
+  const i = tnaPct / 100 / 12
+  if (i === 0) return cuotaMaxima * plazoMeses
+  const factor = Math.pow(1 + i, plazoMeses)
+  return (cuotaMaxima * (factor - 1)) / (i * factor)
+}
+
 export function formatoMoneda(valor: number): string {
   return new Intl.NumberFormat('es-AR', {
     style: 'currency',
