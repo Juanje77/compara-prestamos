@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf'
 import type { SimulacionGuardada } from './history'
 import { formatoMoneda, formatoPorcentaje } from './finance'
-import type { CategoriaGasto, FilaProyeccion, PuntoEquilibrio } from './cfo'
+import type { CategoriaGasto, CuentaBancaria, Deuda, FilaProyeccion, PuntoEquilibrio } from './cfo'
 import type { Movimiento } from './movimientosSemana'
 import type { AgrupacionSemanal } from './semanas'
 
@@ -161,6 +161,8 @@ export function descargarPdfHistorial(simulaciones: SimulacionGuardada[]) {
 }
 
 interface DashboardEmpresaPdfData {
+  cuentas: CuentaBancaria[]
+  deudas: Deuda[]
   saldoInicial: number
   ingresos: number
   categorias: CategoriaGasto[]
@@ -170,6 +172,8 @@ interface DashboardEmpresaPdfData {
   margenOperativo: number
   runwayMeses: number
   puntoEquilibrio: PuntoEquilibrio
+  deudaTotal: number
+  endeudamientoMeses: number
   proyeccion: FilaProyeccion[]
 }
 
@@ -201,13 +205,69 @@ export function descargarPdfDashboardEmpresa(datos: DashboardEmpresaPdfData) {
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(12)
   doc.setTextColor(...NAVY)
+  doc.text('Cuentas bancarias', 14, y)
+  y += 7
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  if (datos.cuentas.length === 0) {
+    doc.setTextColor(...GRAY)
+    doc.text('No se cargaron cuentas.', 14, y)
+    y += 5.5
+  } else {
+    for (const c of datos.cuentas) {
+      if (y > doc.internal.pageSize.getHeight() - 25) {
+        pieDePagina(doc, MENSAJE_PIE_EMPRESA)
+        doc.addPage()
+        y = encabezadoEmpresa(doc, 20)
+      }
+      doc.setTextColor(...(c.saldo < 0 ? RED : ([40, 40, 40] as [number, number, number])))
+      doc.text(`${c.nombre}: ${formatoMoneda(c.saldo)}${c.saldo < 0 ? ' (descubierto)' : ''}`, 14, y)
+      y += 5.5
+    }
+  }
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...(datos.saldoInicial < 0 ? RED : NAVY))
+  doc.text(`Saldo total en bancos: ${formatoMoneda(datos.saldoInicial)}`, 14, y)
+  y += 10
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(12)
+  doc.setTextColor(...NAVY)
+  doc.text('Deudas', 14, y)
+  y += 7
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  if (datos.deudas.length === 0) {
+    doc.setTextColor(...GRAY)
+    doc.text('No se cargaron deudas.', 14, y)
+    y += 5.5
+  } else {
+    for (const d of datos.deudas) {
+      if (y > doc.internal.pageSize.getHeight() - 25) {
+        pieDePagina(doc, MENSAJE_PIE_EMPRESA)
+        doc.addPage()
+        y = encabezadoEmpresa(doc, 20)
+      }
+      doc.setTextColor(40, 40, 40)
+      doc.text(`${d.concepto}: ${formatoMoneda(d.montoAdeudado)} (cuota ${formatoMoneda(d.cuotaMensual)}/mes)`, 14, y)
+      y += 5.5
+    }
+    const deudaTotal = datos.deudas.reduce((s, d) => s + d.montoAdeudado, 0)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...NAVY)
+    doc.text(`Deuda total: ${formatoMoneda(deudaTotal)}`, 14, y)
+    y += 5.5
+  }
+  y += 5
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(12)
+  doc.setTextColor(...NAVY)
   doc.text('Datos del negocio', 14, y)
   y += 7
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
   doc.setTextColor(40, 40, 40)
-  doc.text(`Saldo de caja actual: ${formatoMoneda(datos.saldoInicial)}`, 14, y)
-  y += 5.5
   doc.text(`Ingresos mensuales estimados: ${formatoMoneda(datos.ingresos)}`, 14, y)
   y += 5.5
   doc.text(
@@ -256,6 +316,24 @@ export function descargarPdfDashboardEmpresa(datos: DashboardEmpresaPdfData) {
   doc.setTextColor(...equilibrioColor)
   doc.text(
     datos.puntoEquilibrio.alcanzable ? formatoMoneda(datos.puntoEquilibrio.ingresosNecesarios) : 'No alcanzable',
+    60,
+    y,
+  )
+  y += 6
+
+  const endeudamientoColor: [number, number, number] =
+    datos.deudaTotal <= 0 || datos.endeudamientoMeses <= 3 ? GREEN : datos.endeudamientoMeses <= 6 ? AMBER : RED
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(40, 40, 40)
+  doc.text('Endeudamiento:', 14, y)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...endeudamientoColor)
+  doc.text(
+    datos.deudaTotal <= 0
+      ? 'Sin deudas'
+      : datos.endeudamientoMeses === Infinity
+        ? 'Sin límite'
+        : `${datos.endeudamientoMeses.toFixed(1)} meses de ingreso`,
     60,
     y,
   )

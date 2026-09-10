@@ -1,3 +1,35 @@
+export interface CuentaBancaria {
+  id: string
+  nombre: string
+  saldo: number
+}
+
+export function calcularSaldoTotalBancos(cuentas: CuentaBancaria[]): number {
+  return cuentas.reduce((s, c) => s + c.saldo, 0)
+}
+
+export interface Deuda {
+  id: string
+  concepto: string
+  montoAdeudado: number
+  cuotaMensual: number
+}
+
+export function calcularDeudaTotal(deudas: Deuda[]): number {
+  return deudas.reduce((s, d) => s + d.montoAdeudado, 0)
+}
+
+export function calcularCuotaDeudaTotal(deudas: Deuda[]): number {
+  return deudas.reduce((s, d) => s + d.cuotaMensual, 0)
+}
+
+/** Endeudamiento expresado en meses de ingreso que harían falta para cubrir toda la deuda pendiente. */
+export function calcularEndeudamientoMeses(deudaTotal: number, ingresos: number): number {
+  if (deudaTotal <= 0) return 0
+  if (ingresos <= 0) return Infinity
+  return deudaTotal / ingresos
+}
+
 export type TipoGasto = 'fijo' | 'variable'
 
 export interface CategoriaGasto {

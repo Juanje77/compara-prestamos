@@ -2,18 +2,30 @@ import { useMemo, useState } from 'react'
 import { FlujoDeCaja } from '../components/FlujoDeCaja'
 import { GastosPorCategoria } from '../components/GastosPorCategoria'
 import { KpiCard } from '../components/KpiCard'
+import { CuentasBancarias } from '../components/CuentasBancarias'
+import { Deudas } from '../components/Deudas'
 import { CobranzasPagosSemanal } from '../components/CobranzasPagosSemanal'
 import { buildWhatsAppLink } from '../components/WhatsAppContact'
 import {
+  calcularCuotaDeudaTotal,
+  calcularDeudaTotal,
+  calcularEndeudamientoMeses,
   calcularGastosTotales,
   calcularMargenOperativo,
   calcularPuntoEquilibrio,
   calcularRunwayMeses,
+  calcularSaldoTotalBancos,
   proyectarFlujoCaja,
   type CategoriaGasto,
+  type CuentaBancaria,
+  type Deuda as DeudaTipo,
 } from '../lib/cfo'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
 import { descargarPdfDashboardEmpresa } from '../lib/pdf'
+
+function generarId(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
 
 interface CategoriaConfig {
   key: string
@@ -25,10 +37,12 @@ interface CategoriaConfig {
 
 const CATEGORIAS_CONFIG: CategoriaConfig[] = [
   { key: 'sueldos', label: 'Sueldos y cargas sociales', tipo: 'fijo', color: 'var(--series-blue)', default: 2500000 },
-  { key: 'alquiler', label: 'Alquiler y servicios', tipo: 'fijo', color: 'var(--series-2)', default: 900000 },
-  { key: 'impuestos', label: 'Impuestos', tipo: 'fijo', color: 'var(--series-3)', default: 600000 },
-  { key: 'insumos', label: 'Insumos / mercadería', tipo: 'variable', color: 'var(--series-4)', default: 1500000 },
-  { key: 'otros', label: 'Otros gastos variables', tipo: 'variable', color: 'var(--series-5)', default: 500000 },
+  { key: 'alquiler', label: 'Alquiler', tipo: 'fijo', color: 'var(--series-2)', default: 600000 },
+  { key: 'servicios', label: 'Servicios (luz, gas, internet)', tipo: 'fijo', color: 'var(--series-3)', default: 300000 },
+  { key: 'impuestos', label: 'Impuestos', tipo: 'fijo', color: 'var(--series-4)', default: 600000 },
+  { key: 'seguros', label: 'Seguros y otros gastos fijos', tipo: 'fijo', color: 'var(--series-5)', default: 300000 },
+  { key: 'insumos', label: 'Insumos / mercadería', tipo: 'variable', color: 'var(--series-6)', default: 1500000 },
+  { key: 'otros', label: 'Otros gastos variables', tipo: 'variable', color: 'var(--series-7)', default: 500000 },
 ]
 
 const SECCIONES = [
@@ -40,15 +54,38 @@ type Seccion = (typeof SECCIONES)[number]['key']
 
 export function EmpresasPage() {
   const [seccion, setSeccion] = useState<Seccion>('dashboard')
-  const [saldoInicial, setSaldoInicial] = useState(2000000)
   const [ingresos, setIngresos] = useState(7000000)
   const [meses, setMeses] = useState(6)
   const [montos, setMontos] = useState<Record<string, number>>(() =>
     Object.fromEntries(CATEGORIAS_CONFIG.map((c) => [c.key, c.default])),
   )
+  const [cuentas, setCuentas] = useState<CuentaBancaria[]>([
+    { id: generarId(), nombre: 'Cuenta corriente principal', saldo: 2000000 },
+  ])
+  const [deudas, setDeudas] = useState<DeudaTipo[]>([])
 
   function cambiarMonto(key: string, monto: number) {
     setMontos((prev) => ({ ...prev, [key]: monto }))
+  }
+
+  function handleAgregarCuenta(nombre: string, saldo: number) {
+    setCuentas((prev) => [...prev, { id: generarId(), nombre, saldo }])
+  }
+
+  function handleCambiarSaldoCuenta(id: string, saldo: number) {
+    setCuentas((prev) => prev.map((c) => (c.id === id ? { ...c, saldo } : c)))
+  }
+
+  function handleEliminarCuenta(id: string) {
+    setCuentas((prev) => prev.filter((c) => c.id !== id))
+  }
+
+  function handleAgregarDeuda(concepto: string, montoAdeudado: number, cuotaMensual: number) {
+    setDeudas((prev) => [...prev, { id: generarId(), concepto, montoAdeudado, cuotaMensual }])
+  }
+
+  function handleEliminarDeuda(id: string) {
+    setDeudas((prev) => prev.filter((d) => d.id !== id))
   }
 
   const categorias: CategoriaGasto[] = CATEGORIAS_CONFIG.map((c) => ({
@@ -60,9 +97,13 @@ export function EmpresasPage() {
   }))
 
   const { fijos: gastosFijos, variables: gastosVariables, total: gastosTotales } = calcularGastosTotales(categorias)
+  const saldoInicial = calcularSaldoTotalBancos(cuentas)
+  const deudaTotal = calcularDeudaTotal(deudas)
+  const cuotaDeudaTotal = calcularCuotaDeudaTotal(deudas)
 
   const margenOperativo = calcularMargenOperativo(ingresos, gastosTotales)
   const runwayMeses = calcularRunwayMeses(saldoInicial, gastosTotales)
+  const endeudamientoMeses = calcularEndeudamientoMeses(deudaTotal, ingresos)
   const puntoEquilibrio = useMemo(
     () => calcularPuntoEquilibrio(ingresos, gastosFijos, gastosVariables),
     [ingresos, gastosFijos, gastosVariables],
@@ -78,6 +119,8 @@ export function EmpresasPage() {
 
   function handleDescargarPdf() {
     descargarPdfDashboardEmpresa({
+      cuentas,
+      deudas,
       saldoInicial,
       ingresos,
       categorias,
@@ -87,6 +130,8 @@ export function EmpresasPage() {
       margenOperativo,
       runwayMeses,
       puntoEquilibrio,
+      deudaTotal,
+      endeudamientoMeses,
       proyeccion,
     })
   }
@@ -129,53 +174,38 @@ export function EmpresasPage() {
         <CobranzasPagosSemanal />
       ) : (
         <>
+          <section className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <CuentasBancarias
+              cuentas={cuentas}
+              onAgregar={handleAgregarCuenta}
+              onCambiarSaldo={handleCambiarSaldoCuenta}
+              onEliminar={handleEliminarCuenta}
+            />
+            <Deudas deudas={deudas} onAgregar={handleAgregarDeuda} onEliminar={handleEliminarDeuda} />
+          </section>
+
           <section
             className="mb-6 rounded-xl border p-5"
             style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}
           >
             <h2 className="mb-4 text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
-              Datos de tu negocio
+              Ingresos y gastos mensuales
             </h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <label className="block">
                 <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
-                  Saldo de caja actual
-                </span>
-                <div className="mt-1 flex items-center gap-3">
-                  <input
-                    type="range"
-                    min={0}
-                    max={50000000}
-                    step={100000}
-                    value={saldoInicial}
-                    onChange={(e) => setSaldoInicial(Number(e.target.value))}
-                    className="w-full accent-current"
-                    style={{ color: 'var(--series-blue)' }}
-                  />
-                  <span className="tabular w-32 shrink-0 text-right font-semibold">
-                    {formatoMoneda(saldoInicial)}
-                  </span>
-                </div>
-              </label>
-
-              <label className="block">
-                <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
                   Ingresos mensuales estimados
                 </span>
-                <div className="mt-1 flex items-center gap-3">
-                  <input
-                    type="range"
-                    min={0}
-                    max={100000000}
-                    step={100000}
-                    value={ingresos}
-                    onChange={(e) => setIngresos(Number(e.target.value))}
-                    className="w-full accent-current"
-                    style={{ color: 'var(--series-blue)' }}
-                  />
-                  <span className="tabular w-32 shrink-0 text-right font-semibold">{formatoMoneda(ingresos)}</span>
-                </div>
+                <input
+                  type="number"
+                  value={ingresos}
+                  onChange={(e) => setIngresos(Number(e.target.value))}
+                  className="tabular mt-1 w-full rounded-lg border px-3 py-1.5 text-sm font-semibold"
+                  style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+                />
               </label>
+
+              <div className="hidden sm:block" />
 
               {CATEGORIAS_CONFIG.map((c) => (
                 <label className="block" key={c.key}>
@@ -189,27 +219,25 @@ export function EmpresasPage() {
                       ({c.tipo})
                     </span>
                   </span>
-                  <div className="mt-1 flex items-center gap-3">
-                    <input
-                      type="range"
-                      min={0}
-                      max={20000000}
-                      step={50000}
-                      value={montos[c.key] ?? 0}
-                      onChange={(e) => cambiarMonto(c.key, Number(e.target.value))}
-                      className="w-full accent-current"
-                      style={{ color: 'var(--series-blue)' }}
-                    />
-                    <span className="tabular w-32 shrink-0 text-right font-semibold">
-                      {formatoMoneda(montos[c.key] ?? 0)}
-                    </span>
-                  </div>
+                  <input
+                    type="number"
+                    value={montos[c.key] ?? 0}
+                    onChange={(e) => cambiarMonto(c.key, Number(e.target.value))}
+                    className="tabular mt-1 w-full rounded-lg border px-3 py-1.5 text-sm font-semibold"
+                    style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+                  />
                 </label>
               ))}
             </div>
+            {cuotaDeudaTotal > 0 && (
+              <p className="mt-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+                Nota: cargaste {formatoMoneda(cuotaDeudaTotal)}/mes en cuotas de deudas — verificá que estén
+                incluidas en alguno de los gastos fijos de arriba.
+              </p>
+            )}
           </section>
 
-          <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <KpiCard
               label="Margen operativo"
               value={formatoPorcentaje(margenOperativo)}
@@ -244,6 +272,16 @@ export function EmpresasPage() {
                   : ingresos >= puntoEquilibrio.ingresosNecesarios
                     ? 'Ya superaste el punto de equilibrio'
                     : `Te faltan ${formatoMoneda(puntoEquilibrio.ingresosNecesarios - ingresos)} en ventas/mes`
+              }
+            />
+            <KpiCard
+              label="Endeudamiento"
+              value={deudaTotal <= 0 ? 'Sin deudas' : endeudamientoMeses === Infinity ? '∞' : `${endeudamientoMeses.toFixed(1)} meses de ingreso`}
+              status={deudaTotal <= 0 || endeudamientoMeses <= 3 ? 'good' : endeudamientoMeses <= 6 ? 'warning' : 'critical'}
+              statusLabel={
+                deudaTotal <= 0
+                  ? 'No cargaste deudas pendientes'
+                  : `Deuda total: ${formatoMoneda(deudaTotal)}`
               }
             />
           </section>
