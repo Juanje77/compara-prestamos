@@ -9,24 +9,34 @@ import {
   type Movimiento,
   type TipoMovimiento,
 } from '../lib/movimientosSemana'
+import { agruparPorSemana, indiceDeSemana, type RangoSemana } from '../lib/semanas'
 import { importarCuentasDesdeExcel } from '../lib/excelImport'
 import { formatoMoneda } from '../lib/finance'
+import { descargarPdfCobranzasSemanal } from '../lib/pdf'
 
 function hoyISO(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
+function etiquetaSemana(fechaISO: string, semanas: RangoSemana[]): { texto: string; color: string } {
+  const idx = indiceDeSemana(fechaISO, semanas)
+  if (idx !== null) return { texto: semanas[idx].labelCorto, color: 'var(--text-muted)' }
+  const fecha = new Date(`${fechaISO}T00:00:00`)
+  if (fecha < semanas[0].inicio) return { texto: 'Vencido', color: 'var(--status-critical)' }
+  return { texto: 'Más adelante', color: 'var(--text-muted)' }
+}
+
 interface ColumnaProps {
   titulo: string
-  tipo: TipoMovimiento
   movimientos: Movimiento[]
+  semanas: RangoSemana[]
   onAgregar: (concepto: string, monto: number, fecha: string) => void
   onToggle: (id: string) => void
   onEliminar: (id: string) => void
   extra?: React.ReactNode
 }
 
-function ColumnaMovimientos({ titulo, movimientos, onAgregar, onToggle, onEliminar, extra }: ColumnaProps) {
+function ColumnaMovimientos({ titulo, movimientos, semanas, onAgregar, onToggle, onEliminar, extra }: ColumnaProps) {
   const [concepto, setConcepto] = useState('')
   const [monto, setMonto] = useState('')
   const [fecha, setFecha] = useState(hoyISO())
@@ -91,48 +101,57 @@ function ColumnaMovimientos({ titulo, movimientos, onAgregar, onToggle, onElimin
 
       {movimientos.length === 0 ? (
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-          Todavía no cargaste nada para esta semana.
+          Todavía no cargaste nada.
         </p>
       ) : (
         <ul className="space-y-1.5">
-          {movimientos.map((m) => (
-            <li
-              key={m.id}
-              className="flex items-center gap-3 rounded-lg border px-3 py-2 text-sm"
-              style={{ borderColor: 'var(--border)', opacity: m.cumplido ? 0.55 : 1 }}
-            >
-              <input
-                type="checkbox"
-                checked={m.cumplido}
-                onChange={() => onToggle(m.id)}
-                className="h-4 w-4 shrink-0 accent-current"
-                style={{ color: 'var(--series-blue)' }}
-              />
-              <span
-                className="flex-1 truncate"
-                style={{
-                  color: 'var(--text-primary)',
-                  textDecoration: m.cumplido ? 'line-through' : 'none',
-                }}
+          {movimientos.map((m) => {
+            const etiqueta = etiquetaSemana(m.fecha, semanas)
+            return (
+              <li
+                key={m.id}
+                className="flex items-center gap-3 rounded-lg border px-3 py-2 text-sm"
+                style={{ borderColor: 'var(--border)', opacity: m.cumplido ? 0.55 : 1 }}
               >
-                {m.concepto}
-              </span>
-              <span className="tabular shrink-0 text-xs" style={{ color: 'var(--text-muted)' }}>
-                {new Date(`${m.fecha}T00:00:00`).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}
-              </span>
-              <span className="tabular shrink-0 font-medium" style={{ color: 'var(--text-primary)' }}>
-                {formatoMoneda(m.monto)}
-              </span>
-              <button
-                onClick={() => onEliminar(m.id)}
-                aria-label="Eliminar"
-                className="shrink-0 text-xs"
-                style={{ color: 'var(--text-muted)' }}
-              >
-                🗑
-              </button>
-            </li>
-          ))}
+                <input
+                  type="checkbox"
+                  checked={m.cumplido}
+                  onChange={() => onToggle(m.id)}
+                  className="h-4 w-4 shrink-0 accent-current"
+                  style={{ color: 'var(--series-blue)' }}
+                />
+                <span
+                  className="flex-1 truncate"
+                  style={{
+                    color: 'var(--text-primary)',
+                    textDecoration: m.cumplido ? 'line-through' : 'none',
+                  }}
+                >
+                  {m.concepto}
+                </span>
+                <span className="tabular shrink-0 text-xs" style={{ color: 'var(--text-muted)' }}>
+                  {new Date(`${m.fecha}T00:00:00`).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}
+                </span>
+                <span
+                  className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap"
+                  style={{ color: etiqueta.color, background: 'var(--surface-2)' }}
+                >
+                  {etiqueta.texto}
+                </span>
+                <span className="tabular shrink-0 font-medium" style={{ color: 'var(--text-primary)' }}>
+                  {formatoMoneda(m.monto)}
+                </span>
+                <button
+                  onClick={() => onEliminar(m.id)}
+                  aria-label="Eliminar"
+                  className="shrink-0 text-xs"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  🗑
+                </button>
+              </li>
+            )
+          })}
         </ul>
       )}
 
@@ -185,7 +204,7 @@ export function CobranzasPagosSemanal() {
 
   function handleVaciar() {
     if (movimientos.length === 0) return
-    if (!window.confirm('¿Vaciar todos los movimientos de esta semana? No se puede deshacer.')) return
+    if (!window.confirm('¿Vaciar todos los movimientos cargados? No se puede deshacer.')) return
     vaciarSemana()
     refrescar()
   }
@@ -214,61 +233,109 @@ export function CobranzasPagosSemanal() {
   const cobros = movimientos.filter((m) => m.tipo === 'cobro')
   const pagos = movimientos.filter((m) => m.tipo === 'pago')
 
-  const resumen = useMemo(() => {
-    const totalCobrar = cobros.reduce((s, m) => s + m.monto, 0)
-    const totalPagar = pagos.reduce((s, m) => s + m.monto, 0)
-    return { totalCobrar, totalPagar, saldoNeto: totalCobrar - totalPagar }
-  }, [cobros, pagos])
+  const agrupacion = useMemo(() => agruparPorSemana(movimientos, 4), [movimientos])
+  const totalVencidos = agrupacion.vencidos.reduce(
+    (s, m) => s + (m.tipo === 'cobro' ? m.monto : -m.monto),
+    0,
+  )
+  const totalAFuturo = agrupacion.aFuturo.reduce((s, m) => s + m.monto, 0)
 
   return (
     <>
       <section
-        className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-5"
+        className="mb-6 rounded-xl border p-5"
         style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}
       >
-        <div className="flex flex-wrap gap-6">
-          <div>
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              Total a cobrar esta semana
-            </p>
-            <p className="tabular text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-              {formatoMoneda(resumen.totalCobrar)}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              Total a pagar esta semana
-            </p>
-            <p className="tabular text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-              {formatoMoneda(resumen.totalPagar)}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              Saldo neto de la semana
-            </p>
-            <p
-              className="tabular text-lg font-semibold"
-              style={{ color: resumen.saldoNeto >= 0 ? 'var(--status-good-text)' : 'var(--status-critical)' }}
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
+            Resumen semanal — ingresos y gastos por semana
+          </h2>
+          <div className="flex gap-2">
+            <button
+              onClick={() => descargarPdfCobranzasSemanal(agrupacion, movimientos)}
+              className="rounded-full border px-4 py-1.5 text-xs font-medium"
+              style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
             >
-              {formatoMoneda(resumen.saldoNeto)}
-            </p>
+              📄 Descargar / Imprimir PDF
+            </button>
+            <button
+              onClick={handleVaciar}
+              className="rounded-full border px-4 py-1.5 text-xs font-medium"
+              style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+            >
+              Vaciar todo
+            </button>
           </div>
         </div>
-        <button
-          onClick={handleVaciar}
-          className="rounded-full border px-4 py-1.5 text-xs font-medium"
-          style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
-        >
-          Vaciar semana
-        </button>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {agrupacion.semanas.map((semana, i) => {
+            const t = agrupacion.totalesPorSemana[i]
+            return (
+              <div key={semana.labelCorto} className="rounded-lg border p-3" style={{ borderColor: 'var(--border)' }}>
+                <p className="mb-2 text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
+                  {semana.label}
+                </p>
+                <div className="space-y-1 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span style={{ color: 'var(--text-secondary)' }}>Cobros</span>
+                    <span className="tabular font-medium" style={{ color: 'var(--status-good-text)' }}>
+                      {formatoMoneda(t.cobros)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span style={{ color: 'var(--text-secondary)' }}>Pagos</span>
+                    <span className="tabular font-medium" style={{ color: 'var(--status-critical)' }}>
+                      {formatoMoneda(t.pagos)}
+                    </span>
+                  </div>
+                  <div
+                    className="flex items-center justify-between border-t pt-1"
+                    style={{ borderColor: 'var(--gridline)' }}
+                  >
+                    <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>
+                      Saldo
+                    </span>
+                    <span
+                      className="tabular font-semibold"
+                      style={{ color: t.saldo >= 0 ? 'var(--status-good-text)' : 'var(--status-critical)' }}
+                    >
+                      {formatoMoneda(t.saldo)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {(agrupacion.vencidos.length > 0 || agrupacion.aFuturo.length > 0) && (
+          <div className="mt-3 flex flex-wrap gap-4 text-xs" style={{ color: 'var(--text-muted)' }}>
+            {agrupacion.vencidos.length > 0 && (
+              <span>
+                ⚠️ Vencido (antes de esta semana):{' '}
+                <span className="tabular font-semibold" style={{ color: 'var(--status-critical)' }}>
+                  {formatoMoneda(totalVencidos)}
+                </span>{' '}
+                netos en {agrupacion.vencidos.length} movimiento(s)
+              </span>
+            )}
+            {agrupacion.aFuturo.length > 0 && (
+              <span>
+                Más allá de 4 semanas:{' '}
+                <span className="tabular font-semibold">{formatoMoneda(totalAFuturo)}</span> en{' '}
+                {agrupacion.aFuturo.length} movimiento(s)
+              </span>
+            )}
+          </div>
+        )}
       </section>
 
       <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <ColumnaMovimientos
           titulo="Cuentas a cobrar"
-          tipo="cobro"
           movimientos={cobros}
+          semanas={agrupacion.semanas}
           onAgregar={handleAgregar('cobro')}
           onToggle={handleToggle}
           onEliminar={handleEliminar}
@@ -293,8 +360,8 @@ export function CobranzasPagosSemanal() {
         />
         <ColumnaMovimientos
           titulo="Gastos a pagar"
-          tipo="pago"
           movimientos={pagos}
+          semanas={agrupacion.semanas}
           onAgregar={handleAgregar('pago')}
           onToggle={handleToggle}
           onEliminar={handleEliminar}
@@ -302,14 +369,19 @@ export function CobranzasPagosSemanal() {
       </div>
 
       {errorImport && (
-        <p className="mb-6 rounded-lg border p-3 text-sm" style={{ borderColor: 'var(--status-critical)', color: 'var(--status-critical)' }}>
+        <p
+          className="mb-6 rounded-lg border p-3 text-sm"
+          style={{ borderColor: 'var(--status-critical)', color: 'var(--status-critical)' }}
+        >
           {errorImport}
         </p>
       )}
 
       <p className="border-t pt-6 pb-4 text-xs" style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
-        El Excel de cuentas a cobrar debe tener una fila de encabezados con columnas como "Cliente", "Monto" y,
-        opcionalmente, "Fecha". Estos datos se guardan solo en este navegador, no se suben a ningún servidor.
+        Las semanas se arman según la fecha que le pusiste a cada cobro o pago (lunes a domingo), empezando por
+        la semana actual. El Excel de cuentas a cobrar debe tener una fila de encabezados con columnas como
+        "Cliente", "Monto" y, opcionalmente, "Fecha". Estos datos se guardan solo en este navegador, no se suben
+        a ningún servidor.
       </p>
     </>
   )

@@ -2,6 +2,8 @@ import { jsPDF } from 'jspdf'
 import type { SimulacionGuardada } from './history'
 import { formatoMoneda, formatoPorcentaje } from './finance'
 import type { CategoriaGasto, FilaProyeccion, PuntoEquilibrio } from './cfo'
+import type { Movimiento } from './movimientosSemana'
+import type { AgrupacionSemanal } from './semanas'
 
 const NAVY: [number, number, number] = [22, 48, 92]
 const GRAY: [number, number, number] = [90, 90, 90]
@@ -326,4 +328,122 @@ export function descargarPdfDashboardEmpresa(datos: DashboardEmpresaPdfData) {
 
   pieDePagina(doc, MENSAJE_PIE_EMPRESA)
   doc.save(`dashboard-empresa-${new Date().toISOString().slice(0, 10)}.pdf`)
+}
+
+function encabezadoCobranzas(doc: jsPDF, y: number): number {
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(16)
+  doc.setTextColor(...NAVY)
+  doc.text('Finko — Cobranzas y pagos semanales', 14, y)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(10)
+  doc.setTextColor(...GRAY)
+  doc.text('Juan Costantini · Contador Público · MP: T20F94', 14, y + 6)
+  return y + 14
+}
+
+export function descargarPdfCobranzasSemanal(agrupacion: AgrupacionSemanal, movimientos: Movimiento[]) {
+  const doc = new jsPDF()
+  let y = encabezadoCobranzas(doc, 20)
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.setTextColor(...GRAY)
+  doc.text(`Generado el ${new Date().toLocaleString('es-AR')}`, 14, y)
+  y += 10
+
+  // --- Resumen: 4 columnas, una por semana ---
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(12)
+  doc.setTextColor(...NAVY)
+  doc.text('Resumen semanal', 14, y)
+  y += 8
+
+  const xInicio = 14
+  const colEtiqueta = 32
+  const anchoDisponible = 182 - colEtiqueta
+  const colSemana = anchoDisponible / agrupacion.semanas.length
+
+  doc.setFillColor(240, 240, 238)
+  doc.rect(xInicio, y - 4, 182, 6, 'F')
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(7.5)
+  doc.setTextColor(...GRAY)
+  agrupacion.semanas.forEach((s, i) => {
+    const x = xInicio + colEtiqueta + i * colSemana
+    doc.text(`Semana ${i + 1}`, x, y - 1)
+    doc.text(`${s.inicio.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}-${s.fin.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}`, x, y + 2.5)
+  })
+  y += 8
+
+  const filas: { label: string; valores: number[]; color?: (v: number) => [number, number, number] }[] = [
+    { label: 'Cobros', valores: agrupacion.totalesPorSemana.map((t) => t.cobros) },
+    { label: 'Pagos', valores: agrupacion.totalesPorSemana.map((t) => t.pagos) },
+    {
+      label: 'Saldo neto',
+      valores: agrupacion.totalesPorSemana.map((t) => t.saldo),
+      color: (v) => (v >= 0 ? GREEN : RED),
+    },
+  ]
+
+  for (const fila of filas) {
+    doc.setFont('helvetica', fila.label === 'Saldo neto' ? 'bold' : 'normal')
+    doc.setFontSize(8.5)
+    doc.setTextColor(40, 40, 40)
+    doc.text(fila.label, xInicio, y)
+    fila.valores.forEach((v, i) => {
+      const x = xInicio + colEtiqueta + i * colSemana
+      doc.setTextColor(...(fila.color ? fila.color(v) : ([40, 40, 40] as [number, number, number])))
+      doc.text(formatoMoneda(v), x, y)
+    })
+    y += 6
+  }
+  y += 6
+
+  // --- Detalle por semana ---
+  const movimientosPorSemana = (idx: number) =>
+    movimientos.filter((m) => {
+      const fecha = new Date(`${m.fecha}T00:00:00`)
+      return fecha >= agrupacion.semanas[idx].inicio && fecha <= agrupacion.semanas[idx].fin
+    })
+
+  agrupacion.semanas.forEach((semana, idx) => {
+    const items = movimientosPorSemana(idx)
+    if (items.length === 0) return
+
+    if (y > doc.internal.pageSize.getHeight() - 40) {
+      pieDePagina(doc, MENSAJE_PIE_EMPRESA)
+      doc.addPage()
+      y = encabezadoCobranzas(doc, 20)
+    }
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10.5)
+    doc.setTextColor(...NAVY)
+    doc.text(semana.label, 14, y)
+    y += 6
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8.5)
+    for (const m of items) {
+      if (y > doc.internal.pageSize.getHeight() - 20) {
+        pieDePagina(doc, MENSAJE_PIE_EMPRESA)
+        doc.addPage()
+        y = encabezadoCobranzas(doc, 20)
+      }
+      doc.setTextColor(...(m.tipo === 'cobro' ? GREEN : RED))
+      doc.text(m.tipo === 'cobro' ? 'Cobrar' : 'Pagar', 16, y)
+      doc.setTextColor(40, 40, 40)
+      doc.text(m.concepto, 40, y)
+      doc.text(new Date(`${m.fecha}T00:00:00`).toLocaleDateString('es-AR'), 120, y)
+      doc.text(formatoMoneda(m.monto), 150, y)
+      doc.setTextColor(...GRAY)
+      doc.text(m.cumplido ? 'Cumplido' : 'Pendiente', 175, y)
+      y += 5.5
+    }
+    y += 4
+  })
+
+  pieDePagina(doc, MENSAJE_PIE_EMPRESA)
+  doc.save(`cobranzas-pagos-semanal-${new Date().toISOString().slice(0, 10)}.pdf`)
 }
