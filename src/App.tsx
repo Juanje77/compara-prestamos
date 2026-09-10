@@ -7,6 +7,7 @@ import { RankingChart } from './components/RankingChart'
 import { LoanTable } from './components/LoanTable'
 import { BestOfferCard } from './components/BestOfferCard'
 import { BrandHeader } from './components/BrandHeader'
+import { FinkoLogo } from './components/FinkoLogo'
 import { WhatsAppBanner, WhatsAppFloatingButton } from './components/WhatsAppContact'
 import { CompareView } from './components/CompareView'
 import { HistoryPanel } from './components/HistoryPanel'
@@ -144,8 +145,9 @@ function App() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       <header className="mb-8">
-        <p className="text-sm font-semibold tracking-wide" style={{ color: 'var(--series-blue)' }}>
-          🇦🇷 Finko — Comparador de préstamos
+        <FinkoLogo />
+        <p className="mt-1 text-sm font-semibold tracking-wide" style={{ color: 'var(--series-blue)' }}>
+          🇦🇷 Comparador de préstamos argentinos
         </p>
         <h1 className="mt-1 text-3xl font-semibold sm:text-4xl" style={{ color: 'var(--text-primary)' }}>
           ¿Qué banco tiene el préstamo más conveniente?
