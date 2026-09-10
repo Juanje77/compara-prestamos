@@ -15,6 +15,7 @@ import { SituacionCrediticia } from './components/SituacionCrediticia'
 import { AmortizationModal } from './components/AmortizationModal'
 import { IncomeCalculator } from './components/IncomeCalculator'
 import { Glosario } from './components/Glosario'
+import { VeredictoCredito } from './components/VeredictoCredito'
 
 const CONDICIONES: { key: CondicionLaboral | 'todos'; label: string }[] = [
   { key: 'todos', label: 'Todos' },
@@ -97,6 +98,7 @@ function App() {
   const [historial, setHistorial] = useState(() => obtenerHistorial())
   const [guardadoOk, setGuardadoOk] = useState(false)
   const [verCuotasId, setVerCuotasId] = useState<string | null>(null)
+  const [ingreso, setIngreso] = useState(1000000)
 
   function cambiarTab(next: TipoPrestamo) {
     const cfg = TABS.find((t) => t.key === next)!
@@ -275,7 +277,17 @@ function App() {
       </div>
 
       {tipo !== 'hipotecario' && (
-        <IncomeCalculator ofertasBase={ofertasBase} plazo={plazo} onAplicarMonto={setMonto} />
+        <IncomeCalculator
+          ofertasBase={ofertasBase}
+          plazo={plazo}
+          ingreso={ingreso}
+          onCambiarIngreso={setIngreso}
+          onAplicarMonto={setMonto}
+        />
+      )}
+
+      {mejor && (
+        <VeredictoCredito oferta={mejor} ofertasComparables={ofertas} monto={monto} tipo={tipo} ingreso={ingreso} />
       )}
 
       <WhatsAppBanner />

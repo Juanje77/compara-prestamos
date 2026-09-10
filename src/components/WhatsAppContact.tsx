@@ -1,7 +1,7 @@
 const WHATSAPP_NUMBER = '5492392583117'
 const DEFAULT_MESSAGE = 'Hola Juan! Vi el comparador de préstamos y quisiera asesoramiento.'
 
-function buildWhatsAppLink(message: string) {
+export function buildWhatsAppLink(message: string = DEFAULT_MESSAGE) {
   return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`
 }
 

@@ -5,11 +5,12 @@ import { montoMaximoPorCuota, formatoMoneda } from '../lib/finance'
 interface Props {
   ofertasBase: LoanOffer[]
   plazo: number
+  ingreso: number
+  onCambiarIngreso: (ingreso: number) => void
   onAplicarMonto: (monto: number) => void
 }
 
-export function IncomeCalculator({ ofertasBase, plazo, onAplicarMonto }: Props) {
-  const [ingreso, setIngreso] = useState(1000000)
+export function IncomeCalculator({ ofertasBase, plazo, ingreso, onCambiarIngreso, onAplicarMonto }: Props) {
   const [porcentaje, setPorcentaje] = useState(30)
 
   const cuotaMaxima = ingreso * (porcentaje / 100)
@@ -53,7 +54,7 @@ export function IncomeCalculator({ ofertasBase, plazo, onAplicarMonto }: Props) 
               max={20000000}
               step={50000}
               value={ingreso}
-              onChange={(e) => setIngreso(Number(e.target.value))}
+              onChange={(e) => onCambiarIngreso(Number(e.target.value))}
               className="w-full accent-current"
               style={{ color: 'var(--series-blue)' }}
             />
