@@ -1,10 +1,13 @@
 import { jsPDF } from 'jspdf'
 import type { SimulacionGuardada } from './history'
 import { formatoMoneda, formatoPorcentaje } from './finance'
+import type { CategoriaGasto, FilaProyeccion, PuntoEquilibrio } from './cfo'
 
 const NAVY: [number, number, number] = [22, 48, 92]
 const GRAY: [number, number, number] = [90, 90, 90]
 const GREEN: [number, number, number] = [12, 163, 12]
+const RED: [number, number, number] = [208, 59, 59]
+const AMBER: [number, number, number] = [173, 122, 0]
 
 const NOMBRE_TIPO: Record<SimulacionGuardada['tipo'], string> = {
   personal: 'Préstamo personal',
@@ -25,18 +28,16 @@ function encabezado(doc: jsPDF, y: number): number {
   return y + 14
 }
 
-function pieDePagina(doc: jsPDF) {
+function pieDePagina(
+  doc: jsPDF,
+  mensaje = 'Tasas de referencia — verificá siempre la tasa vigente con el banco antes de decidir. Asesoramiento: WhatsApp +54 9 2392 583117.',
+) {
   const pageHeight = doc.internal.pageSize.getHeight()
   const pageWidth = doc.internal.pageSize.getWidth()
   doc.setFont('helvetica', 'italic')
   doc.setFontSize(8)
   doc.setTextColor(...GRAY)
-  doc.text(
-    'Tasas de referencia — verificá siempre la tasa vigente con el banco antes de decidir. Asesoramiento: WhatsApp +54 9 2392 583117.',
-    14,
-    pageHeight - 10,
-    { maxWidth: pageWidth - 28 },
-  )
+  doc.text(mensaje, 14, pageHeight - 10, { maxWidth: pageWidth - 28 })
 }
 
 function dibujarTablaSimulacion(doc: jsPDF, sim: SimulacionGuardada, yInicial: number): number {
@@ -155,4 +156,174 @@ export function descargarPdfHistorial(simulaciones: SimulacionGuardada[]) {
 
   pieDePagina(doc)
   doc.save(`historial-simulaciones-${new Date().toISOString().slice(0, 10)}.pdf`)
+}
+
+interface DashboardEmpresaPdfData {
+  saldoInicial: number
+  ingresos: number
+  categorias: CategoriaGasto[]
+  gastosFijos: number
+  gastosVariables: number
+  gastosTotales: number
+  margenOperativo: number
+  runwayMeses: number
+  puntoEquilibrio: PuntoEquilibrio
+  proyeccion: FilaProyeccion[]
+}
+
+function encabezadoEmpresa(doc: jsPDF, y: number): number {
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(16)
+  doc.setTextColor(...NAVY)
+  doc.text('Finko — Dashboard financiero para empresas', 14, y)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(10)
+  doc.setTextColor(...GRAY)
+  doc.text('Juan Costantini · Contador Público · MP: T20F94', 14, y + 6)
+  return y + 14
+}
+
+const MENSAJE_PIE_EMPRESA =
+  'Estimación orientativa a partir de los datos cargados por el usuario — no reemplaza un análisis financiero profesional. Asesoramiento: WhatsApp +54 9 2392 583117.'
+
+export function descargarPdfDashboardEmpresa(datos: DashboardEmpresaPdfData) {
+  const doc = new jsPDF()
+  let y = encabezadoEmpresa(doc, 20)
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.setTextColor(...GRAY)
+  doc.text(`Generado el ${new Date().toLocaleString('es-AR')}`, 14, y)
+  y += 10
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(12)
+  doc.setTextColor(...NAVY)
+  doc.text('Datos del negocio', 14, y)
+  y += 7
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.setTextColor(40, 40, 40)
+  doc.text(`Saldo de caja actual: ${formatoMoneda(datos.saldoInicial)}`, 14, y)
+  y += 5.5
+  doc.text(`Ingresos mensuales estimados: ${formatoMoneda(datos.ingresos)}`, 14, y)
+  y += 5.5
+  doc.text(
+    `Gastos totales mensuales: ${formatoMoneda(datos.gastosTotales)}  (fijos: ${formatoMoneda(datos.gastosFijos)} · variables: ${formatoMoneda(datos.gastosVariables)})`,
+    14,
+    y,
+  )
+  y += 10
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(12)
+  doc.setTextColor(...NAVY)
+  doc.text('Indicadores clave', 14, y)
+  y += 7
+
+  const margenColor: [number, number, number] =
+    datos.margenOperativo >= 15 ? GREEN : datos.margenOperativo >= 0 ? AMBER : RED
+  const runwayColor: [number, number, number] = datos.runwayMeses >= 6 ? GREEN : datos.runwayMeses >= 3 ? AMBER : RED
+  const equilibrioColor: [number, number, number] = !datos.puntoEquilibrio.alcanzable
+    ? RED
+    : datos.ingresos >= datos.puntoEquilibrio.ingresosNecesarios
+      ? GREEN
+      : AMBER
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.setTextColor(40, 40, 40)
+  doc.text('Margen operativo:', 14, y)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...margenColor)
+  doc.text(formatoPorcentaje(datos.margenOperativo), 60, y)
+  y += 6
+
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(40, 40, 40)
+  doc.text('Runway de caja:', 14, y)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...runwayColor)
+  doc.text(datos.runwayMeses === Infinity ? 'Sin límite' : `${datos.runwayMeses.toFixed(1)} meses`, 60, y)
+  y += 6
+
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(40, 40, 40)
+  doc.text('Punto de equilibrio:', 14, y)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...equilibrioColor)
+  doc.text(
+    datos.puntoEquilibrio.alcanzable ? formatoMoneda(datos.puntoEquilibrio.ingresosNecesarios) : 'No alcanzable',
+    60,
+    y,
+  )
+  y += 10
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(12)
+  doc.setTextColor(...NAVY)
+  doc.text('Composición de gastos', 14, y)
+  y += 7
+
+  doc.setFillColor(240, 240, 238)
+  doc.rect(14, y - 4, 182, 6, 'F')
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(8.5)
+  doc.setTextColor(...GRAY)
+  doc.text('Categoría', 16, y)
+  doc.text('Tipo', 100, y)
+  doc.text('Monto', 130, y)
+  doc.text('% del total', 165, y)
+  y += 6
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8.5)
+  doc.setTextColor(40, 40, 40)
+  for (const c of datos.categorias.filter((c) => c.monto > 0)) {
+    const pct = datos.gastosTotales > 0 ? (c.monto / datos.gastosTotales) * 100 : 0
+    doc.text(c.label, 16, y)
+    doc.text(c.tipo, 100, y)
+    doc.text(formatoMoneda(c.monto), 130, y)
+    doc.text(`${pct.toFixed(0)}%`, 165, y)
+    y += 5.5
+  }
+  y += 6
+
+  if (y > doc.internal.pageSize.getHeight() - 70) {
+    pieDePagina(doc, MENSAJE_PIE_EMPRESA)
+    doc.addPage()
+    y = encabezadoEmpresa(doc, 20)
+  }
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(12)
+  doc.setTextColor(...NAVY)
+  doc.text('Proyección de flujo de caja', 14, y)
+  y += 7
+
+  doc.setFillColor(240, 240, 238)
+  doc.rect(14, y - 4, 182, 6, 'F')
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(8.5)
+  doc.setTextColor(...GRAY)
+  doc.text('Mes', 16, y)
+  doc.text('Saldo proyectado', 100, y)
+  y += 6
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8.5)
+  for (const fila of datos.proyeccion) {
+    if (y > doc.internal.pageSize.getHeight() - 25) {
+      pieDePagina(doc, MENSAJE_PIE_EMPRESA)
+      doc.addPage()
+      y = encabezadoEmpresa(doc, 20)
+    }
+    doc.setTextColor(...(fila.saldo < 0 ? RED : ([40, 40, 40] as [number, number, number])))
+    doc.text(`Mes ${fila.mes}`, 16, y)
+    doc.text(formatoMoneda(fila.saldo), 100, y)
+    y += 5.5
+  }
+
+  pieDePagina(doc, MENSAJE_PIE_EMPRESA)
+  doc.save(`dashboard-empresa-${new Date().toISOString().slice(0, 10)}.pdf`)
 }

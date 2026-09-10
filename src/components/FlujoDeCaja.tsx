@@ -1,16 +1,14 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { formatoMoneda } from '../lib/finance'
-
-interface FilaProyeccion {
-  mes: number
-  saldo: number
-}
+import { proyectarFlujoCaja, type FilaProyeccion } from '../lib/cfo'
 
 interface Props {
   saldoInicial: number
   ingresos: number
   gastosTotales: number
+  meses: number
+  onCambiarMeses: (meses: number) => void
 }
 
 function ChartTooltip({ active, payload }: { active?: boolean; payload?: { payload: FilaProyeccion }[] }) {
@@ -29,18 +27,11 @@ function ChartTooltip({ active, payload }: { active?: boolean; payload?: { paylo
   )
 }
 
-export function FlujoDeCaja({ saldoInicial, ingresos, gastosTotales }: Props) {
-  const [meses, setMeses] = useState(6)
-
-  const flujoNetoMensual = ingresos - gastosTotales
-
-  const proyeccion = useMemo<FilaProyeccion[]>(() => {
-    const filas: FilaProyeccion[] = []
-    for (let mes = 1; mes <= meses; mes++) {
-      filas.push({ mes, saldo: saldoInicial + flujoNetoMensual * mes })
-    }
-    return filas
-  }, [saldoInicial, flujoNetoMensual, meses])
+export function FlujoDeCaja({ saldoInicial, ingresos, gastosTotales, meses, onCambiarMeses }: Props) {
+  const proyeccion = useMemo(
+    () => proyectarFlujoCaja(saldoInicial, ingresos, gastosTotales, meses),
+    [saldoInicial, ingresos, gastosTotales, meses],
+  )
 
   const saldoFinal = proyeccion[proyeccion.length - 1]?.saldo ?? saldoInicial
   const mesQuiebre = proyeccion.find((f) => f.saldo < 0)?.mes ?? null
@@ -59,7 +50,7 @@ export function FlujoDeCaja({ saldoInicial, ingresos, gastosTotales }: Props) {
             max={12}
             step={1}
             value={meses}
-            onChange={(e) => setMeses(Number(e.target.value))}
+            onChange={(e) => onCambiarMeses(Number(e.target.value))}
             className="w-28 accent-current"
             style={{ color: 'var(--series-blue)' }}
           />

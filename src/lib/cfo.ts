@@ -26,6 +26,26 @@ export function calcularRunwayMeses(saldoInicial: number, gastosTotales: number)
   return Math.max(0, saldoInicial / gastosTotales)
 }
 
+export interface FilaProyeccion {
+  mes: number
+  saldo: number
+}
+
+/** Proyección lineal de saldo de caja, asumiendo ingresos y gastos constantes mes a mes. */
+export function proyectarFlujoCaja(
+  saldoInicial: number,
+  ingresos: number,
+  gastosTotales: number,
+  meses: number,
+): FilaProyeccion[] {
+  const flujoNetoMensual = ingresos - gastosTotales
+  const filas: FilaProyeccion[] = []
+  for (let mes = 1; mes <= meses; mes++) {
+    filas.push({ mes, saldo: saldoInicial + flujoNetoMensual * mes })
+  }
+  return filas
+}
+
 export interface PuntoEquilibrio {
   alcanzable: boolean
   ingresosNecesarios: number
