@@ -74,6 +74,18 @@ export function montoMaximoPorCuota(cuotaMaxima: number, tnaPct: number, plazoMe
   return (cuotaMaxima * (factor - 1)) / (i * factor)
 }
 
+/** Saldo de capital pendiente de un préstamo francés luego de pagar `cuotasPagadas` cuotas. */
+export function saldoPendiente(monto: number, tnaPct: number, plazoMeses: number, cuotasPagadas: number): number {
+  if (cuotasPagadas <= 0) return monto
+  if (cuotasPagadas >= plazoMeses) return 0
+  const i = tnaPct / 100 / 12
+  const cuota = cuotaFrancesa(monto, tnaPct, plazoMeses)
+  if (i === 0) return Math.max(0, monto - cuota * cuotasPagadas)
+  const factor = Math.pow(1 + i, cuotasPagadas)
+  const saldo = monto * factor - cuota * ((factor - 1) / i)
+  return Math.max(0, saldo)
+}
+
 export function formatoMoneda(valor: number): string {
   return new Intl.NumberFormat('es-AR', {
     style: 'currency',

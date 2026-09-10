@@ -16,6 +16,7 @@ import { AmortizationModal } from './components/AmortizationModal'
 import { IncomeCalculator } from './components/IncomeCalculator'
 import { Glosario } from './components/Glosario'
 import { VeredictoCredito } from './components/VeredictoCredito'
+import { RefinanciacionCalculator } from './components/RefinanciacionCalculator'
 
 const CONDICIONES: { key: CondicionLaboral | 'todos'; label: string }[] = [
   { key: 'todos', label: 'Todos' },
@@ -289,6 +290,8 @@ function App() {
       {mejor && (
         <VeredictoCredito oferta={mejor} ofertasComparables={ofertas} monto={monto} tipo={tipo} ingreso={ingreso} />
       )}
+
+      <RefinanciacionCalculator ofertas={ofertas} tipo={tipo} />
 
       <WhatsAppBanner />
 
