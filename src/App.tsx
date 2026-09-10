@@ -147,7 +147,7 @@ function App() {
 
       <header className="mb-8">
         <p className="text-sm font-semibold tracking-wide" style={{ color: 'var(--series-blue)' }}>
-          🇦🇷 Comparador de préstamos
+          🇦🇷 TasaOK — Comparador de préstamos
         </p>
         <h1 className="mt-1 text-3xl font-semibold sm:text-4xl" style={{ color: 'var(--text-primary)' }}>
           ¿Qué banco tiene el préstamo más conveniente?

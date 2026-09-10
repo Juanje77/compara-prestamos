@@ -1,32 +1,39 @@
-# React + TypeScript + Vite
+# TasaOK — Comparador de Préstamos Argentina
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Dashboard que compara líneas de préstamos personales, prendarios (autos), hipotecarios UVA y para jubilados/ANSES de los principales bancos argentinos, calcula cuota y costo total por el sistema francés de amortización, y rankea las ofertas por Costo Financiero Total (CFT) para identificar la más conveniente según el monto, plazo y condición laboral del usuario.
 
-Currently, two official plugins are available:
+Incluye además:
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Comparación lado a lado de hasta 3 ofertas
+- Historial de simulaciones con exportación a PDF
+- Tabla de amortización mes a mes
+- Calculadora de monto máximo accesible según ingreso
+- Consulta de situación crediticia (Central de Deudores del BCRA)
+- Glosario de términos financieros
 
-## React Compiler
+Creado para Juan Costantini, Contador Público (MP: T20F94).
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Stack
 
-## Expanding the Oxlint configuration
+- React 19 + TypeScript
+- Vite
+- Tailwind CSS v4
+- Recharts
+- jsPDF
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+## Desarrollo
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Build
+
+```bash
+npm run build
+```
+
+## Datos
+
+Las tasas en `src/data/loans.ts` son de referencia, relevadas de prensa especializada (ver fuentes citadas en cada oferta y en el footer de la app). Una rutina semanal automática revisa novedades y deja un Pull Request para revisión antes de publicar cualquier cambio. Las tasas reales dependen del perfil crediticio y cambian frecuentemente — siempre verificar contra el sitio oficial del banco antes de decidir.
