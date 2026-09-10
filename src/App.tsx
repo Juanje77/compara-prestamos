@@ -143,11 +143,9 @@ function App() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-      <BrandHeader />
-
       <header className="mb-8">
         <p className="text-sm font-semibold tracking-wide" style={{ color: 'var(--series-blue)' }}>
-          🇦🇷 TasaOK — Comparador de préstamos
+          🇦🇷 Finko — Comparador de préstamos
         </p>
         <h1 className="mt-1 text-3xl font-semibold sm:text-4xl" style={{ color: 'var(--text-primary)' }}>
           ¿Qué banco tiene el préstamo más conveniente?
@@ -350,6 +348,15 @@ function App() {
             </li>
           ))}
         </ul>
+
+        <div className="mt-8 border-t pt-6" style={{ borderColor: 'var(--border)' }}>
+          <p className="mb-3 text-center text-xs font-medium tracking-wide uppercase" style={{ color: 'var(--text-muted)' }}>
+            Creado por
+          </p>
+          <div className="flex justify-center">
+            <BrandHeader />
+          </div>
+        </div>
       </footer>
 
       <WhatsAppFloatingButton />
