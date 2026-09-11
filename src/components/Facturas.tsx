@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import type { Factura, TipoComprobante, TipoFactura } from '../lib/cfo'
+import { Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import type { Factura, ResumenMensual, TipoComprobante, TipoFactura } from '../lib/cfo'
 import { calcularMargenBrutoTotal, calcularRanking, calcularResumenMensual, montoConSigno, sumarDias } from '../lib/cfo'
 import { importarComprobantesArca } from '../lib/arcaImport'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
@@ -24,6 +25,48 @@ function mesLegible(mes: string): string {
   const [anio, m] = mes.split('-')
   const fecha = new Date(Number(anio), Number(m) - 1, 1)
   return fecha.toLocaleDateString('es-AR', { month: 'short', year: 'numeric' })
+}
+
+const COLORES_RANKING = [
+  'var(--series-blue)',
+  'var(--series-2)',
+  'var(--series-3)',
+  'var(--series-4)',
+  'var(--series-5)',
+]
+
+function RankingTooltip({ active, payload }: { active?: boolean; payload?: { name: string; value: number }[] }) {
+  if (!active || !payload || payload.length === 0) return null
+  return (
+    <div
+      className="rounded-lg border px-3 py-2 text-sm shadow-lg"
+      style={{ background: 'var(--surface-1)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
+    >
+      <p className="font-semibold">{payload[0].name}</p>
+      <p className="tabular" style={{ color: 'var(--text-secondary)' }}>
+        {formatoMoneda(payload[0].value)}
+      </p>
+    </div>
+  )
+}
+
+function EvolucionTooltip({ active, payload }: { active?: boolean; payload?: { payload: ResumenMensual }[] }) {
+  if (!active || !payload || payload.length === 0) return null
+  const r = payload[0].payload
+  return (
+    <div
+      className="rounded-lg border px-3 py-2 text-sm shadow-lg"
+      style={{ background: 'var(--surface-1)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
+    >
+      <p className="mb-1 font-semibold capitalize">{mesLegible(r.mes)}</p>
+      <p className="tabular" style={{ color: 'var(--series-blue)' }}>
+        Ventas: {formatoMoneda(r.ventasNetas)}
+      </p>
+      <p className="tabular" style={{ color: 'var(--series-2)' }}>
+        Compras: {formatoMoneda(r.comprasNetas)}
+      </p>
+    </div>
+  )
 }
 
 export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onEliminar, onVaciar, onDescargarInforme }: Props) {
@@ -252,6 +295,34 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
               Solo para ver la evolución — el margen bruto real (arriba) se calcula sobre el total del período,
               no mes a mes, porque una compra y la venta que genera no siempre caen en el mismo mes.
             </p>
+
+            {resumenMensual.length > 1 && (
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={resumenMensual} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+                  <XAxis
+                    dataKey="mes"
+                    tickFormatter={mesLegible}
+                    stroke="var(--axis)"
+                    tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+                    axisLine={{ stroke: 'var(--gridline)' }}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tickFormatter={(v) => formatoMoneda(v)}
+                    stroke="var(--axis)"
+                    tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+                    axisLine={{ stroke: 'var(--gridline)' }}
+                    tickLine={false}
+                    width={90}
+                  />
+                  <Tooltip content={<EvolucionTooltip />} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Line type="monotone" dataKey="ventasNetas" name="Ventas netas" stroke="var(--series-blue)" strokeWidth={2} dot={{ r: 3 }} />
+                  <Line type="monotone" dataKey="comprasNetas" name="Compras netas" stroke="var(--series-2)" strokeWidth={2} dot={{ r: 3 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+
             <div className="overflow-x-auto">
               <table className="w-full min-w-[400px] text-sm">
                 <thead>
@@ -290,18 +361,31 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
                   Sin ventas cargadas.
                 </p>
               ) : (
-                <ul className="space-y-2">
-                  {rankingClientes.map((r) => (
-                    <li key={r.contraparte} className="flex items-center justify-between gap-2 text-sm">
-                      <span className="truncate" style={{ color: 'var(--text-primary)' }}>
-                        {r.contraparte}
-                      </span>
-                      <span className="tabular shrink-0 font-medium" style={{ color: 'var(--text-primary)' }}>
-                        {formatoMoneda(r.monto)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  <ResponsiveContainer width="100%" height={160}>
+                    <PieChart>
+                      <Pie data={rankingClientes} dataKey="monto" nameKey="contraparte" innerRadius={35} outerRadius={65} paddingAngle={2}>
+                        {rankingClientes.map((r, i) => (
+                          <Cell key={r.contraparte} fill={COLORES_RANKING[i % COLORES_RANKING.length]} stroke="var(--surface-1)" strokeWidth={2} />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<RankingTooltip />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <ul className="mt-2 space-y-2">
+                    {rankingClientes.map((r, i) => (
+                      <li key={r.contraparte} className="flex items-center gap-2 text-sm">
+                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: COLORES_RANKING[i % COLORES_RANKING.length] }} />
+                        <span className="flex-1 truncate" style={{ color: 'var(--text-primary)' }}>
+                          {r.contraparte}
+                        </span>
+                        <span className="tabular shrink-0 font-medium" style={{ color: 'var(--text-primary)' }}>
+                          {formatoMoneda(r.monto)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
               )}
             </div>
             <div className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
@@ -313,18 +397,31 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
                   Sin compras cargadas.
                 </p>
               ) : (
-                <ul className="space-y-2">
-                  {rankingProveedores.map((r) => (
-                    <li key={r.contraparte} className="flex items-center justify-between gap-2 text-sm">
-                      <span className="truncate" style={{ color: 'var(--text-primary)' }}>
-                        {r.contraparte}
-                      </span>
-                      <span className="tabular shrink-0 font-medium" style={{ color: 'var(--text-primary)' }}>
-                        {formatoMoneda(r.monto)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  <ResponsiveContainer width="100%" height={160}>
+                    <PieChart>
+                      <Pie data={rankingProveedores} dataKey="monto" nameKey="contraparte" innerRadius={35} outerRadius={65} paddingAngle={2}>
+                        {rankingProveedores.map((r, i) => (
+                          <Cell key={r.contraparte} fill={COLORES_RANKING[i % COLORES_RANKING.length]} stroke="var(--surface-1)" strokeWidth={2} />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<RankingTooltip />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <ul className="mt-2 space-y-2">
+                    {rankingProveedores.map((r, i) => (
+                      <li key={r.contraparte} className="flex items-center gap-2 text-sm">
+                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: COLORES_RANKING[i % COLORES_RANKING.length] }} />
+                        <span className="flex-1 truncate" style={{ color: 'var(--text-primary)' }}>
+                          {r.contraparte}
+                        </span>
+                        <span className="tabular shrink-0 font-medium" style={{ color: 'var(--text-primary)' }}>
+                          {formatoMoneda(r.monto)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
               )}
             </div>
           </section>

@@ -1,8 +1,25 @@
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 import type { CategoriaGasto } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
 
 interface Props {
   categorias: CategoriaGasto[]
+}
+
+function TortaTooltip({ active, payload }: { active?: boolean; payload?: { payload: CategoriaGasto; value: number }[] }) {
+  if (!active || !payload || payload.length === 0) return null
+  const { label, monto } = payload[0].payload
+  return (
+    <div
+      className="rounded-lg border px-3 py-2 text-sm shadow-lg"
+      style={{ background: 'var(--surface-1)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
+    >
+      <p className="font-semibold">{label}</p>
+      <p className="tabular" style={{ color: 'var(--text-secondary)' }}>
+        {formatoMoneda(monto)}
+      </p>
+    </div>
+  )
 }
 
 export function GastosPorCategoria({ categorias }: Props) {
@@ -24,21 +41,18 @@ export function GastosPorCategoria({ categorias }: Props) {
         </p>
       ) : (
         <>
-          <div className="flex h-6 w-full overflow-hidden rounded" style={{ gap: 2, background: 'var(--surface-1)' }}>
-            {activas.map((c) => (
-              <div
-                key={c.key}
-                style={{
-                  width: `${(c.monto / total) * 100}%`,
-                  background: c.color,
-                  minWidth: 2,
-                }}
-                title={`${c.label}: ${formatoMoneda(c.monto)}`}
-              />
-            ))}
-          </div>
+          <ResponsiveContainer width="100%" height={200}>
+            <PieChart>
+              <Pie data={activas} dataKey="monto" nameKey="label" innerRadius={50} outerRadius={80} paddingAngle={2}>
+                {activas.map((c) => (
+                  <Cell key={c.key} fill={c.color} stroke="var(--surface-1)" strokeWidth={2} />
+                ))}
+              </Pie>
+              <Tooltip content={<TortaTooltip />} />
+            </PieChart>
+          </ResponsiveContainer>
 
-          <ul className="mt-4 space-y-2">
+          <ul className="mt-2 space-y-2">
             {activas.map((c) => (
               <li key={c.key} className="flex items-center justify-between gap-3 text-sm">
                 <span className="flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
