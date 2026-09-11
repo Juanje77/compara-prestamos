@@ -1,4 +1,4 @@
-# Finko — Comparador de Préstamos Argentina
+# Finko — Tu CFO Virtual
 
 Dashboard que compara líneas de préstamos personales, prendarios (autos), hipotecarios UVA y para jubilados/ANSES de los principales bancos argentinos, calcula cuota y costo total por el sistema francés de amortización, y rankea las ofertas por Costo Financiero Total (CFT) para identificar la más conveniente según el monto, plazo y condición laboral del usuario.
 
