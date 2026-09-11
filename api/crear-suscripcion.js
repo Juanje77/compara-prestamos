@@ -49,6 +49,7 @@ export default async function handler(req, res) {
         external_reference: `${uid}:${plan}`,
         payer_email: email,
         back_url: `${origin}/empresas`,
+        notification_url: `${origin}/api/mercadopago-webhook`,
         auto_recurring: {
           frequency: 1,
           frequency_type: 'months',
