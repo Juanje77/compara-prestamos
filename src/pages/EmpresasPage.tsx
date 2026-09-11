@@ -177,6 +177,12 @@ export function EmpresasPage({ esPremium }: Props) {
     setFacturas((prev) => actualizarVencimientos([...prev, { ...factura, id: generarId(), estado: 'pendiente' }]))
   }
 
+  function handleImportarFacturas(nuevas: Omit<Factura, 'id' | 'estado'>[]) {
+    setFacturas((prev) =>
+      actualizarVencimientos([...prev, ...nuevas.map((f) => ({ ...f, id: generarId(), estado: 'pendiente' as const }))]),
+    )
+  }
+
   function handleCambiarEstadoFactura(id: string, estado: EstadoFactura) {
     setFacturas((prev) => prev.map((f) => (f.id === id ? { ...f, estado } : f)))
   }
@@ -305,6 +311,7 @@ export function EmpresasPage({ esPremium }: Props) {
           <Facturas
             facturas={facturas}
             onAgregar={handleAgregarFactura}
+            onImportarVarias={handleImportarFacturas}
             onCambiarEstado={handleCambiarEstadoFactura}
             onEliminar={handleEliminarFactura}
           />

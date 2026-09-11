@@ -151,6 +151,7 @@ export interface Factura {
   fechaEmision: string
   fechaVencimiento: string
   estado: EstadoFactura
+  numero?: string
 }
 
 /** Marca como "vencida" toda factura pendiente cuyo vencimiento ya pasó. */
