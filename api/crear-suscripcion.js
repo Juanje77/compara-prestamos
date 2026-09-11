@@ -1,5 +1,7 @@
 // Crea una suscripción recurrente en Mercado Pago (Preapproval) para un plan pago de Finko.
 // El Access Token vive solo acá (variable de entorno del servidor) — nunca llega al navegador.
+import { obtenerFirestoreAdmin } from './_firebaseAdmin.js'
+
 const PLANES = {
   basico: { reason: 'Finko para empresas - Plan Básico', monto: 20000 },
   premium: { reason: 'Finko para empresas - Plan Premium', monto: 50000 },
@@ -65,6 +67,22 @@ export default async function handler(req, res) {
     if (!mpResponse.ok) {
       res.status(502).json({ error: data?.message || 'Mercado Pago rechazó la solicitud.' })
       return
+    }
+
+    try {
+      const db = obtenerFirestoreAdmin()
+      await db.collection('users').doc(uid).collection('meta').doc('plan').set(
+        {
+          plan,
+          estado: 'pendiente',
+          mpPreapprovalId: data.id,
+          actualizadoEn: new Date().toISOString(),
+        },
+        { merge: true },
+      )
+    } catch {
+      // Si esto falla no bloqueamos el checkout — el webhook o la verificación al volver
+      // igual pueden confirmar la suscripción más adelante.
     }
 
     res.status(200).json({ initPoint: data.init_point })

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '../lib/AuthContext'
 import { usePlanUsuario } from '../lib/plan'
 import { EmpresasPage } from './EmpresasPage'
@@ -9,6 +9,34 @@ export function AccesoEmpresas() {
   const { user, cargando: cargandoAuth, habilitado } = useAuth()
   const { plan, cargando: cargandoPlan } = usePlanUsuario(user?.uid)
   const [mostrarLogin, setMostrarLogin] = useState(false)
+
+  // Respaldo del webhook: si el plan quedó "pendiente" (ya se creó la suscripción pero
+  // todavía no se confirmó), consultamos nosotros mismos a Mercado Pago cada pocos segundos
+  // en vez de esperar indefinidamente una notificación que en modo de prueba a veces no llega.
+  useEffect(() => {
+    if (!user?.uid || plan.estado !== 'pendiente') return
+    let cancelado = false
+    let intentos = 0
+
+    const verificar = async () => {
+      if (cancelado) return
+      intentos += 1
+      try {
+        await fetch(`/api/verificar-suscripcion?uid=${encodeURIComponent(user.uid)}`)
+      } catch {
+        // se reintenta en el próximo tick
+      }
+      if (!cancelado && intentos < 10) {
+        setTimeout(verificar, 3000)
+      }
+    }
+
+    const primerIntento = setTimeout(verificar, 1500)
+    return () => {
+      cancelado = true
+      clearTimeout(primerIntento)
+    }
+  }, [user?.uid, plan.estado])
 
   if (!habilitado) {
     // Sin Firebase configurado (entorno de desarrollo, por ejemplo): dejamos pasar sin bloqueo.
