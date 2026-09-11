@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { FlujoDeCaja } from '../components/FlujoDeCaja'
 import { GastosPorCategoria } from '../components/GastosPorCategoria'
 import { KpiCard } from '../components/KpiCard'
@@ -22,6 +22,7 @@ import {
 } from '../lib/cfo'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
 import { descargarPdfDashboardEmpresa } from '../lib/pdf'
+import { cargarNegocioData, guardarNegocioData } from '../lib/negocioData'
 
 function generarId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -54,15 +55,24 @@ type Seccion = (typeof SECCIONES)[number]['key']
 
 export function EmpresasPage() {
   const [seccion, setSeccion] = useState<Seccion>('dashboard')
-  const [ingresos, setIngresos] = useState(7000000)
-  const [meses, setMeses] = useState(6)
-  const [montos, setMontos] = useState<Record<string, number>>(() =>
-    Object.fromEntries(CATEGORIAS_CONFIG.map((c) => [c.key, c.default])),
-  )
-  const [cuentas, setCuentas] = useState<CuentaBancaria[]>([
-    { id: generarId(), nombre: 'Cuenta corriente principal', saldo: 2000000 },
-  ])
-  const [deudas, setDeudas] = useState<DeudaTipo[]>([])
+  const [ingresos, setIngresos] = useState(() => cargarNegocioData()?.ingresos ?? 7000000)
+  const [meses, setMeses] = useState(() => cargarNegocioData()?.meses ?? 6)
+  const [montos, setMontos] = useState<Record<string, number>>(() => {
+    const defaults = Object.fromEntries(CATEGORIAS_CONFIG.map((c) => [c.key, c.default]))
+    const guardados = cargarNegocioData()?.montos
+    return guardados ? { ...defaults, ...guardados } : defaults
+  })
+  const [cuentas, setCuentas] = useState<CuentaBancaria[]>(() => {
+    const guardadas = cargarNegocioData()?.cuentas
+    return guardadas && guardadas.length > 0
+      ? guardadas
+      : [{ id: generarId(), nombre: 'Cuenta corriente principal', saldo: 2000000 }]
+  })
+  const [deudas, setDeudas] = useState<DeudaTipo[]>(() => cargarNegocioData()?.deudas ?? [])
+
+  useEffect(() => {
+    guardarNegocioData({ ingresos, meses, montos, cuentas, deudas })
+  }, [ingresos, meses, montos, cuentas, deudas])
 
   function cambiarMonto(key: string, monto: number) {
     setMontos((prev) => ({ ...prev, [key]: monto }))
