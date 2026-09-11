@@ -29,11 +29,13 @@ const PLANES: PlanConfig[] = [
     key: 'premium',
     nombre: 'Premium',
     precio: 50000,
-    descripcion: 'Todo lo del plan Básico, más funciones avanzadas a medida que las vayamos sumando.',
+    descripcion: 'Todo lo del plan Básico, más herramientas de CFO para anticiparte a los problemas financieros.',
     features: [
       'Todo lo incluido en el plan Básico',
-      'Prioridad en nuevas funciones del dashboard',
-      'Asesoramiento prioritario por WhatsApp',
+      'Presupuesto vs. Real, con desvío por categoría',
+      'Proyección de caja con tasa de crecimiento mensual',
+      'Alertas automáticas (caja, deudas y facturas vencidas)',
+      'Gestión de facturas emitidas y recibidas',
     ],
   },
 ]

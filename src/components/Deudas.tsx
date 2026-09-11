@@ -4,7 +4,7 @@ import { formatoMoneda } from '../lib/finance'
 
 interface Props {
   deudas: Deuda[]
-  onAgregar: (concepto: string, montoAdeudado: number, cuotaMensual: number) => void
+  onAgregar: (concepto: string, montoAdeudado: number, cuotaMensual: number, proximoVencimiento?: string) => void
   onEliminar: (id: string) => void
 }
 
@@ -12,6 +12,7 @@ export function Deudas({ deudas, onAgregar, onEliminar }: Props) {
   const [concepto, setConcepto] = useState('')
   const [montoAdeudado, setMontoAdeudado] = useState('')
   const [cuotaMensual, setCuotaMensual] = useState('')
+  const [proximoVencimiento, setProximoVencimiento] = useState('')
 
   const totalAdeudado = deudas.reduce((s, d) => s + d.montoAdeudado, 0)
   const totalCuota = deudas.reduce((s, d) => s + d.cuotaMensual, 0)
@@ -21,10 +22,11 @@ export function Deudas({ deudas, onAgregar, onEliminar }: Props) {
     const monto = Number(montoAdeudado)
     const cuota = Number(cuotaMensual || 0)
     if (!concepto.trim() || !monto || monto <= 0) return
-    onAgregar(concepto.trim(), monto, cuota)
+    onAgregar(concepto.trim(), monto, cuota, proximoVencimiento || undefined)
     setConcepto('')
     setMontoAdeudado('')
     setCuotaMensual('')
+    setProximoVencimiento('')
   }
 
   return (
@@ -64,6 +66,14 @@ export function Deudas({ deudas, onAgregar, onEliminar }: Props) {
           className="tabular w-32 shrink-0 rounded-lg border px-3 py-1.5 text-sm"
           style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
         />
+        <input
+          type="date"
+          title="Próximo vencimiento (opcional)"
+          value={proximoVencimiento}
+          onChange={(e) => setProximoVencimiento(e.target.value)}
+          className="shrink-0 rounded-lg border px-3 py-1.5 text-sm"
+          style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+        />
         <button
           type="submit"
           className="shrink-0 rounded-lg px-4 py-1.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
@@ -88,6 +98,11 @@ export function Deudas({ deudas, onAgregar, onEliminar }: Props) {
               <span className="flex-1 truncate" style={{ color: 'var(--text-primary)' }}>
                 {d.concepto}
               </span>
+              {d.proximoVencimiento && (
+                <span className="tabular shrink-0 text-xs" style={{ color: 'var(--text-muted)' }}>
+                  vence {new Date(d.proximoVencimiento).toLocaleDateString('es-AR')}
+                </span>
+              )}
               <span className="tabular shrink-0 text-xs" style={{ color: 'var(--text-muted)' }}>
                 cuota {formatoMoneda(d.cuotaMensual)}/mes
               </span>

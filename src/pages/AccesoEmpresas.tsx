@@ -39,8 +39,9 @@ export function AccesoEmpresas() {
   }, [user?.uid, plan.estado])
 
   if (!habilitado) {
-    // Sin Firebase configurado (entorno de desarrollo, por ejemplo): dejamos pasar sin bloqueo.
-    return <EmpresasPage />
+    // Sin Firebase configurado (entorno de desarrollo, por ejemplo): dejamos pasar sin bloqueo,
+    // con todas las funciones Premium habilitadas para poder probarlas.
+    return <EmpresasPage esPremium />
   }
 
   if (cargandoAuth) {
@@ -97,5 +98,5 @@ export function AccesoEmpresas() {
     return <PlanesEmpresa />
   }
 
-  return <EmpresasPage />
+  return <EmpresasPage esPremium={plan.plan === 'premium'} />
 }

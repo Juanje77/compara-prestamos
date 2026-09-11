@@ -5,20 +5,30 @@ import { KpiCard } from '../components/KpiCard'
 import { CuentasBancarias } from '../components/CuentasBancarias'
 import { Deudas } from '../components/Deudas'
 import { CobranzasPagosSemanal } from '../components/CobranzasPagosSemanal'
+import { AlertasPanel } from '../components/AlertasPanel'
+import { PresupuestoVsReal } from '../components/PresupuestoVsReal'
+import { Facturas } from '../components/Facturas'
+import { PremiumLock } from '../components/PremiumLock'
+import { PremiumUpgradeModal } from '../components/PremiumUpgradeModal'
 import { buildWhatsAppLink } from '../components/WhatsAppContact'
 import {
+  actualizarVencimientos,
   calcularCuotaDeudaTotal,
   calcularDeudaTotal,
+  calcularDesvios,
   calcularEndeudamientoMeses,
   calcularGastosTotales,
   calcularMargenOperativo,
   calcularPuntoEquilibrio,
   calcularRunwayMeses,
   calcularSaldoTotalBancos,
+  generarAlertas,
   proyectarFlujoCaja,
   type CategoriaGasto,
   type CuentaBancaria,
   type Deuda as DeudaTipo,
+  type EstadoFactura,
+  type Factura,
 } from '../lib/cfo'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
 import { descargarPdfDashboardEmpresa } from '../lib/pdf'
@@ -51,13 +61,20 @@ const CATEGORIAS_CONFIG: CategoriaConfig[] = [
 const SECCIONES = [
   { key: 'dashboard', label: 'Dashboard' },
   { key: 'cobranzas', label: 'Cobranzas y pagos' },
+  { key: 'presupuesto', label: 'Presupuesto vs. Real' },
+  { key: 'facturas', label: 'Facturas' },
 ] as const
 
 type Seccion = (typeof SECCIONES)[number]['key']
 
-export function EmpresasPage() {
+interface Props {
+  esPremium: boolean
+}
+
+export function EmpresasPage({ esPremium }: Props) {
   const { user } = useAuth()
   const [seccion, setSeccion] = useState<Seccion>('dashboard')
+  const [mostrarPlanes, setMostrarPlanes] = useState(false)
   const [ingresos, setIngresos] = useState(() => cargarNegocioData()?.ingresos ?? 7000000)
   const [meses, setMeses] = useState(() => cargarNegocioData()?.meses ?? 6)
   const [montos, setMontos] = useState<Record<string, number>>(() => {
@@ -72,6 +89,11 @@ export function EmpresasPage() {
       : [{ id: generarId(), nombre: 'Cuenta corriente principal', saldo: 2000000 }]
   })
   const [deudas, setDeudas] = useState<DeudaTipo[]>(() => cargarNegocioData()?.deudas ?? [])
+  const [real, setReal] = useState<Record<string, number>>(() => cargarNegocioData()?.real ?? {})
+  const [facturas, setFacturas] = useState<Factura[]>(() =>
+    actualizarVencimientos(cargarNegocioData()?.facturas ?? []),
+  )
+  const [tasaCrecimiento, setTasaCrecimiento] = useState(() => cargarNegocioData()?.tasaCrecimiento ?? 0)
 
   // Sincronización con Firestore: solo empieza a escribir en la nube después de intentar
   // leer lo que el usuario ya tenía guardado, para no pisarlo con los valores por defecto.
@@ -95,6 +117,9 @@ export function EmpresasPage() {
           setMontos((prev) => ({ ...prev, ...d.montos }))
           setCuentas(d.cuentas)
           setDeudas(d.deudas)
+          setReal(d.real ?? {})
+          setFacturas(actualizarVencimientos(d.facturas ?? []))
+          setTasaCrecimiento(d.tasaCrecimiento ?? 0)
         }
       })
       .catch(() => {
@@ -105,21 +130,27 @@ export function EmpresasPage() {
   }, [user])
 
   useEffect(() => {
-    guardarNegocioData({ ingresos, meses, montos, cuentas, deudas })
-  }, [ingresos, meses, montos, cuentas, deudas])
+    guardarNegocioData({ ingresos, meses, montos, cuentas, deudas, real, facturas, tasaCrecimiento })
+  }, [ingresos, meses, montos, cuentas, deudas, real, facturas, tasaCrecimiento])
 
   useEffect(() => {
     if (!user || !nubeLista) return
     const timeout = setTimeout(() => {
-      guardarDatosUsuario(user.uid, { negocioData: { ingresos, meses, montos, cuentas, deudas } }).catch(() => {
+      guardarDatosUsuario(user.uid, {
+        negocioData: { ingresos, meses, montos, cuentas, deudas, real, facturas, tasaCrecimiento },
+      }).catch(() => {
         // Idem: si falla el guardado en la nube, los datos siguen a salvo en localStorage.
       })
     }, 800)
     return () => clearTimeout(timeout)
-  }, [user, nubeLista, ingresos, meses, montos, cuentas, deudas])
+  }, [user, nubeLista, ingresos, meses, montos, cuentas, deudas, real, facturas, tasaCrecimiento])
 
   function cambiarMonto(key: string, monto: number) {
     setMontos((prev) => ({ ...prev, [key]: monto }))
+  }
+
+  function cambiarReal(key: string, monto: number) {
+    setReal((prev) => ({ ...prev, [key]: monto }))
   }
 
   function handleAgregarCuenta(nombre: string, saldo: number) {
@@ -134,12 +165,24 @@ export function EmpresasPage() {
     setCuentas((prev) => prev.filter((c) => c.id !== id))
   }
 
-  function handleAgregarDeuda(concepto: string, montoAdeudado: number, cuotaMensual: number) {
-    setDeudas((prev) => [...prev, { id: generarId(), concepto, montoAdeudado, cuotaMensual }])
+  function handleAgregarDeuda(concepto: string, montoAdeudado: number, cuotaMensual: number, proximoVencimiento?: string) {
+    setDeudas((prev) => [...prev, { id: generarId(), concepto, montoAdeudado, cuotaMensual, proximoVencimiento }])
   }
 
   function handleEliminarDeuda(id: string) {
     setDeudas((prev) => prev.filter((d) => d.id !== id))
+  }
+
+  function handleAgregarFactura(factura: Omit<Factura, 'id' | 'estado'>) {
+    setFacturas((prev) => actualizarVencimientos([...prev, { ...factura, id: generarId(), estado: 'pendiente' }]))
+  }
+
+  function handleCambiarEstadoFactura(id: string, estado: EstadoFactura) {
+    setFacturas((prev) => prev.map((f) => (f.id === id ? { ...f, estado } : f)))
+  }
+
+  function handleEliminarFactura(id: string) {
+    setFacturas((prev) => prev.filter((f) => f.id !== id))
   }
 
   const categorias: CategoriaGasto[] = CATEGORIAS_CONFIG.map((c) => ({
@@ -163,8 +206,13 @@ export function EmpresasPage() {
     [ingresos, gastosFijos, gastosVariables],
   )
   const proyeccion = useMemo(
-    () => proyectarFlujoCaja(saldoInicial, ingresos, gastosTotales, meses),
-    [saldoInicial, ingresos, gastosTotales, meses],
+    () => proyectarFlujoCaja(saldoInicial, ingresos, gastosTotales, meses, esPremium ? tasaCrecimiento : 0),
+    [saldoInicial, ingresos, gastosTotales, meses, esPremium, tasaCrecimiento],
+  )
+  const desvios = useMemo(() => calcularDesvios(categorias, real), [categorias, real])
+  const alertas = useMemo(
+    () => generarAlertas({ margenOperativo, runwayMeses, proyeccion, deudas, facturas }),
+    [margenOperativo, runwayMeses, proyeccion, deudas, facturas],
   )
 
   const mensajeWhatsApp = `Hola Juan! Armé mi dashboard financiero en FinCorp (margen operativo: ${formatoPorcentaje(
@@ -188,6 +236,10 @@ export function EmpresasPage() {
       endeudamientoMeses,
       proyeccion,
     })
+  }
+
+  function abrirPlanes() {
+    setMostrarPlanes(true)
   }
 
   return (
@@ -225,14 +277,54 @@ export function EmpresasPage() {
             }
           >
             {s.label}
+            {!esPremium && (s.key === 'presupuesto' || s.key === 'facturas') && ' 🔒'}
           </button>
         ))}
       </nav>
 
-      {seccion === 'cobranzas' ? (
-        <CobranzasPagosSemanal />
-      ) : (
+      {seccion === 'cobranzas' && <CobranzasPagosSemanal />}
+
+      {seccion === 'presupuesto' && (
+        <PremiumLock
+          activo={esPremium}
+          titulo="Presupuesto vs. Real"
+          descripcion="Cargá lo que realmente gastaste cada mes y compará automáticamente contra tu presupuesto, con el desvío en pesos y en porcentaje por categoría."
+          onQuieroPremium={abrirPlanes}
+        >
+          <PresupuestoVsReal desvios={desvios} onCambiarReal={cambiarReal} />
+        </PremiumLock>
+      )}
+
+      {seccion === 'facturas' && (
+        <PremiumLock
+          activo={esPremium}
+          titulo="Gestión de facturas y comprobantes"
+          descripcion="Cargá tus facturas emitidas y recibidas, seguí su estado (pendiente, cobrada, pagada o vencida) y mirá de un vistazo cuánto tenés por cobrar y por pagar."
+          onQuieroPremium={abrirPlanes}
+        >
+          <Facturas
+            facturas={facturas}
+            onAgregar={handleAgregarFactura}
+            onCambiarEstado={handleCambiarEstadoFactura}
+            onEliminar={handleEliminarFactura}
+          />
+        </PremiumLock>
+      )}
+
+      {seccion === 'dashboard' && (
         <>
+          {esPremium ? (
+            <AlertasPanel alertas={alertas} />
+          ) : (
+            <button
+              onClick={abrirPlanes}
+              className="mb-6 flex w-full items-center gap-2 rounded-lg border p-3 text-left text-sm"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--series-blue)' }}
+            >
+              🔒 Con Premium recibís alertas automáticas sobre tu caja, deudas y facturas vencidas
+            </button>
+          )}
+
           <section className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
             <CuentasBancarias
               cuentas={cuentas}
@@ -353,6 +445,10 @@ export function EmpresasPage() {
               gastosTotales={gastosTotales}
               meses={meses}
               onCambiarMeses={setMeses}
+              tasaCrecimiento={tasaCrecimiento}
+              onCambiarTasaCrecimiento={setTasaCrecimiento}
+              esPremium={esPremium}
+              onQuierePremium={abrirPlanes}
             />
           </section>
 
@@ -396,6 +492,8 @@ export function EmpresasPage() {
           </p>
         </>
       )}
+
+      {mostrarPlanes && <PremiumUpgradeModal onCerrar={() => setMostrarPlanes(false)} />}
     </>
   )
 }

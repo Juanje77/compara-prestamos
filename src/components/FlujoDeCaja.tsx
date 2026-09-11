@@ -9,6 +9,10 @@ interface Props {
   gastosTotales: number
   meses: number
   onCambiarMeses: (meses: number) => void
+  tasaCrecimiento?: number
+  onCambiarTasaCrecimiento?: (tasa: number) => void
+  esPremium?: boolean
+  onQuierePremium?: () => void
 }
 
 function ChartTooltip({ active, payload }: { active?: boolean; payload?: { payload: FilaProyeccion }[] }) {
@@ -27,10 +31,20 @@ function ChartTooltip({ active, payload }: { active?: boolean; payload?: { paylo
   )
 }
 
-export function FlujoDeCaja({ saldoInicial, ingresos, gastosTotales, meses, onCambiarMeses }: Props) {
+export function FlujoDeCaja({
+  saldoInicial,
+  ingresos,
+  gastosTotales,
+  meses,
+  onCambiarMeses,
+  tasaCrecimiento = 0,
+  onCambiarTasaCrecimiento,
+  esPremium = false,
+  onQuierePremium,
+}: Props) {
   const proyeccion = useMemo(
-    () => proyectarFlujoCaja(saldoInicial, ingresos, gastosTotales, meses),
-    [saldoInicial, ingresos, gastosTotales, meses],
+    () => proyectarFlujoCaja(saldoInicial, ingresos, gastosTotales, meses, esPremium ? tasaCrecimiento : 0),
+    [saldoInicial, ingresos, gastosTotales, meses, esPremium, tasaCrecimiento],
   )
 
   const saldoFinal = proyeccion[proyeccion.length - 1]?.saldo ?? saldoInicial
@@ -56,6 +70,29 @@ export function FlujoDeCaja({ saldoInicial, ingresos, gastosTotales, meses, onCa
           />
           <span className="tabular w-10 text-right font-semibold">{meses} m</span>
         </label>
+      </div>
+
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+        {esPremium ? (
+          <label className="flex items-center gap-2">
+            Crecimiento mensual esperado
+            <input
+              type="range"
+              min={-10}
+              max={20}
+              step={1}
+              value={tasaCrecimiento}
+              onChange={(e) => onCambiarTasaCrecimiento?.(Number(e.target.value))}
+              className="w-28 accent-current"
+              style={{ color: 'var(--series-blue)' }}
+            />
+            <span className="tabular w-12 text-right font-semibold">{tasaCrecimiento}%</span>
+          </label>
+        ) : (
+          <button onClick={onQuierePremium} className="flex items-center gap-1.5" style={{ color: 'var(--series-blue)' }}>
+            🔒 Con Premium podés proyectar con una tasa de crecimiento mensual
+          </button>
+        )}
       </div>
 
       <div className="mb-4 grid grid-cols-2 gap-3">

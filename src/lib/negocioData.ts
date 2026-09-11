@@ -1,4 +1,4 @@
-import type { CuentaBancaria, Deuda } from './cfo'
+import type { CuentaBancaria, Deuda, Factura } from './cfo'
 
 export interface NegocioData {
   ingresos: number
@@ -6,6 +6,9 @@ export interface NegocioData {
   montos: Record<string, number>
   cuentas: CuentaBancaria[]
   deudas: Deuda[]
+  real: Record<string, number>
+  facturas: Factura[]
+  tasaCrecimiento: number
 }
 
 const STORAGE_KEY = 'compara-prestamos.negocio-empresa'
