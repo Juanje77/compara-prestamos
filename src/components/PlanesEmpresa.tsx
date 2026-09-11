@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '../lib/AuthContext'
 import { formatoMoneda } from '../lib/finance'
 import type { PlanTier } from '../lib/plan'
+import { LoginModal } from './LoginModal'
 
 interface PlanConfig {
   key: PlanTier
@@ -44,9 +45,26 @@ export function PlanesEmpresa() {
   const { user } = useAuth()
   const [cargando, setCargando] = useState<PlanTier | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [mostrarLogin, setMostrarLogin] = useState(false)
+  const [planPendiente, setPlanPendiente] = useState<PlanTier | null>(null)
+
+  // Si el usuario eligió un plan sin estar logueado, en cuanto se loguea retomamos
+  // automáticamente la suscripción a ese plan, sin que tenga que volver a tocar el botón.
+  useEffect(() => {
+    if (user && planPendiente) {
+      const plan = planPendiente
+      setPlanPendiente(null)
+      suscribirse(plan)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user])
 
   async function suscribirse(plan: PlanTier) {
-    if (!user?.email) return
+    if (!user?.email) {
+      setPlanPendiente(plan)
+      setMostrarLogin(true)
+      return
+    }
     setError(null)
     setCargando(plan)
     try {
@@ -75,6 +93,7 @@ export function PlanesEmpresa() {
         </h1>
         <p className="mx-auto mt-2 max-w-xl text-sm" style={{ color: 'var(--text-secondary)' }}>
           Para acceder al dashboard financiero de tu negocio necesitás una suscripción activa.
+          {!user && ' Al elegir un plan te vamos a pedir crear una cuenta gratis para completar el pago.'}
         </p>
       </div>
 
@@ -131,6 +150,14 @@ export function PlanesEmpresa() {
         El pago se procesa de forma segura a través de Mercado Pago. Podés cancelar la suscripción cuando
         quieras desde tu cuenta de Mercado Pago.
       </p>
+
+      {mostrarLogin && (
+        <LoginModal
+          onCerrar={() => {
+            setMostrarLogin(false)
+          }}
+        />
+      )}
     </>
   )
 }
