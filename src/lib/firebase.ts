@@ -15,3 +15,4 @@ export const firebaseHabilitado = Boolean(firebaseConfig.apiKey && firebaseConfi
 const app = firebaseHabilitado ? initializeApp(firebaseConfig) : null
 
 export const auth = app ? getAuth(app) : null
+export { app }

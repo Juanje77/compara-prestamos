@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   agregarMovimiento,
   agregarMovimientos,
   alternarCumplido,
   eliminarMovimiento,
   obtenerMovimientos,
+  reemplazarMovimientos,
   vaciarSemana,
   type Movimiento,
   type TipoMovimiento,
@@ -13,6 +14,8 @@ import { agruparPorSemana, indiceDeSemana, type RangoSemana } from '../lib/seman
 import { importarMovimientosDesdeExcel } from '../lib/excelImport'
 import { formatoMoneda } from '../lib/finance'
 import { descargarPdfCobranzasSemanal } from '../lib/pdf'
+import { cargarDatosUsuario, guardarDatosUsuario } from '../lib/userSync'
+import { useAuth } from '../lib/AuthContext'
 
 function hoyISO(): string {
   return new Date().toISOString().slice(0, 10)
@@ -194,13 +197,46 @@ function ColumnaMovimientos({ titulo, movimientos, semanas, onAgregar, onToggle,
 }
 
 export function CobranzasPagosSemanal() {
+  const { user } = useAuth()
   const [movimientos, setMovimientos] = useState<Movimiento[]>(() => obtenerMovimientos())
   const [errorImport, setErrorImport] = useState<string | null>(null)
   const [importandoTipo, setImportandoTipo] = useState<TipoMovimiento | null>(null)
 
+  const [nubeLista, setNubeLista] = useState(false)
+  const cargaNubeHecha = useRef(false)
+
   function refrescar() {
     setMovimientos(obtenerMovimientos())
   }
+
+  useEffect(() => {
+    if (!user) {
+      setNubeLista(false)
+      cargaNubeHecha.current = false
+      return
+    }
+    if (cargaNubeHecha.current) return
+    cargaNubeHecha.current = true
+    cargarDatosUsuario(user.uid)
+      .then((datos) => {
+        if (datos?.movimientosSemana) {
+          reemplazarMovimientos(datos.movimientosSemana)
+          refrescar()
+        }
+      })
+      .catch(() => {
+        // Firestore puede no estar disponible todavía — seguimos con lo local.
+      })
+      .finally(() => setNubeLista(true))
+  }, [user])
+
+  useEffect(() => {
+    if (!user || !nubeLista) return
+    const timeout = setTimeout(() => {
+      guardarDatosUsuario(user.uid, { movimientosSemana: movimientos }).catch(() => {})
+    }, 800)
+    return () => clearTimeout(timeout)
+  }, [user, nubeLista, movimientos])
 
   function handleAgregar(tipo: TipoMovimiento) {
     return (concepto: string, monto: number, fecha: string) => {
@@ -267,9 +303,16 @@ export function CobranzasPagosSemanal() {
         style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}
       >
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
-            Resumen semanal — ingresos y gastos por semana
-          </h2>
+          <div>
+            <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
+              Resumen semanal — ingresos y gastos por semana
+            </h2>
+            {user && (
+              <p className="text-xs" style={{ color: nubeLista ? 'var(--status-good-text)' : 'var(--text-muted)' }}>
+                {nubeLista ? '☁️ Guardado en tu cuenta' : 'Sincronizando con tu cuenta…'}
+              </p>
+            )}
+          </div>
           <div className="flex gap-2">
             <button
               onClick={() => descargarPdfCobranzasSemanal(agrupacion, movimientos)}

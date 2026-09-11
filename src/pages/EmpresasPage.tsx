@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { FlujoDeCaja } from '../components/FlujoDeCaja'
 import { GastosPorCategoria } from '../components/GastosPorCategoria'
 import { KpiCard } from '../components/KpiCard'
@@ -23,6 +23,8 @@ import {
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
 import { descargarPdfDashboardEmpresa } from '../lib/pdf'
 import { cargarNegocioData, guardarNegocioData } from '../lib/negocioData'
+import { cargarDatosUsuario, guardarDatosUsuario } from '../lib/userSync'
+import { useAuth } from '../lib/AuthContext'
 
 function generarId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -54,6 +56,7 @@ const SECCIONES = [
 type Seccion = (typeof SECCIONES)[number]['key']
 
 export function EmpresasPage() {
+  const { user } = useAuth()
   const [seccion, setSeccion] = useState<Seccion>('dashboard')
   const [ingresos, setIngresos] = useState(() => cargarNegocioData()?.ingresos ?? 7000000)
   const [meses, setMeses] = useState(() => cargarNegocioData()?.meses ?? 6)
@@ -70,9 +73,50 @@ export function EmpresasPage() {
   })
   const [deudas, setDeudas] = useState<DeudaTipo[]>(() => cargarNegocioData()?.deudas ?? [])
 
+  // Sincronización con Firestore: solo empieza a escribir en la nube después de intentar
+  // leer lo que el usuario ya tenía guardado, para no pisarlo con los valores por defecto.
+  const [nubeLista, setNubeLista] = useState(false)
+  const cargaNubeHecha = useRef(false)
+
+  useEffect(() => {
+    if (!user) {
+      setNubeLista(false)
+      cargaNubeHecha.current = false
+      return
+    }
+    if (cargaNubeHecha.current) return
+    cargaNubeHecha.current = true
+    cargarDatosUsuario(user.uid)
+      .then((datos) => {
+        if (datos?.negocioData) {
+          const d = datos.negocioData
+          setIngresos(d.ingresos)
+          setMeses(d.meses)
+          setMontos((prev) => ({ ...prev, ...d.montos }))
+          setCuentas(d.cuentas)
+          setDeudas(d.deudas)
+        }
+      })
+      .catch(() => {
+        // Firestore puede no estar disponible todavía (proyecto recién creado, sin conexión, etc.)
+        // — seguimos con los datos locales sin romper nada.
+      })
+      .finally(() => setNubeLista(true))
+  }, [user])
+
   useEffect(() => {
     guardarNegocioData({ ingresos, meses, montos, cuentas, deudas })
   }, [ingresos, meses, montos, cuentas, deudas])
+
+  useEffect(() => {
+    if (!user || !nubeLista) return
+    const timeout = setTimeout(() => {
+      guardarDatosUsuario(user.uid, { negocioData: { ingresos, meses, montos, cuentas, deudas } }).catch(() => {
+        // Idem: si falla el guardado en la nube, los datos siguen a salvo en localStorage.
+      })
+    }, 800)
+    return () => clearTimeout(timeout)
+  }, [user, nubeLista, ingresos, meses, montos, cuentas, deudas])
 
   function cambiarMonto(key: string, monto: number) {
     setMontos((prev) => ({ ...prev, [key]: monto }))
@@ -159,6 +203,11 @@ export function EmpresasPage() {
           Cargá los números estimados de tu negocio una sola vez y armamos tu tablero: indicadores clave,
           composición de gastos y proyección de caja.
         </p>
+        {user && (
+          <p className="mt-2 text-xs" style={{ color: nubeLista ? 'var(--status-good-text)' : 'var(--text-muted)' }}>
+            {nubeLista ? '☁️ Guardado en tu cuenta' : 'Sincronizando con tu cuenta…'}
+          </p>
+        )}
       </div>
 
       <nav className="mb-6 flex flex-wrap gap-2" role="tablist">

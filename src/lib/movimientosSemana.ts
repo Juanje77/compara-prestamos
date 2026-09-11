@@ -71,3 +71,8 @@ export function eliminarMovimiento(id: string) {
 export function vaciarSemana() {
   escribirStorage([])
 }
+
+/** Pisa el localStorage local con una lista (por ejemplo, la traída desde Firestore al loguearse). */
+export function reemplazarMovimientos(movimientos: Movimiento[]) {
+  escribirStorage(movimientos)
+}
