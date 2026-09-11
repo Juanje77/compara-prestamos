@@ -28,3 +28,13 @@ export function guardarNegocioData(data: NegocioData) {
     // localStorage no disponible (modo privado, etc.) — se ignora silenciosamente
   }
 }
+
+/** Borra la copia local — se usa al cerrar sesión, para que el próximo usuario en este
+ * mismo navegador no vea (ni un instante) los datos del anterior mientras carga Firestore. */
+export function borrarNegocioDataLocal() {
+  try {
+    localStorage.removeItem(STORAGE_KEY)
+  } catch {
+    // se ignora
+  }
+}

@@ -10,6 +10,8 @@ import {
   type User,
 } from 'firebase/auth'
 import { auth, firebaseHabilitado } from './firebase'
+import { borrarNegocioDataLocal } from './negocioData'
+import { vaciarSemana } from './movimientosSemana'
 
 interface AuthContextValue {
   user: User | null
@@ -55,6 +57,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function cerrarSesion() {
     if (!auth) return
     await firebaseSignOut(auth)
+    // Limpiamos la copia local para que, en un navegador compartido, la próxima persona
+    // que use la app no vea ni un instante los datos de esta cuenta.
+    borrarNegocioDataLocal()
+    vaciarSemana()
   }
 
   return (
