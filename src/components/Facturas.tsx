@@ -10,6 +10,7 @@ interface Props {
   onImportarVarias: (facturas: Omit<Factura, 'id'>[]) => void
   onEliminar: (id: string) => void
   onVaciar: () => void
+  onDescargarInforme: () => void
 }
 
 const TIPO_COMPROBANTE_LABEL: Record<TipoComprobante, string> = {
@@ -24,7 +25,7 @@ function mesLegible(mes: string): string {
   return fecha.toLocaleDateString('es-AR', { month: 'short', year: 'numeric' })
 }
 
-export function Facturas({ facturas, onAgregar, onImportarVarias, onEliminar, onVaciar }: Props) {
+export function Facturas({ facturas, onAgregar, onImportarVarias, onEliminar, onVaciar, onDescargarInforme }: Props) {
   const [tipo, setTipo] = useState<TipoFactura>('emitida')
   const [tipoComprobante, setTipoComprobante] = useState<TipoComprobante>('factura')
   const [contraparte, setContraparte] = useState('')
@@ -85,9 +86,20 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onEliminar, on
   return (
     <div className="space-y-6">
       <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
-        <h2 className="mb-1 text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
-          Salud financiera con tus comprobantes
-        </h2>
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
+            Salud financiera con tus comprobantes
+          </h2>
+          {facturas.length > 0 && (
+            <button
+              onClick={onDescargarInforme}
+              className="shrink-0 rounded-full border px-4 py-1.5 text-xs font-medium"
+              style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
+            >
+              📊 Descargar informe en PDF
+            </button>
+          )}
+        </div>
         <p className="mb-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
           Ventas y compras netas, margen bruto y calidad de tu facturación a partir de facturas, notas de
           crédito y notas de débito. Para saber qué te falta cobrar o pagar, usá "Cobranzas y pagos".

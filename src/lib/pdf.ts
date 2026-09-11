@@ -5,7 +5,6 @@ import type {
   CategoriaGasto,
   CuentaBancaria,
   Deuda,
-  DesvioCategoria,
   FilaProyeccion,
   PesoNotas,
   PuntoEquilibrio,
@@ -188,12 +187,6 @@ interface InformeFinancieroData {
   endeudamientoMeses: number
   coberturaDeuda: number
   proyeccion: FilaProyeccion[]
-  esPremium: boolean
-  desvios: DesvioCategoria[]
-  resumenMensual: ResumenMensual[]
-  rankingClientes: RankingContraparte[]
-  rankingProveedores: RankingContraparte[]
-  pesoNotas: PesoNotas
 }
 
 const MENSAJE_PIE_EMPRESA =
@@ -205,15 +198,13 @@ function mesLegiblePdf(mes: string): string {
   return fecha.toLocaleDateString('es-AR', { month: 'short', year: 'numeric' })
 }
 
-export function descargarInformeFinanciero(datos: InformeFinancieroData) {
-  const doc = new jsPDF()
-  const tituloNegocio = datos.nombreNegocio.trim() || 'Tu negocio'
-
+/** Helpers compartidos por los distintos informes (encabezado propio, paginación, títulos y tablas). */
+function crearHelpersInforme(doc: jsPDF, titulo: string) {
   function encabezado(d: jsPDF, y: number): number {
     d.setFont('helvetica', 'bold')
     d.setFontSize(16)
     d.setTextColor(...NAVY)
-    d.text(`Informe Financiero — ${tituloNegocio}`, 14, y)
+    d.text(titulo, 14, y)
     d.setFont('helvetica', 'normal')
     d.setFontSize(10)
     d.setTextColor(...GRAY)
@@ -259,6 +250,17 @@ export function descargarInformeFinanciero(datos: InformeFinancieroData) {
     doc.text(valor, 75, y)
     return y + 6
   }
+
+  return { encabezado, saltoSiHaceFalta, tituloSeccion, encabezadoTabla, filaIndicador }
+}
+
+export function descargarInformeFinanciero(datos: InformeFinancieroData) {
+  const doc = new jsPDF()
+  const tituloNegocio = datos.nombreNegocio.trim() || 'Tu negocio'
+  const { encabezado, saltoSiHaceFalta, tituloSeccion, encabezadoTabla, filaIndicador } = crearHelpersInforme(
+    doc,
+    `Informe Financiero — ${tituloNegocio}`,
+  )
 
   let y = encabezado(doc, 20)
 
@@ -424,117 +426,129 @@ export function descargarInformeFinanciero(datos: InformeFinancieroData) {
     doc.text(formatoMoneda(fila.saldo), 100, y)
     y += 5.5
   }
-  y += 5
+  pieDePagina(doc, MENSAJE_PIE_EMPRESA)
+  doc.save(`informe-financiero-${new Date().toISOString().slice(0, 10)}.pdf`)
+}
 
-  if (!datos.esPremium) {
-    y = tituloSeccion(y, 'Funciones Premium')
-    doc.setFont('helvetica', 'italic')
-    doc.setFontSize(8.5)
+interface InformeSaludFinancieraData {
+  nombreNegocio: string
+  resumenMensual: ResumenMensual[]
+  rankingClientes: RankingContraparte[]
+  rankingProveedores: RankingContraparte[]
+  pesoNotas: PesoNotas
+}
+
+/** Informe independiente, armado solo a partir de los comprobantes (facturas y notas de crédito/débito). */
+export function descargarInformeSaludFinanciera(datos: InformeSaludFinancieraData) {
+  const doc = new jsPDF()
+  const tituloNegocio = datos.nombreNegocio.trim() || 'Tu negocio'
+  const { encabezado, saltoSiHaceFalta, tituloSeccion, encabezadoTabla } = crearHelpersInforme(
+    doc,
+    `Informe de Salud Financiera — ${tituloNegocio}`,
+  )
+
+  let y = encabezado(doc, 20)
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.setTextColor(...GRAY)
+  doc.text(`Generado el ${new Date().toLocaleString('es-AR')}`, 14, y)
+  y += 4.5
+  doc.setFont('helvetica', 'italic')
+  doc.text('Elaborado a partir de tus facturas, notas de crédito y notas de débito importadas o cargadas.', 14, y)
+  y += 10
+
+  if (datos.resumenMensual.length === 0) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
     doc.setTextColor(...GRAY)
-    doc.text(
-      'Actualizá al plan Premium para sumar a este informe: presupuesto vs. real por categoría, y salud',
-      14,
-      y,
-      { maxWidth: 182 },
-    )
-    y += 4.5
-    doc.text('financiera con tus comprobantes (ventas/compras netas, margen bruto y ranking de clientes/proveedores).', 14, y, {
-      maxWidth: 182,
-    })
+    doc.text('Todavía no se importaron ni cargaron comprobantes.', 14, y)
+    pieDePagina(doc, MENSAJE_PIE_EMPRESA)
+    doc.save(`informe-salud-financiera-${new Date().toISOString().slice(0, 10)}.pdf`)
+    return
+  }
+
+  const totalVentas = datos.resumenMensual.reduce((s, r) => s + r.ventasNetas, 0)
+  const totalCompras = datos.resumenMensual.reduce((s, r) => s + r.comprasNetas, 0)
+  const margenAcumulado = totalVentas - totalCompras
+  const margenAcumuladoPct = totalVentas > 0 ? (margenAcumulado / totalVentas) * 100 : 0
+
+  y = tituloSeccion(y, 'Resumen del período')
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.setTextColor(40, 40, 40)
+  doc.text(`Ventas netas acumuladas: ${formatoMoneda(totalVentas)}`, 14, y)
+  y += 5.5
+  doc.text(`Compras netas acumuladas: ${formatoMoneda(totalCompras)}`, 14, y)
+  y += 5.5
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...(margenAcumulado >= 0 ? GREEN : RED))
+  doc.text(`Margen bruto acumulado: ${formatoMoneda(margenAcumulado)} (${formatoPorcentaje(margenAcumuladoPct)})`, 14, y)
+  y += 10
+
+  y = tituloSeccion(y, 'Ventas y compras netas por mes')
+  y = encabezadoTabla(y, [
+    { label: 'Mes', x: 16 },
+    { label: 'Ventas netas', x: 60 },
+    { label: 'Compras netas', x: 105 },
+    { label: 'Margen bruto', x: 150 },
+  ])
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8.5)
+  for (const r of datos.resumenMensual) {
+    y = saltoSiHaceFalta(y)
+    doc.setTextColor(40, 40, 40)
+    doc.text(mesLegiblePdf(r.mes), 16, y)
+    doc.text(formatoMoneda(r.ventasNetas), 60, y)
+    doc.text(formatoMoneda(r.comprasNetas), 105, y)
+    doc.setTextColor(...(r.margenBruto >= 0 ? GREEN : RED))
+    doc.text(`${formatoMoneda(r.margenBruto)} (${formatoPorcentaje(r.margenBrutoPct)})`, 150, y)
+    y += 5.5
+  }
+  y += 6
+
+  y = saltoSiHaceFalta(y, 50)
+  y = tituloSeccion(y, 'Principales clientes y proveedores')
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9)
+  doc.setTextColor(...NAVY)
+  doc.text('Top clientes', 14, y)
+  doc.text('Top proveedores', 105, y)
+  y += 6
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8.5)
+  doc.setTextColor(40, 40, 40)
+  const truncar = (texto: string, maxLen = 28) => (texto.length > maxLen ? `${texto.slice(0, maxLen - 1)}…` : texto)
+  const maxFilas = Math.max(datos.rankingClientes.length, datos.rankingProveedores.length)
+  if (maxFilas === 0) {
+    doc.setTextColor(...GRAY)
+    doc.text('Sin datos suficientes.', 14, y)
     y += 8
   } else {
-    // --- Presupuesto vs. Real ---------------------------------------------
-    y = tituloSeccion(y, 'Presupuesto vs. Real')
-    y = encabezadoTabla(y, [
-      { label: 'Categoría', x: 16 },
-      { label: 'Presupuestado', x: 90 },
-      { label: 'Real', x: 130 },
-      { label: 'Desvío', x: 160 },
-    ])
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8.5)
-    for (const d of datos.desvios) {
+    for (let i = 0; i < maxFilas; i++) {
       y = saltoSiHaceFalta(y)
-      doc.setTextColor(40, 40, 40)
-      doc.text(d.label, 16, y)
-      doc.text(formatoMoneda(d.presupuestado), 90, y)
-      doc.text(formatoMoneda(d.real), 130, y)
-      doc.setTextColor(...(Math.abs(d.desvioPct) < 5 ? GREEN : Math.abs(d.desvioPct) < 20 ? AMBER : RED))
-      doc.text(`${d.desvioPct >= 0 ? '+' : ''}${d.desvioPct.toFixed(0)}%`, 160, y)
+      const cliente = datos.rankingClientes[i]
+      const proveedor = datos.rankingProveedores[i]
+      if (cliente) doc.text(`${truncar(cliente.contraparte)}: ${formatoMoneda(cliente.monto)}`, 14, y)
+      if (proveedor) doc.text(`${truncar(proveedor.contraparte)}: ${formatoMoneda(proveedor.monto)}`, 105, y)
       y += 5.5
     }
     y += 5
-
-    // --- Salud financiera con comprobantes ---------------------------------
-    y = tituloSeccion(y, 'Salud financiera con comprobantes')
-    if (datos.resumenMensual.length === 0) {
-      doc.setFont('helvetica', 'normal')
-      doc.setFontSize(9)
-      doc.setTextColor(...GRAY)
-      doc.text('No se importaron ni cargaron comprobantes todavía.', 14, y)
-      y += 8
-    } else {
-      y = encabezadoTabla(y, [
-        { label: 'Mes', x: 16 },
-        { label: 'Ventas netas', x: 60 },
-        { label: 'Compras netas', x: 105 },
-        { label: 'Margen bruto', x: 150 },
-      ])
-      doc.setFont('helvetica', 'normal')
-      doc.setFontSize(8.5)
-      for (const r of datos.resumenMensual) {
-        y = saltoSiHaceFalta(y)
-        doc.setTextColor(40, 40, 40)
-        doc.text(mesLegiblePdf(r.mes), 16, y)
-        doc.text(formatoMoneda(r.ventasNetas), 60, y)
-        doc.text(formatoMoneda(r.comprasNetas), 105, y)
-        doc.setTextColor(...(r.margenBruto >= 0 ? GREEN : RED))
-        doc.text(`${formatoMoneda(r.margenBruto)} (${formatoPorcentaje(r.margenBrutoPct)})`, 150, y)
-        y += 5.5
-      }
-      y += 6
-
-      y = saltoSiHaceFalta(y, 50)
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(10)
-      doc.setTextColor(...NAVY)
-      doc.text('Top clientes', 14, y)
-      doc.text('Top proveedores', 105, y)
-      y += 6
-      doc.setFont('helvetica', 'normal')
-      doc.setFontSize(8.5)
-      doc.setTextColor(40, 40, 40)
-      const truncar = (texto: string, maxLen = 28) => (texto.length > maxLen ? `${texto.slice(0, maxLen - 1)}…` : texto)
-      const maxFilas = Math.max(datos.rankingClientes.length, datos.rankingProveedores.length)
-      for (let i = 0; i < maxFilas; i++) {
-        y = saltoSiHaceFalta(y)
-        const cliente = datos.rankingClientes[i]
-        const proveedor = datos.rankingProveedores[i]
-        if (cliente) doc.text(`${truncar(cliente.contraparte)}: ${formatoMoneda(cliente.monto)}`, 14, y)
-        if (proveedor) doc.text(`${truncar(proveedor.contraparte)}: ${formatoMoneda(proveedor.monto)}`, 105, y)
-        y += 5.5
-      }
-      y += 5
-
-      y = saltoSiHaceFalta(y, 30)
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(10)
-      doc.setTextColor(...NAVY)
-      doc.text('Peso de notas de crédito/débito', 14, y)
-      y += 6
-      doc.setFont('helvetica', 'normal')
-      doc.setFontSize(8.5)
-      doc.setTextColor(...(datos.pesoNotas.pctNotasEmitidas > 15 ? RED : ([40, 40, 40] as [number, number, number])))
-      doc.text(`Sobre ventas emitidas: ${formatoPorcentaje(datos.pesoNotas.pctNotasEmitidas)}`, 14, y)
-      y += 5.5
-      doc.setTextColor(...(datos.pesoNotas.pctNotasRecibidas > 15 ? AMBER : ([40, 40, 40] as [number, number, number])))
-      doc.text(`Sobre compras recibidas: ${formatoPorcentaje(datos.pesoNotas.pctNotasRecibidas)}`, 14, y)
-      y += 8
-    }
   }
 
+  y = saltoSiHaceFalta(y, 30)
+  y = tituloSeccion(y, 'Peso de notas de crédito/débito')
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.setTextColor(...(datos.pesoNotas.pctNotasEmitidas > 15 ? RED : ([40, 40, 40] as [number, number, number])))
+  doc.text(`Sobre ventas emitidas: ${formatoPorcentaje(datos.pesoNotas.pctNotasEmitidas)}`, 14, y)
+  y += 5.5
+  doc.setTextColor(...(datos.pesoNotas.pctNotasRecibidas > 15 ? AMBER : ([40, 40, 40] as [number, number, number])))
+  doc.text(`Sobre compras recibidas: ${formatoPorcentaje(datos.pesoNotas.pctNotasRecibidas)}`, 14, y)
+  y += 8
+
   pieDePagina(doc, MENSAJE_PIE_EMPRESA)
-  doc.save(`informe-financiero-${new Date().toISOString().slice(0, 10)}.pdf`)
+  doc.save(`informe-salud-financiera-${new Date().toISOString().slice(0, 10)}.pdf`)
 }
 
 function encabezadoCobranzas(doc: jsPDF, y: number): number {

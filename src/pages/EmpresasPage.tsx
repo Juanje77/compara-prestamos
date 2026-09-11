@@ -33,7 +33,7 @@ import {
   type Factura,
 } from '../lib/cfo'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
-import { descargarInformeFinanciero } from '../lib/pdf'
+import { descargarInformeFinanciero, descargarInformeSaludFinanciera } from '../lib/pdf'
 import { cargarNegocioData, guardarNegocioData } from '../lib/negocioData'
 import { cargarDatosUsuario, guardarDatosUsuario } from '../lib/userSync'
 import { useAuth } from '../lib/AuthContext'
@@ -249,13 +249,11 @@ export function EmpresasPage({ esPremium }: Props) {
       endeudamientoMeses,
       coberturaDeuda,
       proyeccion,
-      esPremium,
-      desvios,
-      resumenMensual,
-      rankingClientes,
-      rankingProveedores,
-      pesoNotas,
     })
+  }
+
+  function handleDescargarInformeSalud() {
+    descargarInformeSaludFinanciera({ nombreNegocio, resumenMensual, rankingClientes, rankingProveedores, pesoNotas })
   }
 
   function abrirPlanes() {
@@ -328,6 +326,7 @@ export function EmpresasPage({ esPremium }: Props) {
             onImportarVarias={handleImportarFacturas}
             onEliminar={handleEliminarFactura}
             onVaciar={handleVaciarFacturas}
+            onDescargarInforme={handleDescargarInformeSalud}
           />
         </PremiumLock>
       )}
