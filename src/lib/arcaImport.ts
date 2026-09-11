@@ -1,4 +1,4 @@
-import type { TipoComprobante, TipoFactura } from './cfo'
+import { sumarDias, type TipoComprobante, type TipoFactura } from './cfo'
 
 export interface FacturaImportadaArca {
   tipo: TipoFactura
@@ -6,6 +6,7 @@ export interface FacturaImportadaArca {
   contraparte: string
   monto: number
   fecha: string
+  fechaEstimadaCobroPago: string
   numero?: string
 }
 
@@ -50,7 +51,7 @@ function tipoComprobanteDesde(tipoTexto: unknown): TipoComprobante | null {
  * Se importan también las Notas de Crédito y Débito (con su propio signo se calcula la salud
  * financiera real) — solo se omiten comprobantes de un tipo no reconocido o con datos inválidos.
  */
-export async function importarComprobantesArca(file: File): Promise<ResultadoImportacionArca> {
+export async function importarComprobantesArca(file: File, plazoDiasCobroPago = 30): Promise<ResultadoImportacionArca> {
   const { readSheet } = await import('read-excel-file/browser')
   const filas = await readSheet(file)
 
@@ -111,7 +112,15 @@ export async function importarComprobantesArca(file: File): Promise<ResultadoImp
         ? `${String(fila[idxPtoVta]).padStart(4, '0')}-${String(fila[idxNroDesde]).padStart(8, '0')}`
         : undefined
 
-    facturas.push({ tipo, tipoComprobante, contraparte, monto: Math.round(monto), fecha, numero })
+    facturas.push({
+      tipo,
+      tipoComprobante,
+      contraparte,
+      monto: Math.round(monto),
+      fecha,
+      fechaEstimadaCobroPago: sumarDias(fecha, plazoDiasCobroPago),
+      numero,
+    })
   }
 
   return { facturas, omitidas }

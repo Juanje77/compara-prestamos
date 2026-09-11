@@ -183,6 +183,10 @@ export function EmpresasPage({ esPremium }: Props) {
     setFacturas((prev) => [...prev, ...nuevas.map((f) => ({ ...f, id: generarId() }))])
   }
 
+  function handleCambiarFactura(id: string, cambios: Partial<Pick<Factura, 'fechaEstimadaCobroPago' | 'cumplido'>>) {
+    setFacturas((prev) => prev.map((f) => (f.id === id ? { ...f, ...cambios } : f)))
+  }
+
   function handleEliminarFactura(id: string) {
     setFacturas((prev) => prev.filter((f) => f.id !== id))
   }
@@ -324,6 +328,7 @@ export function EmpresasPage({ esPremium }: Props) {
             facturas={facturas}
             onAgregar={handleAgregarFactura}
             onImportarVarias={handleImportarFacturas}
+            onCambiar={handleCambiarFactura}
             onEliminar={handleEliminarFactura}
             onVaciar={handleVaciarFacturas}
             onDescargarInforme={handleDescargarInformeSalud}

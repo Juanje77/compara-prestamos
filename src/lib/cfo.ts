@@ -162,6 +162,18 @@ export interface Factura {
   monto: number
   fecha: string
   numero?: string
+  /** Fecha estimada (editable) en la que se espera cobrar/pagar este comprobante — alimenta el
+   * calendario semanal de Cobros y Pagos. No afecta el cálculo de ventas/compras netas. */
+  fechaEstimadaCobroPago?: string
+  /** Si ya se cobró (emitida) o se pagó (recibida) en la realidad. */
+  cumplido?: boolean
+}
+
+/** Suma (o resta, con un número negativo) una cantidad de días a una fecha ISO (YYYY-MM-DD). */
+export function sumarDias(fechaISO: string, dias: number): string {
+  const fecha = new Date(`${fechaISO}T00:00:00`)
+  fecha.setDate(fecha.getDate() + dias)
+  return fecha.toISOString().slice(0, 10)
 }
 
 /**

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { Factura, TipoComprobante, TipoFactura } from '../lib/cfo'
-import { calcularMargenBrutoTotal, calcularRanking, calcularResumenMensual, montoConSigno } from '../lib/cfo'
+import { calcularMargenBrutoTotal, calcularRanking, calcularResumenMensual, montoConSigno, sumarDias } from '../lib/cfo'
 import { importarComprobantesArca } from '../lib/arcaImport'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
 
@@ -8,6 +8,7 @@ interface Props {
   facturas: Factura[]
   onAgregar: (factura: Omit<Factura, 'id'>) => void
   onImportarVarias: (facturas: Omit<Factura, 'id'>[]) => void
+  onCambiar: (id: string, cambios: Partial<Pick<Factura, 'fechaEstimadaCobroPago' | 'cumplido'>>) => void
   onEliminar: (id: string) => void
   onVaciar: () => void
   onDescargarInforme: () => void
@@ -25,7 +26,7 @@ function mesLegible(mes: string): string {
   return fecha.toLocaleDateString('es-AR', { month: 'short', year: 'numeric' })
 }
 
-export function Facturas({ facturas, onAgregar, onImportarVarias, onEliminar, onVaciar, onDescargarInforme }: Props) {
+export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onEliminar, onVaciar, onDescargarInforme }: Props) {
   const [tipo, setTipo] = useState<TipoFactura>('emitida')
   const [tipoComprobante, setTipoComprobante] = useState<TipoComprobante>('factura')
   const [contraparte, setContraparte] = useState('')
@@ -34,6 +35,7 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onEliminar, on
   const [filtro, setFiltro] = useState<'todas' | TipoFactura>('todas')
   const [importando, setImportando] = useState(false)
   const [mensajeImport, setMensajeImport] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
+  const [plazoDias, setPlazoDias] = useState(30)
 
   const resumenMensual = useMemo(() => calcularResumenMensual(facturas), [facturas])
   const rankingClientes = useMemo(() => calcularRanking(facturas, 'emitida'), [facturas])
@@ -48,7 +50,15 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onEliminar, on
     e.preventDefault()
     const m = Number(monto)
     if (!contraparte.trim() || !m || m <= 0 || !fecha) return
-    onAgregar({ tipo, tipoComprobante, contraparte: contraparte.trim(), monto: m, fecha })
+    onAgregar({
+      tipo,
+      tipoComprobante,
+      contraparte: contraparte.trim(),
+      monto: m,
+      fecha,
+      fechaEstimadaCobroPago: sumarDias(fecha, plazoDias),
+      cumplido: false,
+    })
     setContraparte('')
     setMonto('')
   }
@@ -66,7 +76,7 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onEliminar, on
     setMensajeImport(null)
     setImportando(true)
     try {
-      const { facturas: importadas, omitidas } = await importarComprobantesArca(file)
+      const { facturas: importadas, omitidas } = await importarComprobantesArca(file, plazoDias)
       if (importadas.length === 0) {
         setMensajeImport({ tipo: 'error', texto: 'No se encontraron comprobantes válidos para importar en el archivo.' })
       } else {
@@ -118,6 +128,18 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onEliminar, on
           <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
             Aceptá el Excel de "Mis Comprobantes Emitidos" o "Recibidos" tal cual se descarga de ARCA.
           </span>
+          <label className="ml-auto flex shrink-0 items-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+            Cobro/pago estimado a
+            <input
+              type="number"
+              min={0}
+              value={plazoDias}
+              onChange={(e) => setPlazoDias(Number(e.target.value))}
+              className="tabular w-14 rounded-lg border px-2 py-1 text-sm"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+            />
+            días
+          </label>
         </div>
 
         {mensajeImport && (
@@ -363,9 +385,34 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onEliminar, on
                   <span className="tabular shrink-0 text-xs" style={{ color: 'var(--text-muted)' }}>
                     {new Date(`${f.fecha}T00:00:00`).toLocaleDateString('es-AR')}
                   </span>
+                  <label className="flex shrink-0 items-center gap-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                    {f.tipo === 'emitida' ? 'Cobro' : 'Pago'} est.
+                    <input
+                      type="date"
+                      value={f.fechaEstimadaCobroPago ?? f.fecha}
+                      onChange={(e) => onCambiar(f.id, { fechaEstimadaCobroPago: e.target.value })}
+                      className="rounded border px-1.5 py-0.5 text-xs"
+                      style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+                    />
+                  </label>
+                  <label
+                    className="flex shrink-0 items-center gap-1 text-xs"
+                    style={{ color: f.cumplido ? 'var(--status-good-text)' : 'var(--text-muted)' }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={f.cumplido ?? false}
+                      onChange={(e) => onCambiar(f.id, { cumplido: e.target.checked })}
+                      className="h-3.5 w-3.5 accent-current"
+                    />
+                    {f.tipo === 'emitida' ? 'Cobrada' : 'Pagada'}
+                  </label>
                   <span
                     className="tabular shrink-0 font-medium"
-                    style={{ color: f.tipoComprobante === 'nota_credito' ? 'var(--status-critical)' : 'var(--text-primary)' }}
+                    style={{
+                      color: f.tipoComprobante === 'nota_credito' ? 'var(--status-critical)' : 'var(--text-primary)',
+                      opacity: f.cumplido ? 0.5 : 1,
+                    }}
                   >
                     {formatoMoneda(montoConSigno(f))}
                   </span>
