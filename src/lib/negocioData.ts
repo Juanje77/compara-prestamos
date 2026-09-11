@@ -9,6 +9,7 @@ export interface NegocioData {
   real: Record<string, number>
   facturas: Factura[]
   tasaCrecimiento: number
+  nombreNegocio: string
 }
 
 const STORAGE_KEY = 'compara-prestamos.negocio-empresa'

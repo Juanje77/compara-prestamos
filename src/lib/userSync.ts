@@ -11,6 +11,7 @@ export interface NegocioDataUsuario {
   real?: Record<string, number>
   facturas?: Factura[]
   tasaCrecimiento?: number
+  nombreNegocio?: string
 }
 
 export interface DatosUsuario {

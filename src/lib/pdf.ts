@@ -1,7 +1,17 @@
 import { jsPDF } from 'jspdf'
 import type { SimulacionGuardada } from './history'
 import { formatoMoneda, formatoPorcentaje } from './finance'
-import type { CategoriaGasto, CuentaBancaria, Deuda, FilaProyeccion, PuntoEquilibrio } from './cfo'
+import type {
+  CategoriaGasto,
+  CuentaBancaria,
+  Deuda,
+  DesvioCategoria,
+  FilaProyeccion,
+  PesoNotas,
+  PuntoEquilibrio,
+  RankingContraparte,
+  ResumenMensual,
+} from './cfo'
 import type { Movimiento } from './movimientosSemana'
 import type { AgrupacionSemanal } from './semanas'
 
@@ -160,7 +170,8 @@ export function descargarPdfHistorial(simulaciones: SimulacionGuardada[]) {
   doc.save(`historial-simulaciones-${new Date().toISOString().slice(0, 10)}.pdf`)
 }
 
-interface DashboardEmpresaPdfData {
+interface InformeFinancieroData {
+  nombreNegocio: string
   cuentas: CuentaBancaria[]
   deudas: Deuda[]
   saldoInicial: number
@@ -173,28 +184,83 @@ interface DashboardEmpresaPdfData {
   runwayMeses: number
   puntoEquilibrio: PuntoEquilibrio
   deudaTotal: number
+  cuotaDeudaTotal: number
   endeudamientoMeses: number
+  coberturaDeuda: number
   proyeccion: FilaProyeccion[]
-}
-
-function encabezadoEmpresa(doc: jsPDF, y: number): number {
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(16)
-  doc.setTextColor(...NAVY)
-  doc.text('FinCorp — Dashboard financiero para empresas', 14, y)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(10)
-  doc.setTextColor(...GRAY)
-  doc.text('Juan Costantini · Contador Público · MP: T20F94', 14, y + 6)
-  return y + 14
+  esPremium: boolean
+  desvios: DesvioCategoria[]
+  resumenMensual: ResumenMensual[]
+  rankingClientes: RankingContraparte[]
+  rankingProveedores: RankingContraparte[]
+  pesoNotas: PesoNotas
 }
 
 const MENSAJE_PIE_EMPRESA =
   'Estimación orientativa a partir de los datos cargados por el usuario — no reemplaza un análisis financiero profesional. Asesoramiento: WhatsApp +54 9 2392 583117.'
 
-export function descargarPdfDashboardEmpresa(datos: DashboardEmpresaPdfData) {
+function mesLegiblePdf(mes: string): string {
+  const [anio, m] = mes.split('-')
+  const fecha = new Date(Number(anio), Number(m) - 1, 1)
+  return fecha.toLocaleDateString('es-AR', { month: 'short', year: 'numeric' })
+}
+
+export function descargarInformeFinanciero(datos: InformeFinancieroData) {
   const doc = new jsPDF()
-  let y = encabezadoEmpresa(doc, 20)
+  const tituloNegocio = datos.nombreNegocio.trim() || 'Tu negocio'
+
+  function encabezado(d: jsPDF, y: number): number {
+    d.setFont('helvetica', 'bold')
+    d.setFontSize(16)
+    d.setTextColor(...NAVY)
+    d.text(`Informe Financiero — ${tituloNegocio}`, 14, y)
+    d.setFont('helvetica', 'normal')
+    d.setFontSize(10)
+    d.setTextColor(...GRAY)
+    d.text('Elaborado con FinCorp · Juan Costantini, Contador Público (MP: T20F94)', 14, y + 6)
+    return y + 14
+  }
+
+  function saltoSiHaceFalta(y: number, margenInferior = 25): number {
+    if (y > doc.internal.pageSize.getHeight() - margenInferior) {
+      pieDePagina(doc, MENSAJE_PIE_EMPRESA)
+      doc.addPage()
+      return encabezado(doc, 20)
+    }
+    return y
+  }
+
+  function tituloSeccion(y: number, texto: string): number {
+    y = saltoSiHaceFalta(y, 35)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(12)
+    doc.setTextColor(...NAVY)
+    doc.text(texto, 14, y)
+    return y + 7
+  }
+
+  function encabezadoTabla(y: number, columnas: { label: string; x: number }[]): number {
+    doc.setFillColor(240, 240, 238)
+    doc.rect(14, y - 4, 182, 6, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8.5)
+    doc.setTextColor(...GRAY)
+    for (const col of columnas) doc.text(col.label, col.x, y)
+    return y + 6
+  }
+
+  function filaIndicador(y: number, label: string, valor: string, color: [number, number, number]): number {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.setTextColor(40, 40, 40)
+    doc.text(label, 14, y)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...color)
+    doc.text(valor, 75, y)
+    return y + 6
+  }
+
+  let y = encabezado(doc, 20)
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
@@ -202,69 +268,72 @@ export function descargarPdfDashboardEmpresa(datos: DashboardEmpresaPdfData) {
   doc.text(`Generado el ${new Date().toLocaleString('es-AR')}`, 14, y)
   y += 10
 
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(12)
-  doc.setTextColor(...NAVY)
-  doc.text('Cuentas bancarias', 14, y)
-  y += 7
+  // --- Resumen ejecutivo ---------------------------------------------------
+  const margenColor: [number, number, number] = datos.margenOperativo >= 15 ? GREEN : datos.margenOperativo >= 0 ? AMBER : RED
+  const runwayColor: [number, number, number] = datos.runwayMeses >= 6 ? GREEN : datos.runwayMeses >= 3 ? AMBER : RED
+  const endeudamientoColor: [number, number, number] =
+    datos.deudaTotal <= 0 || datos.endeudamientoMeses <= 3 ? GREEN : datos.endeudamientoMeses <= 6 ? AMBER : RED
+  const equilibrioColor: [number, number, number] = !datos.puntoEquilibrio.alcanzable
+    ? RED
+    : datos.ingresos >= datos.puntoEquilibrio.ingresosNecesarios
+      ? GREEN
+      : AMBER
+  const coberturaColor: [number, number, number] =
+    datos.cuotaDeudaTotal <= 0 || datos.coberturaDeuda >= 2 ? GREEN : datos.coberturaDeuda >= 1.2 ? AMBER : RED
+
+  const critico = datos.margenOperativo < 0 || datos.runwayMeses < 3 || (datos.cuotaDeudaTotal > 0 && datos.coberturaDeuda < 1.2)
+  const ajustado =
+    !critico && (datos.margenOperativo < 15 || datos.runwayMeses < 6 || datos.endeudamientoMeses > 6 || !datos.puntoEquilibrio.alcanzable)
+  const veredicto = critico ? 'CRÍTICA' : ajustado ? 'AJUSTADA' : 'SALUDABLE'
+  const veredictoColor: [number, number, number] = critico ? RED : ajustado ? AMBER : GREEN
+
+  y = tituloSeccion(y, 'Resumen ejecutivo')
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
-  if (datos.cuentas.length === 0) {
-    doc.setTextColor(...GRAY)
-    doc.text('No se cargaron cuentas.', 14, y)
-    y += 5.5
-  } else {
-    for (const c of datos.cuentas) {
-      if (y > doc.internal.pageSize.getHeight() - 25) {
-        pieDePagina(doc, MENSAJE_PIE_EMPRESA)
-        doc.addPage()
-        y = encabezadoEmpresa(doc, 20)
-      }
-      doc.setTextColor(...(c.saldo < 0 ? RED : ([40, 40, 40] as [number, number, number])))
-      doc.text(`${c.nombre}: ${formatoMoneda(c.saldo)}${c.saldo < 0 ? ' (descubierto)' : ''}`, 14, y)
-      y += 5.5
-    }
-  }
+  doc.setTextColor(40, 40, 40)
+  doc.text('Situación financiera general:', 14, y)
   doc.setFont('helvetica', 'bold')
-  doc.setTextColor(...(datos.saldoInicial < 0 ? RED : NAVY))
-  doc.text(`Saldo total en bancos: ${formatoMoneda(datos.saldoInicial)}`, 14, y)
-  y += 10
+  doc.setTextColor(...veredictoColor)
+  doc.text(veredicto, 75, y)
+  y += 8
 
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(12)
-  doc.setTextColor(...NAVY)
-  doc.text('Deudas', 14, y)
-  y += 7
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  if (datos.deudas.length === 0) {
-    doc.setTextColor(...GRAY)
-    doc.text('No se cargaron deudas.', 14, y)
-    y += 5.5
-  } else {
-    for (const d of datos.deudas) {
-      if (y > doc.internal.pageSize.getHeight() - 25) {
-        pieDePagina(doc, MENSAJE_PIE_EMPRESA)
-        doc.addPage()
-        y = encabezadoEmpresa(doc, 20)
-      }
-      doc.setTextColor(40, 40, 40)
-      doc.text(`${d.concepto}: ${formatoMoneda(d.montoAdeudado)} (cuota ${formatoMoneda(d.cuotaMensual)}/mes)`, 14, y)
-      y += 5.5
-    }
-    const deudaTotal = datos.deudas.reduce((s, d) => s + d.montoAdeudado, 0)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(...NAVY)
-    doc.text(`Deuda total: ${formatoMoneda(deudaTotal)}`, 14, y)
-    y += 5.5
-  }
-  y += 5
+  y = filaIndicador(y, 'Margen operativo:', formatoPorcentaje(datos.margenOperativo), margenColor)
+  y = filaIndicador(
+    y,
+    'Runway de caja:',
+    datos.runwayMeses === Infinity ? 'Sin límite' : `${datos.runwayMeses.toFixed(1)} meses`,
+    runwayColor,
+  )
+  y = filaIndicador(
+    y,
+    'Punto de equilibrio:',
+    datos.puntoEquilibrio.alcanzable ? formatoMoneda(datos.puntoEquilibrio.ingresosNecesarios) : 'No alcanzable',
+    equilibrioColor,
+  )
+  y = filaIndicador(
+    y,
+    'Endeudamiento:',
+    datos.deudaTotal <= 0
+      ? 'Sin deudas'
+      : datos.endeudamientoMeses === Infinity
+        ? 'Sin límite'
+        : `${datos.endeudamientoMeses.toFixed(1)} meses de ingreso`,
+    endeudamientoColor,
+  )
+  y = filaIndicador(
+    y,
+    'Cobertura de deuda:',
+    datos.cuotaDeudaTotal <= 0
+      ? 'Sin cuotas'
+      : datos.coberturaDeuda === Infinity
+        ? 'Sin límite'
+        : `${datos.coberturaDeuda.toFixed(1)}x el ingreso mensual`,
+    coberturaColor,
+  )
+  y += 6
 
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(12)
-  doc.setTextColor(...NAVY)
-  doc.text('Datos del negocio', 14, y)
-  y += 7
+  // --- Ingresos y gastos -----------------------------------------------------
+  y = tituloSeccion(y, 'Ingresos y gastos mensuales')
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
   doc.setTextColor(40, 40, 40)
@@ -275,91 +344,20 @@ export function descargarPdfDashboardEmpresa(datos: DashboardEmpresaPdfData) {
     14,
     y,
   )
-  y += 10
+  y += 9
 
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(12)
-  doc.setTextColor(...NAVY)
-  doc.text('Indicadores clave', 14, y)
-  y += 7
-
-  const margenColor: [number, number, number] =
-    datos.margenOperativo >= 15 ? GREEN : datos.margenOperativo >= 0 ? AMBER : RED
-  const runwayColor: [number, number, number] = datos.runwayMeses >= 6 ? GREEN : datos.runwayMeses >= 3 ? AMBER : RED
-  const equilibrioColor: [number, number, number] = !datos.puntoEquilibrio.alcanzable
-    ? RED
-    : datos.ingresos >= datos.puntoEquilibrio.ingresosNecesarios
-      ? GREEN
-      : AMBER
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  doc.setTextColor(40, 40, 40)
-  doc.text('Margen operativo:', 14, y)
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(...margenColor)
-  doc.text(formatoPorcentaje(datos.margenOperativo), 60, y)
-  y += 6
-
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(40, 40, 40)
-  doc.text('Runway de caja:', 14, y)
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(...runwayColor)
-  doc.text(datos.runwayMeses === Infinity ? 'Sin límite' : `${datos.runwayMeses.toFixed(1)} meses`, 60, y)
-  y += 6
-
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(40, 40, 40)
-  doc.text('Punto de equilibrio:', 14, y)
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(...equilibrioColor)
-  doc.text(
-    datos.puntoEquilibrio.alcanzable ? formatoMoneda(datos.puntoEquilibrio.ingresosNecesarios) : 'No alcanzable',
-    60,
-    y,
-  )
-  y += 6
-
-  const endeudamientoColor: [number, number, number] =
-    datos.deudaTotal <= 0 || datos.endeudamientoMeses <= 3 ? GREEN : datos.endeudamientoMeses <= 6 ? AMBER : RED
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(40, 40, 40)
-  doc.text('Endeudamiento:', 14, y)
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(...endeudamientoColor)
-  doc.text(
-    datos.deudaTotal <= 0
-      ? 'Sin deudas'
-      : datos.endeudamientoMeses === Infinity
-        ? 'Sin límite'
-        : `${datos.endeudamientoMeses.toFixed(1)} meses de ingreso`,
-    60,
-    y,
-  )
-  y += 10
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(12)
-  doc.setTextColor(...NAVY)
-  doc.text('Composición de gastos', 14, y)
-  y += 7
-
-  doc.setFillColor(240, 240, 238)
-  doc.rect(14, y - 4, 182, 6, 'F')
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8.5)
-  doc.setTextColor(...GRAY)
-  doc.text('Categoría', 16, y)
-  doc.text('Tipo', 100, y)
-  doc.text('Monto', 130, y)
-  doc.text('% del total', 165, y)
-  y += 6
-
+  y = saltoSiHaceFalta(y, 40)
+  y = encabezadoTabla(y, [
+    { label: 'Categoría', x: 16 },
+    { label: 'Tipo', x: 100 },
+    { label: 'Monto', x: 130 },
+    { label: '% del total', x: 165 },
+  ])
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8.5)
   doc.setTextColor(40, 40, 40)
   for (const c of datos.categorias.filter((c) => c.monto > 0)) {
+    y = saltoSiHaceFalta(y)
     const pct = datos.gastosTotales > 0 ? (c.monto / datos.gastosTotales) * 100 : 0
     doc.text(c.label, 16, y)
     doc.text(c.tipo, 100, y)
@@ -367,45 +365,176 @@ export function descargarPdfDashboardEmpresa(datos: DashboardEmpresaPdfData) {
     doc.text(`${pct.toFixed(0)}%`, 165, y)
     y += 5.5
   }
-  y += 6
+  y += 5
 
-  if (y > doc.internal.pageSize.getHeight() - 70) {
-    pieDePagina(doc, MENSAJE_PIE_EMPRESA)
-    doc.addPage()
-    y = encabezadoEmpresa(doc, 20)
+  // --- Cuentas bancarias y deudas ---------------------------------------------
+  y = tituloSeccion(y, 'Cuentas bancarias')
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  if (datos.cuentas.length === 0) {
+    doc.setTextColor(...GRAY)
+    doc.text('No se cargaron cuentas.', 14, y)
+    y += 5.5
+  } else {
+    for (const c of datos.cuentas) {
+      y = saltoSiHaceFalta(y)
+      doc.setTextColor(...(c.saldo < 0 ? RED : ([40, 40, 40] as [number, number, number])))
+      doc.text(`${c.nombre}: ${formatoMoneda(c.saldo)}${c.saldo < 0 ? ' (descubierto)' : ''}`, 14, y)
+      y += 5.5
+    }
   }
-
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(12)
-  doc.setTextColor(...NAVY)
-  doc.text('Proyección de flujo de caja', 14, y)
-  y += 7
+  doc.setTextColor(...(datos.saldoInicial < 0 ? RED : NAVY))
+  doc.text(`Saldo total en bancos: ${formatoMoneda(datos.saldoInicial)}`, 14, y)
+  y += 10
 
-  doc.setFillColor(240, 240, 238)
-  doc.rect(14, y - 4, 182, 6, 'F')
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8.5)
-  doc.setTextColor(...GRAY)
-  doc.text('Mes', 16, y)
-  doc.text('Saldo proyectado', 100, y)
-  y += 6
+  y = tituloSeccion(y, 'Deudas')
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  if (datos.deudas.length === 0) {
+    doc.setTextColor(...GRAY)
+    doc.text('No se cargaron deudas.', 14, y)
+    y += 5.5
+  } else {
+    for (const d of datos.deudas) {
+      y = saltoSiHaceFalta(y)
+      doc.setTextColor(40, 40, 40)
+      doc.text(`${d.concepto}: ${formatoMoneda(d.montoAdeudado)} (cuota ${formatoMoneda(d.cuotaMensual)}/mes)`, 14, y)
+      y += 5.5
+    }
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...NAVY)
+    doc.text(`Deuda total: ${formatoMoneda(datos.deudaTotal)}`, 14, y)
+    y += 5.5
+  }
+  y += 5
 
+  // --- Proyección de flujo de caja --------------------------------------------
+  y = tituloSeccion(y, 'Proyección de flujo de caja')
+  y = encabezadoTabla(y, [
+    { label: 'Mes', x: 16 },
+    { label: 'Saldo proyectado', x: 100 },
+  ])
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8.5)
   for (const fila of datos.proyeccion) {
-    if (y > doc.internal.pageSize.getHeight() - 25) {
-      pieDePagina(doc, MENSAJE_PIE_EMPRESA)
-      doc.addPage()
-      y = encabezadoEmpresa(doc, 20)
-    }
+    y = saltoSiHaceFalta(y)
     doc.setTextColor(...(fila.saldo < 0 ? RED : ([40, 40, 40] as [number, number, number])))
     doc.text(`Mes ${fila.mes}`, 16, y)
     doc.text(formatoMoneda(fila.saldo), 100, y)
     y += 5.5
   }
+  y += 5
+
+  if (!datos.esPremium) {
+    y = tituloSeccion(y, 'Funciones Premium')
+    doc.setFont('helvetica', 'italic')
+    doc.setFontSize(8.5)
+    doc.setTextColor(...GRAY)
+    doc.text(
+      'Actualizá al plan Premium para sumar a este informe: presupuesto vs. real por categoría, y salud',
+      14,
+      y,
+      { maxWidth: 182 },
+    )
+    y += 4.5
+    doc.text('financiera con tus comprobantes (ventas/compras netas, margen bruto y ranking de clientes/proveedores).', 14, y, {
+      maxWidth: 182,
+    })
+    y += 8
+  } else {
+    // --- Presupuesto vs. Real ---------------------------------------------
+    y = tituloSeccion(y, 'Presupuesto vs. Real')
+    y = encabezadoTabla(y, [
+      { label: 'Categoría', x: 16 },
+      { label: 'Presupuestado', x: 90 },
+      { label: 'Real', x: 130 },
+      { label: 'Desvío', x: 160 },
+    ])
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8.5)
+    for (const d of datos.desvios) {
+      y = saltoSiHaceFalta(y)
+      doc.setTextColor(40, 40, 40)
+      doc.text(d.label, 16, y)
+      doc.text(formatoMoneda(d.presupuestado), 90, y)
+      doc.text(formatoMoneda(d.real), 130, y)
+      doc.setTextColor(...(Math.abs(d.desvioPct) < 5 ? GREEN : Math.abs(d.desvioPct) < 20 ? AMBER : RED))
+      doc.text(`${d.desvioPct >= 0 ? '+' : ''}${d.desvioPct.toFixed(0)}%`, 160, y)
+      y += 5.5
+    }
+    y += 5
+
+    // --- Salud financiera con comprobantes ---------------------------------
+    y = tituloSeccion(y, 'Salud financiera con comprobantes')
+    if (datos.resumenMensual.length === 0) {
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(9)
+      doc.setTextColor(...GRAY)
+      doc.text('No se importaron ni cargaron comprobantes todavía.', 14, y)
+      y += 8
+    } else {
+      y = encabezadoTabla(y, [
+        { label: 'Mes', x: 16 },
+        { label: 'Ventas netas', x: 60 },
+        { label: 'Compras netas', x: 105 },
+        { label: 'Margen bruto', x: 150 },
+      ])
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8.5)
+      for (const r of datos.resumenMensual) {
+        y = saltoSiHaceFalta(y)
+        doc.setTextColor(40, 40, 40)
+        doc.text(mesLegiblePdf(r.mes), 16, y)
+        doc.text(formatoMoneda(r.ventasNetas), 60, y)
+        doc.text(formatoMoneda(r.comprasNetas), 105, y)
+        doc.setTextColor(...(r.margenBruto >= 0 ? GREEN : RED))
+        doc.text(`${formatoMoneda(r.margenBruto)} (${formatoPorcentaje(r.margenBrutoPct)})`, 150, y)
+        y += 5.5
+      }
+      y += 6
+
+      y = saltoSiHaceFalta(y, 50)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(10)
+      doc.setTextColor(...NAVY)
+      doc.text('Top clientes', 14, y)
+      doc.text('Top proveedores', 105, y)
+      y += 6
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8.5)
+      doc.setTextColor(40, 40, 40)
+      const truncar = (texto: string, maxLen = 28) => (texto.length > maxLen ? `${texto.slice(0, maxLen - 1)}…` : texto)
+      const maxFilas = Math.max(datos.rankingClientes.length, datos.rankingProveedores.length)
+      for (let i = 0; i < maxFilas; i++) {
+        y = saltoSiHaceFalta(y)
+        const cliente = datos.rankingClientes[i]
+        const proveedor = datos.rankingProveedores[i]
+        if (cliente) doc.text(`${truncar(cliente.contraparte)}: ${formatoMoneda(cliente.monto)}`, 14, y)
+        if (proveedor) doc.text(`${truncar(proveedor.contraparte)}: ${formatoMoneda(proveedor.monto)}`, 105, y)
+        y += 5.5
+      }
+      y += 5
+
+      y = saltoSiHaceFalta(y, 30)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(10)
+      doc.setTextColor(...NAVY)
+      doc.text('Peso de notas de crédito/débito', 14, y)
+      y += 6
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8.5)
+      doc.setTextColor(...(datos.pesoNotas.pctNotasEmitidas > 15 ? RED : ([40, 40, 40] as [number, number, number])))
+      doc.text(`Sobre ventas emitidas: ${formatoPorcentaje(datos.pesoNotas.pctNotasEmitidas)}`, 14, y)
+      y += 5.5
+      doc.setTextColor(...(datos.pesoNotas.pctNotasRecibidas > 15 ? AMBER : ([40, 40, 40] as [number, number, number])))
+      doc.text(`Sobre compras recibidas: ${formatoPorcentaje(datos.pesoNotas.pctNotasRecibidas)}`, 14, y)
+      y += 8
+    }
+  }
 
   pieDePagina(doc, MENSAJE_PIE_EMPRESA)
-  doc.save(`dashboard-empresa-${new Date().toISOString().slice(0, 10)}.pdf`)
+  doc.save(`informe-financiero-${new Date().toISOString().slice(0, 10)}.pdf`)
 }
 
 function encabezadoCobranzas(doc: jsPDF, y: number): number {

@@ -12,13 +12,17 @@ import { PremiumLock } from '../components/PremiumLock'
 import { PremiumUpgradeModal } from '../components/PremiumUpgradeModal'
 import { buildWhatsAppLink } from '../components/WhatsAppContact'
 import {
+  calcularCoberturaDeuda,
   calcularCuotaDeudaTotal,
   calcularDeudaTotal,
   calcularDesvios,
   calcularEndeudamientoMeses,
   calcularGastosTotales,
   calcularMargenOperativo,
+  calcularPesoNotas,
   calcularPuntoEquilibrio,
+  calcularRanking,
+  calcularResumenMensual,
   calcularRunwayMeses,
   calcularSaldoTotalBancos,
   generarAlertas,
@@ -29,7 +33,7 @@ import {
   type Factura,
 } from '../lib/cfo'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
-import { descargarPdfDashboardEmpresa } from '../lib/pdf'
+import { descargarInformeFinanciero } from '../lib/pdf'
 import { cargarNegocioData, guardarNegocioData } from '../lib/negocioData'
 import { cargarDatosUsuario, guardarDatosUsuario } from '../lib/userSync'
 import { useAuth } from '../lib/AuthContext'
@@ -90,6 +94,7 @@ export function EmpresasPage({ esPremium }: Props) {
   const [real, setReal] = useState<Record<string, number>>(() => cargarNegocioData()?.real ?? {})
   const [facturas, setFacturas] = useState<Factura[]>(() => cargarNegocioData()?.facturas ?? [])
   const [tasaCrecimiento, setTasaCrecimiento] = useState(() => cargarNegocioData()?.tasaCrecimiento ?? 0)
+  const [nombreNegocio, setNombreNegocio] = useState(() => cargarNegocioData()?.nombreNegocio ?? '')
 
   // Sincronización con Firestore: solo empieza a escribir en la nube después de intentar
   // leer lo que el usuario ya tenía guardado, para no pisarlo con los valores por defecto.
@@ -116,6 +121,7 @@ export function EmpresasPage({ esPremium }: Props) {
           setReal(d.real ?? {})
           setFacturas(d.facturas ?? [])
           setTasaCrecimiento(d.tasaCrecimiento ?? 0)
+          setNombreNegocio(d.nombreNegocio ?? '')
         }
       })
       .catch(() => {
@@ -126,20 +132,20 @@ export function EmpresasPage({ esPremium }: Props) {
   }, [user])
 
   useEffect(() => {
-    guardarNegocioData({ ingresos, meses, montos, cuentas, deudas, real, facturas, tasaCrecimiento })
-  }, [ingresos, meses, montos, cuentas, deudas, real, facturas, tasaCrecimiento])
+    guardarNegocioData({ ingresos, meses, montos, cuentas, deudas, real, facturas, tasaCrecimiento, nombreNegocio })
+  }, [ingresos, meses, montos, cuentas, deudas, real, facturas, tasaCrecimiento, nombreNegocio])
 
   useEffect(() => {
     if (!user || !nubeLista) return
     const timeout = setTimeout(() => {
       guardarDatosUsuario(user.uid, {
-        negocioData: { ingresos, meses, montos, cuentas, deudas, real, facturas, tasaCrecimiento },
+        negocioData: { ingresos, meses, montos, cuentas, deudas, real, facturas, tasaCrecimiento, nombreNegocio },
       }).catch(() => {
         // Idem: si falla el guardado en la nube, los datos siguen a salvo en localStorage.
       })
     }, 800)
     return () => clearTimeout(timeout)
-  }, [user, nubeLista, ingresos, meses, montos, cuentas, deudas, real, facturas, tasaCrecimiento])
+  }, [user, nubeLista, ingresos, meses, montos, cuentas, deudas, real, facturas, tasaCrecimiento, nombreNegocio])
 
   function cambiarMonto(key: string, monto: number) {
     setMontos((prev) => ({ ...prev, [key]: monto }))
@@ -210,6 +216,11 @@ export function EmpresasPage({ esPremium }: Props) {
     [saldoInicial, ingresos, gastosTotales, meses, esPremium, tasaCrecimiento],
   )
   const desvios = useMemo(() => calcularDesvios(categorias, real), [categorias, real])
+  const coberturaDeuda = calcularCoberturaDeuda(ingresos, cuotaDeudaTotal)
+  const resumenMensual = useMemo(() => calcularResumenMensual(facturas), [facturas])
+  const rankingClientes = useMemo(() => calcularRanking(facturas, 'emitida'), [facturas])
+  const rankingProveedores = useMemo(() => calcularRanking(facturas, 'recibida'), [facturas])
+  const pesoNotas = useMemo(() => calcularPesoNotas(facturas), [facturas])
   const alertas = useMemo(
     () => generarAlertas({ margenOperativo, runwayMeses, proyeccion, deudas, facturas }),
     [margenOperativo, runwayMeses, proyeccion, deudas, facturas],
@@ -220,7 +231,8 @@ export function EmpresasPage({ esPremium }: Props) {
   )}, runway de caja: ${runwayMeses === Infinity ? 'sin límite' : `${runwayMeses.toFixed(1)} meses`}) y quiero asesoramiento para mi negocio.`
 
   function handleDescargarPdf() {
-    descargarPdfDashboardEmpresa({
+    descargarInformeFinanciero({
+      nombreNegocio,
       cuentas,
       deudas,
       saldoInicial,
@@ -233,8 +245,16 @@ export function EmpresasPage({ esPremium }: Props) {
       runwayMeses,
       puntoEquilibrio,
       deudaTotal,
+      cuotaDeudaTotal,
       endeudamientoMeses,
+      coberturaDeuda,
       proyeccion,
+      esPremium,
+      desvios,
+      resumenMensual,
+      rankingClientes,
+      rankingProveedores,
+      pesoNotas,
     })
   }
 
@@ -453,13 +473,21 @@ export function EmpresasPage({ esPremium }: Props) {
             />
           </section>
 
-          <div className="mb-8 flex justify-end">
+          <div className="mb-8 flex flex-wrap items-center justify-end gap-3">
+            <input
+              type="text"
+              placeholder="Nombre del negocio (para el informe)"
+              value={nombreNegocio}
+              onChange={(e) => setNombreNegocio(e.target.value)}
+              className="min-w-[220px] flex-1 rounded-lg border px-3 py-2 text-sm sm:flex-none"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+            />
             <button
               onClick={handleDescargarPdf}
-              className="rounded-full border px-5 py-2 text-sm font-medium"
-              style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
+              className="shrink-0 rounded-full px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+              style={{ background: 'var(--series-blue)' }}
             >
-              📄 Descargar dashboard en PDF
+              📊 Descargar informe financiero
             </button>
           </div>
 

@@ -59,6 +59,12 @@ export function calcularRunwayMeses(saldoInicial: number, gastosTotales: number)
   return Math.max(0, saldoInicial / gastosTotales)
 }
 
+/** Cobertura de deuda: cuántas veces el ingreso mensual cubre la cuota de deuda mensual total. */
+export function calcularCoberturaDeuda(ingresos: number, cuotaDeudaTotal: number): number {
+  if (cuotaDeudaTotal <= 0) return Infinity
+  return ingresos / cuotaDeudaTotal
+}
+
 export interface FilaProyeccion {
   mes: number
   saldo: number
