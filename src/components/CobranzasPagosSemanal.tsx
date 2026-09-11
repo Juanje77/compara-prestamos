@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   agregarMovimiento,
   agregarMovimientos,
@@ -10,7 +10,7 @@ import {
   type TipoMovimiento,
 } from '../lib/movimientosSemana'
 import { agruparPorSemana, indiceDeSemana, type RangoSemana } from '../lib/semanas'
-import { importarCuentasDesdeExcel } from '../lib/excelImport'
+import { importarMovimientosDesdeExcel } from '../lib/excelImport'
 import { formatoMoneda } from '../lib/finance'
 import { descargarPdfCobranzasSemanal } from '../lib/pdf'
 
@@ -24,6 +24,24 @@ function etiquetaSemana(fechaISO: string, semanas: RangoSemana[]): { texto: stri
   const fecha = new Date(`${fechaISO}T00:00:00`)
   if (fecha < semanas[0].inicio) return { texto: 'Vencido', color: 'var(--status-critical)' }
   return { texto: 'Más adelante', color: 'var(--text-muted)' }
+}
+
+function ImportarExcelButton({
+  activo,
+  onImportar,
+}: {
+  activo: boolean
+  onImportar: (e: React.ChangeEvent<HTMLInputElement>) => void
+}) {
+  return (
+    <label
+      className="cursor-pointer rounded-full border px-3 py-1.5 text-xs font-medium"
+      style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
+    >
+      {activo ? 'Importando…' : '📄 Importar Excel'}
+      <input type="file" accept=".xlsx,.xls" onChange={onImportar} className="hidden" disabled={activo} />
+    </label>
+  )
 }
 
 interface ColumnaProps {
@@ -178,8 +196,7 @@ function ColumnaMovimientos({ titulo, movimientos, semanas, onAgregar, onToggle,
 export function CobranzasPagosSemanal() {
   const [movimientos, setMovimientos] = useState<Movimiento[]>(() => obtenerMovimientos())
   const [errorImport, setErrorImport] = useState<string | null>(null)
-  const [importando, setImportando] = useState(false)
-  const inputFileRef = useRef<HTMLInputElement>(null)
+  const [importandoTipo, setImportandoTipo] = useState<TipoMovimiento | null>(null)
 
   function refrescar() {
     setMovimientos(obtenerMovimientos())
@@ -209,24 +226,27 @@ export function CobranzasPagosSemanal() {
     refrescar()
   }
 
-  async function handleImportarExcel(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setErrorImport(null)
-    setImportando(true)
-    try {
-      const filas = await importarCuentasDesdeExcel(file)
-      if (filas.length === 0) {
-        setErrorImport('No se encontraron filas válidas en el archivo.')
-      } else {
-        agregarMovimientos('cobro', filas)
-        refrescar()
+  function handleImportarExcel(tipo: TipoMovimiento) {
+    return async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0]
+      const inputEl = e.target
+      if (!file) return
+      setErrorImport(null)
+      setImportandoTipo(tipo)
+      try {
+        const filas = await importarMovimientosDesdeExcel(file)
+        if (filas.length === 0) {
+          setErrorImport('No se encontraron filas válidas en el archivo.')
+        } else {
+          agregarMovimientos(tipo, filas)
+          refrescar()
+        }
+      } catch (err) {
+        setErrorImport(err instanceof Error ? err.message : 'No se pudo leer el archivo.')
+      } finally {
+        setImportandoTipo(null)
+        inputEl.value = ''
       }
-    } catch (err) {
-      setErrorImport(err instanceof Error ? err.message : 'No se pudo leer el archivo.')
-    } finally {
-      setImportando(false)
-      if (inputFileRef.current) inputFileRef.current.value = ''
     }
   }
 
@@ -340,22 +360,7 @@ export function CobranzasPagosSemanal() {
           onToggle={handleToggle}
           onEliminar={handleEliminar}
           extra={
-            <div>
-              <label
-                className="cursor-pointer rounded-full border px-3 py-1.5 text-xs font-medium"
-                style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
-              >
-                {importando ? 'Importando…' : '📄 Importar Excel'}
-                <input
-                  ref={inputFileRef}
-                  type="file"
-                  accept=".xlsx,.xls"
-                  onChange={handleImportarExcel}
-                  className="hidden"
-                  disabled={importando}
-                />
-              </label>
-            </div>
+            <ImportarExcelButton activo={importandoTipo === 'cobro'} onImportar={handleImportarExcel('cobro')} />
           }
         />
         <ColumnaMovimientos
@@ -365,6 +370,9 @@ export function CobranzasPagosSemanal() {
           onAgregar={handleAgregar('pago')}
           onToggle={handleToggle}
           onEliminar={handleEliminar}
+          extra={
+            <ImportarExcelButton activo={importandoTipo === 'pago'} onImportar={handleImportarExcel('pago')} />
+          }
         />
       </div>
 
@@ -379,9 +387,9 @@ export function CobranzasPagosSemanal() {
 
       <p className="border-t pt-6 pb-4 text-xs" style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
         Las semanas se arman según la fecha que le pusiste a cada cobro o pago (lunes a domingo), empezando por
-        la semana actual. El Excel de cuentas a cobrar debe tener una fila de encabezados con columnas como
-        "Cliente", "Monto" y, opcionalmente, "Fecha". Estos datos se guardan solo en este navegador, no se suben
-        a ningún servidor.
+        la semana actual. El Excel a importar (tanto en cobros como en pagos) debe tener una fila de
+        encabezados con columnas como "Cliente" o "Proveedor", "Monto" y, opcionalmente, "Fecha". Estos datos se
+        guardan solo en este navegador, no se suben a ningún servidor.
       </p>
     </>
   )

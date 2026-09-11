@@ -26,10 +26,10 @@ function aFechaISO(valor: unknown): string | null {
 }
 
 /**
- * Lee un Excel de cuentas a cobrar/pagar. Busca columnas por nombre (tolerando variantes en
- * español y mayúsculas/acentos) en vez de exigir un formato exacto de planilla.
+ * Lee un Excel de cuentas a cobrar o gastos a pagar. Busca columnas por nombre (tolerando
+ * variantes en español y mayúsculas/acentos) en vez de exigir un formato exacto de planilla.
  */
-export async function importarCuentasDesdeExcel(file: File): Promise<FilaImportada[]> {
+export async function importarMovimientosDesdeExcel(file: File): Promise<FilaImportada[]> {
   const { readSheet } = await import('read-excel-file/browser')
   const filas = await readSheet(file)
   if (filas.length < 2) return []
@@ -41,7 +41,7 @@ export async function importarCuentasDesdeExcel(file: File): Promise<FilaImporta
 
   if (idxConcepto === -1 || idxMonto === -1) {
     throw new Error(
-      'No se encontraron columnas de "Cliente" y "Monto" en el archivo. Verificá que la primera fila tenga esos encabezados.',
+      'No se encontraron columnas de "Cliente/Proveedor" y "Monto" en el archivo. Verificá que la primera fila tenga esos encabezados.',
     )
   }
 
