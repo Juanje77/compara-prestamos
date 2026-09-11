@@ -6,7 +6,7 @@ import type {
   CuentaBancaria,
   Deuda,
   FilaProyeccion,
-  PesoNotas,
+  MargenBrutoTotal,
   PuntoEquilibrio,
   RankingContraparte,
   ResumenMensual,
@@ -435,7 +435,7 @@ interface InformeSaludFinancieraData {
   resumenMensual: ResumenMensual[]
   rankingClientes: RankingContraparte[]
   rankingProveedores: RankingContraparte[]
-  pesoNotas: PesoNotas
+  margenTotal: MargenBrutoTotal
 }
 
 /** Informe independiente, armado solo a partir de los comprobantes (facturas y notas de crédito/débito). */
@@ -468,46 +468,52 @@ export function descargarInformeSaludFinanciera(datos: InformeSaludFinancieraDat
     return
   }
 
-  const totalVentas = datos.resumenMensual.reduce((s, r) => s + r.ventasNetas, 0)
-  const totalCompras = datos.resumenMensual.reduce((s, r) => s + r.comprasNetas, 0)
-  const margenAcumulado = totalVentas - totalCompras
-  const margenAcumuladoPct = totalVentas > 0 ? (margenAcumulado / totalVentas) * 100 : 0
-
   y = tituloSeccion(y, 'Resumen del período')
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
   doc.setTextColor(40, 40, 40)
-  doc.text(`Ventas netas acumuladas: ${formatoMoneda(totalVentas)}`, 14, y)
+  doc.text(`Ventas netas del período: ${formatoMoneda(datos.margenTotal.ventasNetas)}`, 14, y)
   y += 5.5
-  doc.text(`Compras netas acumuladas: ${formatoMoneda(totalCompras)}`, 14, y)
+  doc.text(`Compras netas del período: ${formatoMoneda(datos.margenTotal.comprasNetas)}`, 14, y)
   y += 5.5
   doc.setFont('helvetica', 'bold')
-  doc.setTextColor(...(margenAcumulado >= 0 ? GREEN : RED))
-  doc.text(`Margen bruto acumulado: ${formatoMoneda(margenAcumulado)} (${formatoPorcentaje(margenAcumuladoPct)})`, 14, y)
-  y += 10
+  doc.setTextColor(...(datos.margenTotal.margenBruto >= 0 ? GREEN : RED))
+  doc.text(
+    `Margen bruto del período: ${formatoMoneda(datos.margenTotal.margenBruto)} (${formatoPorcentaje(datos.margenTotal.margenBrutoPct)})`,
+    14,
+    y,
+  )
+  y += 5
+  doc.setFont('helvetica', 'italic')
+  doc.setFontSize(7.5)
+  doc.setTextColor(...GRAY)
+  doc.text('Es la suma de todas las ventas menos la suma de todas las compras del período, no un promedio mensual.', 14, y)
+  y += 9
 
   y = tituloSeccion(y, 'Ventas y compras netas por mes')
+  doc.setFont('helvetica', 'italic')
+  doc.setFontSize(7.5)
+  doc.setTextColor(...GRAY)
+  doc.text('Solo para ver la evolución mes a mes — el margen del período se calcula arriba, sobre el total.', 14, y)
+  y += 5
   y = encabezadoTabla(y, [
     { label: 'Mes', x: 16 },
-    { label: 'Ventas netas', x: 60 },
-    { label: 'Compras netas', x: 105 },
-    { label: 'Margen bruto', x: 150 },
+    { label: 'Ventas netas', x: 90 },
+    { label: 'Compras netas', x: 145 },
   ])
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8.5)
+  doc.setTextColor(40, 40, 40)
   for (const r of datos.resumenMensual) {
     y = saltoSiHaceFalta(y)
-    doc.setTextColor(40, 40, 40)
     doc.text(mesLegiblePdf(r.mes), 16, y)
-    doc.text(formatoMoneda(r.ventasNetas), 60, y)
-    doc.text(formatoMoneda(r.comprasNetas), 105, y)
-    doc.setTextColor(...(r.margenBruto >= 0 ? GREEN : RED))
-    doc.text(`${formatoMoneda(r.margenBruto)} (${formatoPorcentaje(r.margenBrutoPct)})`, 150, y)
+    doc.text(formatoMoneda(r.ventasNetas), 90, y)
+    doc.text(formatoMoneda(r.comprasNetas), 145, y)
     y += 5.5
   }
   y += 6
 
-  y = saltoSiHaceFalta(y, 50)
+  y = saltoSiHaceFalta(y, 40)
   y = tituloSeccion(y, 'Principales clientes y proveedores')
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
@@ -535,17 +541,6 @@ export function descargarInformeSaludFinanciera(datos: InformeSaludFinancieraDat
     }
     y += 5
   }
-
-  y = saltoSiHaceFalta(y, 30)
-  y = tituloSeccion(y, 'Peso de notas de crédito/débito')
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  doc.setTextColor(...(datos.pesoNotas.pctNotasEmitidas > 15 ? RED : ([40, 40, 40] as [number, number, number])))
-  doc.text(`Sobre ventas emitidas: ${formatoPorcentaje(datos.pesoNotas.pctNotasEmitidas)}`, 14, y)
-  y += 5.5
-  doc.setTextColor(...(datos.pesoNotas.pctNotasRecibidas > 15 ? AMBER : ([40, 40, 40] as [number, number, number])))
-  doc.text(`Sobre compras recibidas: ${formatoPorcentaje(datos.pesoNotas.pctNotasRecibidas)}`, 14, y)
-  y += 8
 
   pieDePagina(doc, MENSAJE_PIE_EMPRESA)
   doc.save(`informe-salud-financiera-${new Date().toISOString().slice(0, 10)}.pdf`)

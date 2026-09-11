@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { Factura, TipoComprobante, TipoFactura } from '../lib/cfo'
-import { calcularPesoNotas, calcularRanking, calcularResumenMensual, montoConSigno } from '../lib/cfo'
+import { calcularMargenBrutoTotal, calcularRanking, calcularResumenMensual, montoConSigno } from '../lib/cfo'
 import { importarComprobantesArca } from '../lib/arcaImport'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
 
@@ -38,8 +38,7 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onEliminar, on
   const resumenMensual = useMemo(() => calcularResumenMensual(facturas), [facturas])
   const rankingClientes = useMemo(() => calcularRanking(facturas, 'emitida'), [facturas])
   const rankingProveedores = useMemo(() => calcularRanking(facturas, 'recibida'), [facturas])
-  const pesoNotas = useMemo(() => calcularPesoNotas(facturas), [facturas])
-  const ultimoMes = resumenMensual[resumenMensual.length - 1]
+  const margenTotal = useMemo(() => calcularMargenBrutoTotal(facturas), [facturas])
 
   const listado = facturas
     .filter((f) => filtro === 'todas' || f.tipo === filtro)
@@ -195,45 +194,48 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onEliminar, on
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                Ventas netas {ultimoMes ? `(${mesLegible(ultimoMes.mes)})` : ''}
+                Ventas netas del período
               </p>
               <p className="tabular text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-                {formatoMoneda(ultimoMes?.ventasNetas ?? 0)}
+                {formatoMoneda(margenTotal.ventasNetas)}
               </p>
             </div>
             <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                Compras netas {ultimoMes ? `(${mesLegible(ultimoMes.mes)})` : ''}
+                Compras netas del período
               </p>
               <p className="tabular text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-                {formatoMoneda(ultimoMes?.comprasNetas ?? 0)}
+                {formatoMoneda(margenTotal.comprasNetas)}
               </p>
             </div>
             <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                Margen bruto {ultimoMes ? `(${mesLegible(ultimoMes.mes)})` : ''}
+                Margen bruto del período
               </p>
               <p
                 className="tabular text-lg font-semibold"
-                style={{ color: (ultimoMes?.margenBruto ?? 0) >= 0 ? 'var(--status-good-text)' : 'var(--status-critical)' }}
+                style={{ color: margenTotal.margenBruto >= 0 ? 'var(--status-good-text)' : 'var(--status-critical)' }}
               >
-                {formatoMoneda(ultimoMes?.margenBruto ?? 0)} ({formatoPorcentaje(ultimoMes?.margenBrutoPct ?? 0)})
+                {formatoMoneda(margenTotal.margenBruto)} ({formatoPorcentaje(margenTotal.margenBrutoPct)})
               </p>
             </div>
           </section>
 
           <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
-            <h3 className="mb-3 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+            <h3 className="mb-1 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
               Ventas y compras netas por mes
             </h3>
+            <p className="mb-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+              Solo para ver la evolución — el margen bruto real (arriba) se calcula sobre el total del período,
+              no mes a mes, porque una compra y la venta que genera no siempre caen en el mismo mes.
+            </p>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[480px] text-sm">
+              <table className="w-full min-w-[400px] text-sm">
                 <thead>
                   <tr className="text-left text-xs" style={{ color: 'var(--text-muted)' }}>
                     <th className="pb-2 font-medium">Mes</th>
                     <th className="pb-2 text-right font-medium">Ventas netas</th>
                     <th className="pb-2 text-right font-medium">Compras netas</th>
-                    <th className="pb-2 text-right font-medium">Margen bruto</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -247,12 +249,6 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onEliminar, on
                       </td>
                       <td className="tabular py-2 text-right" style={{ color: 'var(--text-secondary)' }}>
                         {formatoMoneda(r.comprasNetas)}
-                      </td>
-                      <td
-                        className="tabular py-2 text-right font-medium"
-                        style={{ color: r.margenBruto >= 0 ? 'var(--status-good-text)' : 'var(--status-critical)' }}
-                      >
-                        {formatoMoneda(r.margenBruto)} ({formatoPorcentaje(r.margenBrutoPct)})
                       </td>
                     </tr>
                   ))}
@@ -307,46 +303,6 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onEliminar, on
                   ))}
                 </ul>
               )}
-            </div>
-          </section>
-
-          <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
-            <h3 className="mb-1 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-              Peso de notas de crédito/débito
-            </h3>
-            <p className="mb-3 text-xs" style={{ color: 'var(--text-muted)' }}>
-              Cuánto de lo facturado en bruto se ajusta después con notas de crédito (ventas anuladas o
-              compras devueltas) o de débito (recargos).
-            </p>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  Sobre ventas emitidas
-                </p>
-                <p
-                  className="tabular text-lg font-semibold"
-                  style={{ color: pesoNotas.pctNotasEmitidas > 15 ? 'var(--status-critical)' : 'var(--text-primary)' }}
-                >
-                  {formatoPorcentaje(pesoNotas.pctNotasEmitidas)}
-                </p>
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  NC: {formatoMoneda(pesoNotas.totalNotaCreditoEmitida)} · ND: {formatoMoneda(pesoNotas.totalNotaDebitoEmitida)}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  Sobre compras recibidas
-                </p>
-                <p
-                  className="tabular text-lg font-semibold"
-                  style={{ color: pesoNotas.pctNotasRecibidas > 15 ? 'var(--status-warning)' : 'var(--text-primary)' }}
-                >
-                  {formatoPorcentaje(pesoNotas.pctNotasRecibidas)}
-                </p>
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  NC: {formatoMoneda(pesoNotas.totalNotaCreditoRecibida)} · ND: {formatoMoneda(pesoNotas.totalNotaDebitoRecibida)}
-                </p>
-              </div>
             </div>
           </section>
 

@@ -177,11 +177,15 @@ export interface ResumenMensual {
   mes: string
   ventasNetas: number
   comprasNetas: number
-  margenBruto: number
-  margenBrutoPct: number
 }
 
-/** Ventas y compras netas por mes (ya con notas de crédito/débito aplicadas), y margen bruto. */
+/**
+ * Ventas y compras netas por mes (ya con notas de crédito/débito aplicadas) — solo para ver la
+ * evolución. No calcula un margen por mes: ventas y compras no tienen por qué corresponder al
+ * mismo período (por ejemplo, se compra mercadería un mes y se vende en otro), así que mezclar
+ * ambas por mes da un margen sin sentido. El margen real se calcula sobre el total acumulado, ver
+ * calcularMargenBrutoTotal.
+ */
 export function calcularResumenMensual(facturas: Factura[]): ResumenMensual[] {
   const porMes = new Map<string, { ventas: number; compras: number }>()
   for (const f of facturas) {
@@ -194,13 +198,27 @@ export function calcularResumenMensual(facturas: Factura[]): ResumenMensual[] {
   }
   return [...porMes.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([mes, { ventas, compras }]) => ({
-      mes,
-      ventasNetas: ventas,
-      comprasNetas: compras,
-      margenBruto: ventas - compras,
-      margenBrutoPct: ventas > 0 ? ((ventas - compras) / ventas) * 100 : 0,
-    }))
+    .map(([mes, { ventas, compras }]) => ({ mes, ventasNetas: ventas, comprasNetas: compras }))
+}
+
+export interface MargenBrutoTotal {
+  ventasNetas: number
+  comprasNetas: number
+  margenBruto: number
+  margenBrutoPct: number
+}
+
+/** Margen bruto sobre el total acumulado del período cargado: todas las ventas menos todas las compras. */
+export function calcularMargenBrutoTotal(facturas: Factura[]): MargenBrutoTotal {
+  let ventasNetas = 0
+  let comprasNetas = 0
+  for (const f of facturas) {
+    const monto = montoConSigno(f)
+    if (f.tipo === 'emitida') ventasNetas += monto
+    else comprasNetas += monto
+  }
+  const margenBruto = ventasNetas - comprasNetas
+  return { ventasNetas, comprasNetas, margenBruto, margenBrutoPct: ventasNetas > 0 ? (margenBruto / ventasNetas) * 100 : 0 }
 }
 
 export interface RankingContraparte {
@@ -222,37 +240,6 @@ export function calcularRanking(facturas: Factura[], tipo: TipoFactura, top = 5)
     .map(([contraparte, { monto, cantidad }]) => ({ contraparte, monto, cantidad }))
     .sort((a, b) => b.monto - a.monto)
     .slice(0, top)
-}
-
-export interface PesoNotas {
-  pctNotasEmitidas: number
-  pctNotasRecibidas: number
-  totalNotaCreditoEmitida: number
-  totalNotaDebitoEmitida: number
-  totalNotaCreditoRecibida: number
-  totalNotaDebitoRecibida: number
-}
-
-/** Qué porcentaje de lo facturado en bruto corresponde a notas de crédito/débito (ajustes). */
-export function calcularPesoNotas(facturas: Factura[]): PesoNotas {
-  const sum = (tipo: TipoFactura, tc: TipoComprobante) =>
-    facturas.filter((f) => f.tipo === tipo && f.tipoComprobante === tc).reduce((s, f) => s + f.monto, 0)
-
-  const totalNotaCreditoEmitida = sum('emitida', 'nota_credito')
-  const totalNotaDebitoEmitida = sum('emitida', 'nota_debito')
-  const totalNotaCreditoRecibida = sum('recibida', 'nota_credito')
-  const totalNotaDebitoRecibida = sum('recibida', 'nota_debito')
-  const brutoEmitidas = sum('emitida', 'factura') + totalNotaDebitoEmitida + totalNotaCreditoEmitida
-  const brutoRecibidas = sum('recibida', 'factura') + totalNotaDebitoRecibida + totalNotaCreditoRecibida
-
-  return {
-    pctNotasEmitidas: brutoEmitidas > 0 ? ((totalNotaCreditoEmitida + totalNotaDebitoEmitida) / brutoEmitidas) * 100 : 0,
-    pctNotasRecibidas: brutoRecibidas > 0 ? ((totalNotaCreditoRecibida + totalNotaDebitoRecibida) / brutoRecibidas) * 100 : 0,
-    totalNotaCreditoEmitida,
-    totalNotaDebitoEmitida,
-    totalNotaCreditoRecibida,
-    totalNotaDebitoRecibida,
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -306,23 +293,15 @@ export function generarAlertas(input: {
     }
   }
 
-  const resumenMensual = calcularResumenMensual(facturas)
-  const ultimoMes = resumenMensual[resumenMensual.length - 1]
-  if (ultimoMes && ultimoMes.margenBruto < 0) {
-    alertas.push({
-      id: 'margen-bruto-negativo',
-      severidad: 'critical',
-      mensaje: `Según tus comprobantes, en ${ultimoMes.mes} compraste más de lo que facturaste (margen bruto negativo).`,
-    })
-  }
-
-  const pesoNotas = calcularPesoNotas(facturas)
-  if (pesoNotas.pctNotasEmitidas > 15) {
-    alertas.push({
-      id: 'notas-emitidas-altas',
-      severidad: 'warning',
-      mensaje: `El ${pesoNotas.pctNotasEmitidas.toFixed(0)}% de tu facturación emitida son notas de crédito/débito (ventas anuladas o recargos) — vale la pena revisar por qué.`,
-    })
+  if (facturas.length > 0) {
+    const { margenBruto } = calcularMargenBrutoTotal(facturas)
+    if (margenBruto < 0) {
+      alertas.push({
+        id: 'margen-bruto-negativo',
+        severidad: 'critical',
+        mensaje: 'Según tus comprobantes, compraste más de lo que facturaste en el período cargado (margen bruto negativo).',
+      })
+    }
   }
 
   return alertas

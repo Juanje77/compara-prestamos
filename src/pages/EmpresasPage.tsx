@@ -18,8 +18,8 @@ import {
   calcularDesvios,
   calcularEndeudamientoMeses,
   calcularGastosTotales,
+  calcularMargenBrutoTotal,
   calcularMargenOperativo,
-  calcularPesoNotas,
   calcularPuntoEquilibrio,
   calcularRanking,
   calcularResumenMensual,
@@ -220,7 +220,7 @@ export function EmpresasPage({ esPremium }: Props) {
   const resumenMensual = useMemo(() => calcularResumenMensual(facturas), [facturas])
   const rankingClientes = useMemo(() => calcularRanking(facturas, 'emitida'), [facturas])
   const rankingProveedores = useMemo(() => calcularRanking(facturas, 'recibida'), [facturas])
-  const pesoNotas = useMemo(() => calcularPesoNotas(facturas), [facturas])
+  const margenTotal = useMemo(() => calcularMargenBrutoTotal(facturas), [facturas])
   const alertas = useMemo(
     () => generarAlertas({ margenOperativo, runwayMeses, proyeccion, deudas, facturas }),
     [margenOperativo, runwayMeses, proyeccion, deudas, facturas],
@@ -253,7 +253,7 @@ export function EmpresasPage({ esPremium }: Props) {
   }
 
   function handleDescargarInformeSalud() {
-    descargarInformeSaludFinanciera({ nombreNegocio, resumenMensual, rankingClientes, rankingProveedores, pesoNotas })
+    descargarInformeSaludFinanciera({ nombreNegocio, resumenMensual, rankingClientes, rankingProveedores, margenTotal })
   }
 
   function abrirPlanes() {
