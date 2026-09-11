@@ -76,6 +76,23 @@ export function AccesoEmpresas() {
     return <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Cargando…</p>
   }
 
+  if (plan.estado === 'pendiente') {
+    return (
+      <div className="mx-auto max-w-md py-16 text-center">
+        <p className="text-sm font-semibold tracking-wide" style={{ color: 'var(--series-blue)' }}>
+          🧮 Finko para empresas
+        </p>
+        <h1 className="mt-2 text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
+          Confirmando tu pago…
+        </h1>
+        <p className="mt-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+          Ya recibimos tu suscripción y estamos confirmándola con Mercado Pago. Esto puede tardar unos
+          segundos — no hace falta que recargues la página, se va a destrabar solo.
+        </p>
+      </div>
+    )
+  }
+
   if (plan.estado !== 'activo') {
     return <PlanesEmpresa />
   }
