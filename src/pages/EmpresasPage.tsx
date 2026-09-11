@@ -181,6 +181,10 @@ export function EmpresasPage({ esPremium }: Props) {
     setFacturas((prev) => prev.filter((f) => f.id !== id))
   }
 
+  function handleVaciarFacturas() {
+    setFacturas([])
+  }
+
   const categorias: CategoriaGasto[] = CATEGORIAS_CONFIG.map((c) => ({
     key: c.key,
     label: c.label,
@@ -303,6 +307,7 @@ export function EmpresasPage({ esPremium }: Props) {
             onAgregar={handleAgregarFactura}
             onImportarVarias={handleImportarFacturas}
             onEliminar={handleEliminarFactura}
+            onVaciar={handleVaciarFacturas}
           />
         </PremiumLock>
       )}

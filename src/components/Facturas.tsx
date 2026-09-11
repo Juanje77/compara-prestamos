@@ -9,6 +9,7 @@ interface Props {
   onAgregar: (factura: Omit<Factura, 'id'>) => void
   onImportarVarias: (facturas: Omit<Factura, 'id'>[]) => void
   onEliminar: (id: string) => void
+  onVaciar: () => void
 }
 
 const TIPO_COMPROBANTE_LABEL: Record<TipoComprobante, string> = {
@@ -23,7 +24,7 @@ function mesLegible(mes: string): string {
   return fecha.toLocaleDateString('es-AR', { month: 'short', year: 'numeric' })
 }
 
-export function Facturas({ facturas, onAgregar, onImportarVarias, onEliminar }: Props) {
+export function Facturas({ facturas, onAgregar, onImportarVarias, onEliminar, onVaciar }: Props) {
   const [tipo, setTipo] = useState<TipoFactura>('emitida')
   const [tipoComprobante, setTipoComprobante] = useState<TipoComprobante>('factura')
   const [contraparte, setContraparte] = useState('')
@@ -50,6 +51,12 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onEliminar }: 
     onAgregar({ tipo, tipoComprobante, contraparte: contraparte.trim(), monto: m, fecha })
     setContraparte('')
     setMonto('')
+  }
+
+  function handleVaciar() {
+    if (facturas.length === 0) return
+    if (!window.confirm('¿Borrar todos los comprobantes cargados? No se puede deshacer.')) return
+    onVaciar()
   }
 
   async function handleImportarArca(e: React.ChangeEvent<HTMLInputElement>) {
@@ -351,6 +358,13 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onEliminar }: 
                     {f === 'todas' ? 'Todas' : f === 'emitida' ? 'Emitidas' : 'Recibidas'}
                   </button>
                 ))}
+                <button
+                  onClick={handleVaciar}
+                  className="rounded-full border px-3 py-1 text-xs font-medium"
+                  style={{ borderColor: 'var(--status-critical)', color: 'var(--status-critical)' }}
+                >
+                  🗑 Borrar todo
+                </button>
               </div>
             </div>
 
