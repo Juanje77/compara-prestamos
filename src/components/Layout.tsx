@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import { FinkoLogo } from './FinkoLogo'
+import { FincorpLogo } from './FincorpLogo'
 import { BrandHeader } from './BrandHeader'
 import { WhatsAppFloatingButton } from './WhatsAppContact'
 import { LoginModal } from './LoginModal'
@@ -54,7 +54,7 @@ export function Layout() {
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       <header className="mb-8">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <FinkoLogo />
+          <FincorpLogo />
           <div className="flex flex-wrap items-center gap-3">
             <nav className="flex flex-wrap gap-2" role="tablist">
               {SECCIONES.map((s) => (

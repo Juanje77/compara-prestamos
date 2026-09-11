@@ -51,7 +51,7 @@ export function AccesoEmpresas() {
     return (
       <div className="mx-auto max-w-md py-16 text-center">
         <p className="text-sm font-semibold tracking-wide" style={{ color: 'var(--series-blue)' }}>
-          🧮 Finko para empresas
+          🧮 FinCorp para empresas
         </p>
         <h1 className="mt-2 text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
           Necesitás una cuenta para entrar
@@ -80,7 +80,7 @@ export function AccesoEmpresas() {
     return (
       <div className="mx-auto max-w-md py-16 text-center">
         <p className="text-sm font-semibold tracking-wide" style={{ color: 'var(--series-blue)' }}>
-          🧮 Finko para empresas
+          🧮 FinCorp para empresas
         </p>
         <h1 className="mt-2 text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
           Confirmando tu pago…

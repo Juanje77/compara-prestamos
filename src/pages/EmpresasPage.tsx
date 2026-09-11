@@ -167,7 +167,7 @@ export function EmpresasPage() {
     [saldoInicial, ingresos, gastosTotales, meses],
   )
 
-  const mensajeWhatsApp = `Hola Juan! Armé mi dashboard financiero en Finko (margen operativo: ${formatoPorcentaje(
+  const mensajeWhatsApp = `Hola Juan! Armé mi dashboard financiero en FinCorp (margen operativo: ${formatoPorcentaje(
     margenOperativo,
   )}, runway de caja: ${runwayMeses === Infinity ? 'sin límite' : `${runwayMeses.toFixed(1)} meses`}) y quiero asesoramiento para mi negocio.`
 
@@ -194,7 +194,7 @@ export function EmpresasPage() {
     <>
       <div className="mb-8">
         <p className="mt-1 text-sm font-semibold tracking-wide" style={{ color: 'var(--series-blue)' }}>
-          🧮 Finko para empresas
+          🧮 FinCorp para empresas
         </p>
         <h1 className="mt-1 text-3xl font-semibold sm:text-4xl" style={{ color: 'var(--text-primary)' }}>
           Gestioná las finanzas de tu negocio, sin ser financista

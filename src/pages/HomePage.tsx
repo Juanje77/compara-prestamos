@@ -11,13 +11,13 @@ const FEATURES_EMPRESAS = [
 ]
 
 export function HomePage() {
-  const mensajeWhatsApp = 'Hola Juan! Vi Finko y quiero saber más sobre el plan para empresas.'
+  const mensajeWhatsApp = 'Hola Juan! Vi FinCorp y quiero saber más sobre el plan para empresas.'
 
   return (
     <>
       <div className="mb-10 text-center sm:mb-14">
         <p className="text-sm font-semibold tracking-wide" style={{ color: 'var(--series-blue)' }}>
-          🇦🇷 Finko
+          🇦🇷 FinCorp
         </p>
         <h1 className="mt-2 text-3xl font-semibold sm:text-5xl" style={{ color: 'var(--text-primary)' }}>
           Tu CFO virtual, para vos y para tu negocio
@@ -55,7 +55,7 @@ export function HomePage() {
         <div className="rounded-xl border p-6" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
           <p className="text-2xl">🧮</p>
           <h2 className="mt-2 text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>
-            Finko para empresas
+            FinCorp para empresas
           </h2>
           <p className="mt-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
             Un dashboard financiero para tu negocio: cuentas bancarias, deudas, indicadores clave, flujo de
@@ -80,10 +80,10 @@ export function HomePage() {
           Así se ve el dashboard de tu negocio
         </h2>
         <p className="mx-auto mb-6 max-w-2xl text-center text-sm" style={{ color: 'var(--text-secondary)' }}>
-          Cargás los números de tu negocio una sola vez y Finko arma todo el tablero automáticamente.
+          Cargás los números de tu negocio una sola vez y FinCorp arma todo el tablero automáticamente.
         </p>
         <div className="overflow-hidden rounded-xl border shadow-sm" style={{ borderColor: 'var(--border)' }}>
-          <img src="/landing-dashboard-empresas.png" alt="Dashboard financiero de Finko para empresas" className="w-full" />
+          <img src="/landing-dashboard-empresas.png" alt="Dashboard financiero de FinCorp para empresas" className="w-full" />
         </div>
       </section>
 
@@ -107,7 +107,7 @@ export function HomePage() {
       >
         <img
           src="/landing-cobranzas-pagos.png"
-          alt="Organizador semanal de cobranzas y pagos de Finko"
+          alt="Organizador semanal de cobranzas y pagos de FinCorp"
           className="w-full"
         />
       </section>
@@ -120,7 +120,7 @@ export function HomePage() {
           ¿Listo para ordenar las finanzas de tu negocio?
         </h2>
         <p className="mx-auto mt-2 max-w-xl text-sm" style={{ color: 'var(--text-secondary)' }}>
-          Escribime por WhatsApp y te cuento cuál de los planes de Finko para empresas se ajusta mejor a tu
+          Escribime por WhatsApp y te cuento cuál de los planes de FinCorp para empresas se ajusta mejor a tu
           negocio.
         </p>
         <a

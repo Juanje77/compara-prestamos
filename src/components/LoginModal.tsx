@@ -82,7 +82,7 @@ export function LoginModal({ onCerrar }: Props) {
 
         {!habilitado ? (
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-            El inicio de sesión todavía no está configurado en esta instancia de Finko.
+            El inicio de sesión todavía no está configurado en esta instancia de FinCorp.
           </p>
         ) : (
           <>

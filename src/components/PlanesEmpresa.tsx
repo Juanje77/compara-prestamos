@@ -66,7 +66,7 @@ export function PlanesEmpresa() {
     <>
       <div className="mb-8 text-center">
         <p className="text-sm font-semibold tracking-wide" style={{ color: 'var(--series-blue)' }}>
-          🧮 Finko para empresas
+          🧮 FinCorp para empresas
         </p>
         <h1 className="mt-1 text-3xl font-semibold sm:text-4xl" style={{ color: 'var(--text-primary)' }}>
           Elegí tu plan

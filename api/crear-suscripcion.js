@@ -1,10 +1,10 @@
-// Crea una suscripción recurrente en Mercado Pago (Preapproval) para un plan pago de Finko.
+// Crea una suscripción recurrente en Mercado Pago (Preapproval) para un plan pago de FinCorp.
 // El Access Token vive solo acá (variable de entorno del servidor) — nunca llega al navegador.
 import { obtenerFirestoreAdmin } from './_firebaseAdmin.js'
 
 const PLANES = {
-  basico: { reason: 'Finko para empresas - Plan Básico', monto: 20000 },
-  premium: { reason: 'Finko para empresas - Plan Premium', monto: 50000 },
+  basico: { reason: 'FinCorp para empresas - Plan Básico', monto: 20000 },
+  premium: { reason: 'FinCorp para empresas - Plan Premium', monto: 50000 },
 }
 
 export default async function handler(req, res) {
