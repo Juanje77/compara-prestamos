@@ -213,6 +213,30 @@ export function calcularResumenMensual(facturas: Factura[]): ResumenMensual[] {
     .map(([mes, { ventas, compras }]) => ({ mes, ventasNetas: ventas, comprasNetas: compras }))
 }
 
+export interface VentasComprasMes {
+  hayVentas: boolean
+  hayCompras: boolean
+  ventasNetas: number
+  comprasNetas: number
+}
+
+/**
+ * Ventas y compras netas cargadas para un mes puntual (formato "YYYY-MM"), con un flag de si hay
+ * datos reales para cada lado — así el Dashboard puede usar el número real cuando existe, y la
+ * estimación manual cuando no.
+ */
+export function calcularVentasComprasDelMes(facturas: Factura[], mesISO: string): VentasComprasMes {
+  const delMes = facturas.filter((f) => f.fecha.slice(0, 7) === mesISO)
+  const emitidas = delMes.filter((f) => f.tipo === 'emitida')
+  const recibidas = delMes.filter((f) => f.tipo === 'recibida')
+  return {
+    hayVentas: emitidas.length > 0,
+    hayCompras: recibidas.length > 0,
+    ventasNetas: emitidas.reduce((s, f) => s + montoConSigno(f), 0),
+    comprasNetas: recibidas.reduce((s, f) => s + montoConSigno(f), 0),
+  }
+}
+
 export interface MargenBrutoTotal {
   ventasNetas: number
   comprasNetas: number

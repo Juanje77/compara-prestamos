@@ -25,6 +25,7 @@ import {
   calcularResumenMensual,
   calcularRunwayMeses,
   calcularSaldoTotalBancos,
+  calcularVentasComprasDelMes,
   generarAlertas,
   proyectarFlujoCaja,
   type CategoriaGasto,
@@ -208,19 +209,33 @@ export function EmpresasPage({ esPremium }: Props) {
   const deudaTotal = calcularDeudaTotal(deudas)
   const cuotaDeudaTotal = calcularCuotaDeudaTotal(deudas)
 
-  const margenOperativo = calcularMargenOperativo(ingresos, gastosTotales)
-  const runwayMeses = calcularRunwayMeses(saldoInicial, gastosTotales)
-  const endeudamientoMeses = calcularEndeudamientoMeses(deudaTotal, ingresos)
+  // Híbrido (Premium): si hay comprobantes cargados este mes en Salud financiera, los indicadores
+  // usan esos números reales en vez de la estimación manual de arriba. El desglose por categoría
+  // (para Composición de gastos y Punto de equilibrio) sigue siendo siempre manual, porque un
+  // comprobante importado no viene categorizado como fijo/variable.
+  const mesActual = new Date().toISOString().slice(0, 7)
+  const ventasComprasMes = useMemo(
+    () => (esPremium ? calcularVentasComprasDelMes(facturas, mesActual) : null),
+    [esPremium, facturas, mesActual],
+  )
+  const usaIngresosReales = ventasComprasMes?.hayVentas ?? false
+  const usaGastosReales = ventasComprasMes?.hayCompras ?? false
+  const ingresosEfectivos = usaIngresosReales ? ventasComprasMes!.ventasNetas : ingresos
+  const gastosEfectivos = usaGastosReales ? ventasComprasMes!.comprasNetas : gastosTotales
+
+  const margenOperativo = calcularMargenOperativo(ingresosEfectivos, gastosEfectivos)
+  const runwayMeses = calcularRunwayMeses(saldoInicial, gastosEfectivos)
+  const endeudamientoMeses = calcularEndeudamientoMeses(deudaTotal, ingresosEfectivos)
   const puntoEquilibrio = useMemo(
-    () => calcularPuntoEquilibrio(ingresos, gastosFijos, gastosVariables),
-    [ingresos, gastosFijos, gastosVariables],
+    () => calcularPuntoEquilibrio(ingresosEfectivos, gastosFijos, gastosVariables),
+    [ingresosEfectivos, gastosFijos, gastosVariables],
   )
   const proyeccion = useMemo(
-    () => proyectarFlujoCaja(saldoInicial, ingresos, gastosTotales, meses, esPremium ? tasaCrecimiento : 0),
-    [saldoInicial, ingresos, gastosTotales, meses, esPremium, tasaCrecimiento],
+    () => proyectarFlujoCaja(saldoInicial, ingresosEfectivos, gastosEfectivos, meses, esPremium ? tasaCrecimiento : 0),
+    [saldoInicial, ingresosEfectivos, gastosEfectivos, meses, esPremium, tasaCrecimiento],
   )
   const desvios = useMemo(() => calcularDesvios(categorias, real), [categorias, real])
-  const coberturaDeuda = calcularCoberturaDeuda(ingresos, cuotaDeudaTotal)
+  const coberturaDeuda = calcularCoberturaDeuda(ingresosEfectivos, cuotaDeudaTotal)
   const resumenMensual = useMemo(() => calcularResumenMensual(facturas), [facturas])
   const rankingClientes = useMemo(() => calcularRanking(facturas, 'emitida'), [facturas])
   const rankingProveedores = useMemo(() => calcularRanking(facturas, 'recibida'), [facturas])
@@ -240,11 +255,11 @@ export function EmpresasPage({ esPremium }: Props) {
       cuentas,
       deudas,
       saldoInicial,
-      ingresos,
+      ingresos: ingresosEfectivos,
       categorias,
       gastosFijos,
       gastosVariables,
-      gastosTotales,
+      gastosTotales: gastosEfectivos,
       margenOperativo,
       runwayMeses,
       puntoEquilibrio,
@@ -372,10 +387,25 @@ export function EmpresasPage({ esPremium }: Props) {
             <h2 className="mb-4 text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
               Ingresos y gastos mensuales
             </h2>
+            {(usaIngresosReales || usaGastosReales) && (
+              <p className="-mt-2 mb-4 text-xs" style={{ color: 'var(--series-blue)' }}>
+                📊 Este mes ya cargaste comprobantes en Salud financiera: los indicadores de abajo usan{' '}
+                {usaIngresosReales && usaGastosReales
+                  ? 'esas ventas y compras reales'
+                  : usaIngresosReales
+                    ? 'esas ventas reales'
+                    : 'esas compras reales'}{' '}
+                en vez de esta estimación (que sigue sirviendo para la composición de gastos y el punto de
+                equilibrio).
+              </p>
+            )}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <label className="block">
                 <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
                   Ingresos mensuales estimados
+                  {usaIngresosReales && (
+                    <span style={{ color: 'var(--series-blue)' }}> (no usado este mes)</span>
+                  )}
                 </span>
                 <input
                   type="number"
