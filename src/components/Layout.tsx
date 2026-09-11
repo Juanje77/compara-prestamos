@@ -7,7 +7,8 @@ import { LoginModal } from './LoginModal'
 import { useAuth } from '../lib/AuthContext'
 
 const SECCIONES: { to: string; label: string; end?: boolean }[] = [
-  { to: '/', label: 'Préstamos', end: true },
+  { to: '/', label: 'Inicio', end: true },
+  { to: '/prestamos', label: 'Préstamos' },
   { to: '/empresas', label: 'Para empresas' },
 ]
 
