@@ -111,7 +111,8 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
         </div>
         <p className="mb-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
           Ventas y compras netas, margen bruto y calidad de tu facturación a partir de facturas, notas de
-          crédito y notas de débito. Para saber qué te falta cobrar o pagar, usá "Cobranzas y pagos".
+          crédito y notas de débito. Lo que quede pendiente de cobrar o pagar (no tildado como cobrada/pagada)
+          aparece automáticamente organizado por semana en "Cobranzas y pagos".
         </p>
 
         <div

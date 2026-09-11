@@ -16,9 +16,25 @@ import { formatoMoneda } from '../lib/finance'
 import { descargarPdfCobranzasSemanal } from '../lib/pdf'
 import { cargarDatosUsuario, guardarDatosUsuario } from '../lib/userSync'
 import { useAuth } from '../lib/AuthContext'
+import type { Factura } from '../lib/cfo'
+
+/** Los movimientos generados a partir de una factura llevan este prefijo en el id, para poder
+ * distinguirlos de los cargados a mano (que no se pueden borrar ni editar desde acá). */
+const PREFIJO_FACTURA = 'factura:'
 
 function hoyISO(): string {
   return new Date().toISOString().slice(0, 10)
+}
+
+function facturaAMovimiento(f: Factura): Movimiento {
+  return {
+    id: `${PREFIJO_FACTURA}${f.id}`,
+    tipo: f.tipo === 'emitida' ? 'cobro' : 'pago',
+    concepto: f.contraparte,
+    monto: f.monto,
+    fecha: f.fechaEstimadaCobroPago ?? f.fecha,
+    cumplido: f.cumplido ?? false,
+  }
 }
 
 function etiquetaSemana(fechaISO: string, semanas: RangoSemana[]): { texto: string; color: string } {
@@ -128,6 +144,7 @@ function ColumnaMovimientos({ titulo, movimientos, semanas, onAgregar, onToggle,
         <ul className="space-y-1.5">
           {movimientos.map((m) => {
             const etiqueta = etiquetaSemana(m.fecha, semanas)
+            const deFactura = m.id.startsWith(PREFIJO_FACTURA)
             return (
               <li
                 key={m.id}
@@ -147,7 +164,9 @@ function ColumnaMovimientos({ titulo, movimientos, semanas, onAgregar, onToggle,
                     color: 'var(--text-primary)',
                     textDecoration: m.cumplido ? 'line-through' : 'none',
                   }}
+                  title={deFactura ? 'Generado desde Salud financiera' : undefined}
                 >
+                  {deFactura && '🧾 '}
                   {m.concepto}
                 </span>
                 <span className="tabular shrink-0 text-xs" style={{ color: 'var(--text-muted)' }}>
@@ -162,14 +181,16 @@ function ColumnaMovimientos({ titulo, movimientos, semanas, onAgregar, onToggle,
                 <span className="tabular shrink-0 font-medium" style={{ color: 'var(--text-primary)' }}>
                   {formatoMoneda(m.monto)}
                 </span>
-                <button
-                  onClick={() => onEliminar(m.id)}
-                  aria-label="Eliminar"
-                  className="shrink-0 text-xs"
-                  style={{ color: 'var(--text-muted)' }}
-                >
-                  🗑
-                </button>
+                {!deFactura && (
+                  <button
+                    onClick={() => onEliminar(m.id)}
+                    aria-label="Eliminar"
+                    className="shrink-0 text-xs"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    🗑
+                  </button>
+                )}
               </li>
             )
           })}
@@ -196,11 +217,25 @@ function ColumnaMovimientos({ titulo, movimientos, semanas, onAgregar, onToggle,
   )
 }
 
-export function CobranzasPagosSemanal() {
+interface Props {
+  facturas?: Factura[]
+  onCambiarFactura?: (id: string, cambios: Partial<Pick<Factura, 'cumplido'>>) => void
+}
+
+export function CobranzasPagosSemanal({ facturas = [], onCambiarFactura }: Props) {
   const { user } = useAuth()
   const [movimientos, setMovimientos] = useState<Movimiento[]>(() => obtenerMovimientos())
   const [errorImport, setErrorImport] = useState<string | null>(null)
   const [importandoTipo, setImportandoTipo] = useState<TipoMovimiento | null>(null)
+
+  const movimientosDeFacturas = useMemo(
+    () => facturas.filter((f) => f.tipoComprobante !== 'nota_credito').map(facturaAMovimiento),
+    [facturas],
+  )
+  const todosMovimientos = useMemo(
+    () => [...movimientos, ...movimientosDeFacturas],
+    [movimientos, movimientosDeFacturas],
+  )
 
   const [nubeLista, setNubeLista] = useState(false)
   const cargaNubeHecha = useRef(false)
@@ -246,6 +281,12 @@ export function CobranzasPagosSemanal() {
   }
 
   function handleToggle(id: string) {
+    if (id.startsWith(PREFIJO_FACTURA)) {
+      const facturaId = id.slice(PREFIJO_FACTURA.length)
+      const actual = movimientosDeFacturas.find((m) => m.id === id)
+      onCambiarFactura?.(facturaId, { cumplido: !actual?.cumplido })
+      return
+    }
     alternarCumplido(id)
     refrescar()
   }
@@ -286,10 +327,10 @@ export function CobranzasPagosSemanal() {
     }
   }
 
-  const cobros = movimientos.filter((m) => m.tipo === 'cobro')
-  const pagos = movimientos.filter((m) => m.tipo === 'pago')
+  const cobros = todosMovimientos.filter((m) => m.tipo === 'cobro')
+  const pagos = todosMovimientos.filter((m) => m.tipo === 'pago')
 
-  const agrupacion = useMemo(() => agruparPorSemana(movimientos, 4), [movimientos])
+  const agrupacion = useMemo(() => agruparPorSemana(todosMovimientos, 4), [todosMovimientos])
   const totalVencidos = agrupacion.vencidos.reduce(
     (s, m) => s + (m.tipo === 'cobro' ? m.monto : -m.monto),
     0,
@@ -315,7 +356,7 @@ export function CobranzasPagosSemanal() {
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => descargarPdfCobranzasSemanal(agrupacion, movimientos)}
+              onClick={() => descargarPdfCobranzasSemanal(agrupacion, todosMovimientos)}
               className="rounded-full border px-4 py-1.5 text-xs font-medium"
               style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
             >
@@ -431,8 +472,15 @@ export function CobranzasPagosSemanal() {
       <p className="border-t pt-6 pb-4 text-xs" style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
         Las semanas se arman según la fecha que le pusiste a cada cobro o pago (lunes a domingo), empezando por
         la semana actual. El Excel a importar (tanto en cobros como en pagos) debe tener una fila de
-        encabezados con columnas como "Cliente" o "Proveedor", "Monto" y, opcionalmente, "Fecha". Estos datos se
-        guardan solo en este navegador, no se suben a ningún servidor.
+        encabezados con columnas como "Cliente" o "Proveedor", "Monto" y, opcionalmente, "Fecha".
+        {facturas.length > 0 && (
+          <>
+            {' '}
+            Los ítems marcados con 🧾 vienen de tus facturas cargadas en "Salud financiera" — tildarlos acá
+            marca la factura como cobrada/pagada, y no se pueden borrar desde acá (se gestionan desde esa
+            pestaña).
+          </>
+        )}
       </p>
     </>
   )

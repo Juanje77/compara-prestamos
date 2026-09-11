@@ -304,7 +304,12 @@ export function EmpresasPage({ esPremium }: Props) {
         ))}
       </nav>
 
-      {seccion === 'cobranzas' && <CobranzasPagosSemanal />}
+      {seccion === 'cobranzas' && (
+        <CobranzasPagosSemanal
+          facturas={esPremium ? facturas : undefined}
+          onCambiarFactura={esPremium ? handleCambiarFactura : undefined}
+        />
+      )}
 
       {seccion === 'presupuesto' && (
         <PremiumLock
