@@ -1,10 +1,11 @@
-import type { TipoFactura } from './cfo'
+import type { TipoComprobante, TipoFactura } from './cfo'
 
 export interface FacturaImportadaArca {
   tipo: TipoFactura
+  tipoComprobante: TipoComprobante
   contraparte: string
   monto: number
-  fechaEmision: string
+  fecha: string
   numero?: string
 }
 
@@ -33,16 +34,21 @@ function fechaArcaAISO(valor: unknown): string | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10)
 }
 
-function esNotaCreditoODebito(tipoComprobante: unknown): boolean {
-  const t = normalizar(tipoComprobante)
-  return t.includes('nota de credito') || t.includes('nota de debito')
+/** Clasifica el "Tipo" de comprobante de ARCA (ej: "1 - Factura A", "3 - Nota de Crédito A"). */
+function tipoComprobanteDesde(tipoTexto: unknown): TipoComprobante | null {
+  const t = normalizar(tipoTexto)
+  if (t.includes('nota de credito')) return 'nota_credito'
+  if (t.includes('nota de debito')) return 'nota_debito'
+  if (t.includes('factura')) return 'factura'
+  return null
 }
 
 /**
  * Lee el Excel de "Mis Comprobantes Emitidos/Recibidos" que se descarga desde ARCA (ex AFIP).
  * El archivo trae una fila de título ("Mis Comprobantes Emitidos - CUIT ...") antes de los
  * encabezados reales, de ahí se detecta si es un archivo de facturas emitidas o recibidas.
- * Las Notas de Crédito/Débito se omiten (no son facturas nuevas, ajustan una ya existente).
+ * Se importan también las Notas de Crédito y Débito (con su propio signo se calcula la salud
+ * financiera real) — solo se omiten comprobantes de un tipo no reconocido o con datos inválidos.
  */
 export async function importarComprobantesArca(file: File): Promise<ResultadoImportacionArca> {
   const { readSheet } = await import('read-excel-file/browser')
@@ -86,29 +92,26 @@ export async function importarComprobantesArca(file: File): Promise<ResultadoImp
     const fila = filas[i]
     if (!fila || fila.every((c) => c === null || c === undefined)) continue
 
-    if (esNotaCreditoODebito(fila[idxTipoComprobante])) {
-      omitidas++
-      continue
-    }
-
+    const tipoComprobante = tipoComprobanteDesde(fila[idxTipoComprobante])
     const contraparte = String(fila[idxDenominacion] ?? '').trim()
     const impTotal = Number(fila[idxImpTotal])
-    const fechaEmision = fechaArcaAISO(fila[idxFecha])
-    if (!contraparte || !fechaEmision || !impTotal || impTotal <= 0) {
+    const fecha = fechaArcaAISO(fila[idxFecha])
+
+    if (!tipoComprobante || !contraparte || !fecha || !impTotal || impTotal <= 0) {
       omitidas++
       continue
     }
 
     const moneda = String(fila[idxMoneda] ?? '$').trim()
     const tipoCambio = idxTipoCambio !== -1 ? Number(fila[idxTipoCambio]) || 1 : 1
-    const monto = moneda === '$' ? impTotal : Math.round(impTotal * tipoCambio)
+    const monto = Math.abs(moneda === '$' ? impTotal : impTotal * tipoCambio)
 
     const numero =
       idxPtoVta !== -1 && idxNroDesde !== -1
         ? `${String(fila[idxPtoVta]).padStart(4, '0')}-${String(fila[idxNroDesde]).padStart(8, '0')}`
         : undefined
 
-    facturas.push({ tipo, contraparte, monto: Math.round(monto), fechaEmision, numero })
+    facturas.push({ tipo, tipoComprobante, contraparte, monto: Math.round(monto), fecha, numero })
   }
 
   return { facturas, omitidas }

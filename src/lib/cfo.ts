@@ -137,46 +137,115 @@ export function calcularDesvios(categorias: CategoriaGasto[], real: Record<strin
 }
 
 // ---------------------------------------------------------------------------
-// Facturas y comprobantes (Premium)
+// Salud financiera a partir de comprobantes (Premium)
 // ---------------------------------------------------------------------------
+//
+// Este módulo NO es para saber qué falta cobrar o pagar (eso lo resuelve el
+// módulo de Cobranzas y pagos semanal). Es para medir la salud del negocio a
+// partir de los comprobantes fiscales: ventas y compras netas, margen, y qué
+// tan sano es el mix de facturas vs. notas de crédito/débito.
 
 export type TipoFactura = 'emitida' | 'recibida'
-export type EstadoFactura = 'pendiente' | 'cobrada' | 'pagada' | 'vencida'
+export type TipoComprobante = 'factura' | 'nota_credito' | 'nota_debito'
 
 export interface Factura {
   id: string
   tipo: TipoFactura
+  tipoComprobante: TipoComprobante
   contraparte: string
   monto: number
-  fechaEmision: string
-  fechaVencimiento: string
-  estado: EstadoFactura
+  fecha: string
   numero?: string
 }
 
-/** Marca como "vencida" toda factura pendiente cuyo vencimiento ya pasó. */
-export function actualizarVencimientos(facturas: Factura[]): Factura[] {
-  const hoy = new Date().toISOString().slice(0, 10)
-  return facturas.map((f) =>
-    f.estado === 'pendiente' && f.fechaVencimiento && f.fechaVencimiento < hoy ? { ...f, estado: 'vencida' } : f,
-  )
+/**
+ * Monto con signo: las notas de crédito restan (una compra que se anula, o una venta que no se
+ * concretó/se anuló), las facturas y notas de débito (recargos) suman — tanto en emitidas como
+ * en recibidas.
+ */
+export function montoConSigno(f: Factura): number {
+  return f.tipoComprobante === 'nota_credito' ? -f.monto : f.monto
 }
 
-export interface TotalesFacturas {
-  porCobrar: number
-  porPagar: number
-  vencidasCobrar: number
-  vencidasPagar: number
+export interface ResumenMensual {
+  mes: string
+  ventasNetas: number
+  comprasNetas: number
+  margenBruto: number
+  margenBrutoPct: number
 }
 
-export function calcularTotalesFacturas(facturas: Factura[]): TotalesFacturas {
-  const abiertas = (tipo: TipoFactura) =>
-    facturas.filter((f) => f.tipo === tipo && (f.estado === 'pendiente' || f.estado === 'vencida'))
+/** Ventas y compras netas por mes (ya con notas de crédito/débito aplicadas), y margen bruto. */
+export function calcularResumenMensual(facturas: Factura[]): ResumenMensual[] {
+  const porMes = new Map<string, { ventas: number; compras: number }>()
+  for (const f of facturas) {
+    const mes = f.fecha.slice(0, 7)
+    const actual = porMes.get(mes) ?? { ventas: 0, compras: 0 }
+    const monto = montoConSigno(f)
+    if (f.tipo === 'emitida') actual.ventas += monto
+    else actual.compras += monto
+    porMes.set(mes, actual)
+  }
+  return [...porMes.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([mes, { ventas, compras }]) => ({
+      mes,
+      ventasNetas: ventas,
+      comprasNetas: compras,
+      margenBruto: ventas - compras,
+      margenBrutoPct: ventas > 0 ? ((ventas - compras) / ventas) * 100 : 0,
+    }))
+}
+
+export interface RankingContraparte {
+  contraparte: string
+  monto: number
+  cantidad: number
+}
+
+/** Top clientes (emitidas) o proveedores (recibidas) por monto neto acumulado. */
+export function calcularRanking(facturas: Factura[], tipo: TipoFactura, top = 5): RankingContraparte[] {
+  const mapa = new Map<string, { monto: number; cantidad: number }>()
+  for (const f of facturas.filter((x) => x.tipo === tipo)) {
+    const actual = mapa.get(f.contraparte) ?? { monto: 0, cantidad: 0 }
+    actual.monto += montoConSigno(f)
+    actual.cantidad += 1
+    mapa.set(f.contraparte, actual)
+  }
+  return [...mapa.entries()]
+    .map(([contraparte, { monto, cantidad }]) => ({ contraparte, monto, cantidad }))
+    .sort((a, b) => b.monto - a.monto)
+    .slice(0, top)
+}
+
+export interface PesoNotas {
+  pctNotasEmitidas: number
+  pctNotasRecibidas: number
+  totalNotaCreditoEmitida: number
+  totalNotaDebitoEmitida: number
+  totalNotaCreditoRecibida: number
+  totalNotaDebitoRecibida: number
+}
+
+/** Qué porcentaje de lo facturado en bruto corresponde a notas de crédito/débito (ajustes). */
+export function calcularPesoNotas(facturas: Factura[]): PesoNotas {
+  const sum = (tipo: TipoFactura, tc: TipoComprobante) =>
+    facturas.filter((f) => f.tipo === tipo && f.tipoComprobante === tc).reduce((s, f) => s + f.monto, 0)
+
+  const totalNotaCreditoEmitida = sum('emitida', 'nota_credito')
+  const totalNotaDebitoEmitida = sum('emitida', 'nota_debito')
+  const totalNotaCreditoRecibida = sum('recibida', 'nota_credito')
+  const totalNotaDebitoRecibida = sum('recibida', 'nota_debito')
+  const brutoEmitidas = sum('emitida', 'factura') + totalNotaDebitoEmitida + totalNotaCreditoEmitida
+  const brutoRecibidas = sum('recibida', 'factura') + totalNotaDebitoRecibida + totalNotaCreditoRecibida
+
   return {
-    porCobrar: abiertas('emitida').reduce((s, f) => s + f.monto, 0),
-    porPagar: abiertas('recibida').reduce((s, f) => s + f.monto, 0),
-    vencidasCobrar: abiertas('emitida').filter((f) => f.estado === 'vencida').length,
-    vencidasPagar: abiertas('recibida').filter((f) => f.estado === 'vencida').length,
+    pctNotasEmitidas: brutoEmitidas > 0 ? ((totalNotaCreditoEmitida + totalNotaDebitoEmitida) / brutoEmitidas) * 100 : 0,
+    pctNotasRecibidas: brutoRecibidas > 0 ? ((totalNotaCreditoRecibida + totalNotaDebitoRecibida) / brutoRecibidas) * 100 : 0,
+    totalNotaCreditoEmitida,
+    totalNotaDebitoEmitida,
+    totalNotaCreditoRecibida,
+    totalNotaDebitoRecibida,
   }
 }
 
@@ -231,12 +300,23 @@ export function generarAlertas(input: {
     }
   }
 
-  const { vencidasCobrar, vencidasPagar } = calcularTotalesFacturas(facturas)
-  if (vencidasCobrar > 0) {
-    alertas.push({ id: 'facturas-vencidas-cobrar', severidad: 'warning', mensaje: `Tenés ${vencidasCobrar} factura(s) emitida(s) vencida(s) sin cobrar.` })
+  const resumenMensual = calcularResumenMensual(facturas)
+  const ultimoMes = resumenMensual[resumenMensual.length - 1]
+  if (ultimoMes && ultimoMes.margenBruto < 0) {
+    alertas.push({
+      id: 'margen-bruto-negativo',
+      severidad: 'critical',
+      mensaje: `Según tus comprobantes, en ${ultimoMes.mes} compraste más de lo que facturaste (margen bruto negativo).`,
+    })
   }
-  if (vencidasPagar > 0) {
-    alertas.push({ id: 'facturas-vencidas-pagar', severidad: 'critical', mensaje: `Tenés ${vencidasPagar} factura(s) recibida(s) vencida(s) sin pagar.` })
+
+  const pesoNotas = calcularPesoNotas(facturas)
+  if (pesoNotas.pctNotasEmitidas > 15) {
+    alertas.push({
+      id: 'notas-emitidas-altas',
+      severidad: 'warning',
+      mensaje: `El ${pesoNotas.pctNotasEmitidas.toFixed(0)}% de tu facturación emitida son notas de crédito/débito (ventas anuladas o recargos) — vale la pena revisar por qué.`,
+    })
   }
 
   return alertas

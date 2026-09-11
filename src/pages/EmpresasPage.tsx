@@ -12,7 +12,6 @@ import { PremiumLock } from '../components/PremiumLock'
 import { PremiumUpgradeModal } from '../components/PremiumUpgradeModal'
 import { buildWhatsAppLink } from '../components/WhatsAppContact'
 import {
-  actualizarVencimientos,
   calcularCuotaDeudaTotal,
   calcularDeudaTotal,
   calcularDesvios,
@@ -27,7 +26,6 @@ import {
   type CategoriaGasto,
   type CuentaBancaria,
   type Deuda as DeudaTipo,
-  type EstadoFactura,
   type Factura,
 } from '../lib/cfo'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
@@ -62,7 +60,7 @@ const SECCIONES = [
   { key: 'dashboard', label: 'Dashboard' },
   { key: 'cobranzas', label: 'Cobranzas y pagos' },
   { key: 'presupuesto', label: 'Presupuesto vs. Real' },
-  { key: 'facturas', label: 'Facturas' },
+  { key: 'facturas', label: 'Salud financiera' },
 ] as const
 
 type Seccion = (typeof SECCIONES)[number]['key']
@@ -90,9 +88,7 @@ export function EmpresasPage({ esPremium }: Props) {
   })
   const [deudas, setDeudas] = useState<DeudaTipo[]>(() => cargarNegocioData()?.deudas ?? [])
   const [real, setReal] = useState<Record<string, number>>(() => cargarNegocioData()?.real ?? {})
-  const [facturas, setFacturas] = useState<Factura[]>(() =>
-    actualizarVencimientos(cargarNegocioData()?.facturas ?? []),
-  )
+  const [facturas, setFacturas] = useState<Factura[]>(() => cargarNegocioData()?.facturas ?? [])
   const [tasaCrecimiento, setTasaCrecimiento] = useState(() => cargarNegocioData()?.tasaCrecimiento ?? 0)
 
   // Sincronización con Firestore: solo empieza a escribir en la nube después de intentar
@@ -118,7 +114,7 @@ export function EmpresasPage({ esPremium }: Props) {
           setCuentas(d.cuentas)
           setDeudas(d.deudas)
           setReal(d.real ?? {})
-          setFacturas(actualizarVencimientos(d.facturas ?? []))
+          setFacturas(d.facturas ?? [])
           setTasaCrecimiento(d.tasaCrecimiento ?? 0)
         }
       })
@@ -173,18 +169,12 @@ export function EmpresasPage({ esPremium }: Props) {
     setDeudas((prev) => prev.filter((d) => d.id !== id))
   }
 
-  function handleAgregarFactura(factura: Omit<Factura, 'id' | 'estado'>) {
-    setFacturas((prev) => actualizarVencimientos([...prev, { ...factura, id: generarId(), estado: 'pendiente' }]))
+  function handleAgregarFactura(factura: Omit<Factura, 'id'>) {
+    setFacturas((prev) => [...prev, { ...factura, id: generarId() }])
   }
 
-  function handleImportarFacturas(nuevas: Omit<Factura, 'id' | 'estado'>[]) {
-    setFacturas((prev) =>
-      actualizarVencimientos([...prev, ...nuevas.map((f) => ({ ...f, id: generarId(), estado: 'pendiente' as const }))]),
-    )
-  }
-
-  function handleCambiarEstadoFactura(id: string, estado: EstadoFactura) {
-    setFacturas((prev) => prev.map((f) => (f.id === id ? { ...f, estado } : f)))
+  function handleImportarFacturas(nuevas: Omit<Factura, 'id'>[]) {
+    setFacturas((prev) => [...prev, ...nuevas.map((f) => ({ ...f, id: generarId() }))])
   }
 
   function handleEliminarFactura(id: string) {
@@ -304,15 +294,14 @@ export function EmpresasPage({ esPremium }: Props) {
       {seccion === 'facturas' && (
         <PremiumLock
           activo={esPremium}
-          titulo="Gestión de facturas y comprobantes"
-          descripcion="Cargá tus facturas emitidas y recibidas, seguí su estado (pendiente, cobrada, pagada o vencida) y mirá de un vistazo cuánto tenés por cobrar y por pagar."
+          titulo="Salud financiera con tus comprobantes"
+          descripcion="Importá tus facturas, notas de crédito y débito (desde ARCA o a mano) y mirá ventas y compras netas, margen bruto por mes, tus principales clientes/proveedores y qué tan sana es tu facturación."
           onQuieroPremium={abrirPlanes}
         >
           <Facturas
             facturas={facturas}
             onAgregar={handleAgregarFactura}
             onImportarVarias={handleImportarFacturas}
-            onCambiarEstado={handleCambiarEstadoFactura}
             onEliminar={handleEliminarFactura}
           />
         </PremiumLock>

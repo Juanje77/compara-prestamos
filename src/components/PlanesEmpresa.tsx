@@ -34,8 +34,8 @@ const PLANES: PlanConfig[] = [
       'Todo lo incluido en el plan Básico',
       'Presupuesto vs. Real, con desvío por categoría',
       'Proyección de caja con tasa de crecimiento mensual',
-      'Alertas automáticas (caja, deudas y facturas vencidas)',
-      'Gestión de facturas emitidas y recibidas',
+      'Alertas automáticas (caja, deudas por vencer y salud de facturación)',
+      'Salud financiera con tus comprobantes: ventas/compras netas, margen y ranking de clientes/proveedores',
     ],
   },
 ]
