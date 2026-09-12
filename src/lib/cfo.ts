@@ -361,21 +361,46 @@ export function calcularResumenMensual(facturas: Factura[]): ResumenMensual[] {
     .map(([mes, { ventas, compras }]) => ({ mes, ventasNetas: ventas, comprasNetas: compras }))
 }
 
-export interface PromedioVentasMensual {
+export interface PromedioMensual {
   promedio: number
   hayDatos: boolean
 }
 
+function calcularPromedioMensual(meses: number[]): PromedioMensual {
+  const conDatos = meses.filter((m) => m !== 0)
+  if (conDatos.length === 0) return { promedio: 0, hayDatos: false }
+  return { promedio: conDatos.reduce((s, m) => s + m, 0) / conDatos.length, hayDatos: true }
+}
+
+function calcularPromedioMensualPorTipo(facturas: Factura[], tipo: TipoFactura): PromedioMensual {
+  const porMes = new Map<string, number>()
+  for (const f of facturas) {
+    if (f.tipo !== tipo) continue
+    for (const cuota of distribuirEnCuotas(f)) {
+      const mes = cuota.fecha.slice(0, 7)
+      porMes.set(mes, (porMes.get(mes) ?? 0) + cuota.monto)
+    }
+  }
+  return calcularPromedioMensual([...porMes.values()])
+}
+
 /**
  * Promedio de ventas netas mensuales a partir de todas las facturas emitidas cargadas en Salud
- * financiera — para proyectar el flujo de caja con un ingreso representativo del negocio real
- * (varios meses), en vez de depender de si hubo ventas cargadas justo el mes en curso.
+ * financiera (repartidas en cuotas si corresponde, ver distribuirEnCuotas) — para proyectar el
+ * flujo de caja con un ingreso representativo del negocio real (varios meses), en vez de depender
+ * de si hubo ventas cargadas justo el mes en curso.
  */
-export function calcularPromedioVentasMensual(facturas: Factura[]): PromedioVentasMensual {
-  const meses = calcularResumenMensual(facturas).filter((m) => m.ventasNetas !== 0)
-  if (meses.length === 0) return { promedio: 0, hayDatos: false }
-  const total = meses.reduce((s, m) => s + m.ventasNetas, 0)
-  return { promedio: total / meses.length, hayDatos: true }
+export function calcularPromedioVentasMensual(facturas: Factura[]): PromedioMensual {
+  return calcularPromedioMensualPorTipo(facturas, 'emitida')
+}
+
+/**
+ * Promedio de compras netas mensuales a partir de todas las facturas recibidas cargadas en Salud
+ * financiera (repartidas en cuotas, ver distribuirEnCuotas) — mismo criterio que las ventas: un
+ * gasto representativo de varios meses en vez de depender solo del mes en curso.
+ */
+export function calcularPromedioComprasMensual(facturas: Factura[]): PromedioMensual {
+  return calcularPromedioMensualPorTipo(facturas, 'recibida')
 }
 
 export interface VentasComprasMes {

@@ -22,6 +22,7 @@ import {
   calcularGastosTotales,
   calcularMargenBrutoTotal,
   calcularMargenOperativo,
+  calcularPromedioComprasMensual,
   calcularPromedioVentasMensual,
   calcularPuntoEquilibrio,
   calcularRanking,
@@ -284,14 +285,21 @@ export function EmpresasPage({ esPremium }: Props) {
   const ingresosEfectivos = usaIngresosReales ? ventasComprasMes!.ventasNetas : ingresos
   const gastosEfectivos = usaGastosReales ? ventasComprasMes!.comprasNetas : gastosTotales
 
-  // La proyección de caja usa el promedio mensual de tus ventas cargadas (varios meses), en vez de
-  // depender de si hubo ventas justo este mes — y si no cargaste ninguna venta, la estimación manual.
+  // La proyección de caja usa el promedio mensual de tus ventas y compras cargadas (varios meses),
+  // en vez de depender de si hubo movimientos justo este mes — y si no cargaste nada, la
+  // estimación manual.
   const promedioVentas = useMemo(
     () => (esPremium ? calcularPromedioVentasMensual(facturas) : null),
     [esPremium, facturas],
   )
+  const promedioCompras = useMemo(
+    () => (esPremium ? calcularPromedioComprasMensual(facturas) : null),
+    [esPremium, facturas],
+  )
   const usaPromedioVentasReal = promedioVentas?.hayDatos ?? false
+  const usaPromedioComprasReal = promedioCompras?.hayDatos ?? false
   const ingresosProyeccion = usaPromedioVentasReal ? promedioVentas!.promedio : ingresos
+  const gastosProyeccion = usaPromedioComprasReal ? promedioCompras!.promedio : gastosTotales
 
   const margenOperativo = calcularMargenOperativo(ingresosEfectivos, gastosEfectivos)
   const runwayMeses = calcularRunwayMeses(saldoInicial, gastosEfectivos)
@@ -301,8 +309,8 @@ export function EmpresasPage({ esPremium }: Props) {
     [ingresosEfectivos, gastosFijos, gastosVariables],
   )
   const proyeccion = useMemo(
-    () => proyectarFlujoCaja(saldoInicial, ingresosProyeccion, gastosEfectivos, meses, esPremium ? tasaCrecimiento : 0),
-    [saldoInicial, ingresosProyeccion, gastosEfectivos, meses, esPremium, tasaCrecimiento],
+    () => proyectarFlujoCaja(saldoInicial, ingresosProyeccion, gastosProyeccion, meses, esPremium ? tasaCrecimiento : 0),
+    [saldoInicial, ingresosProyeccion, gastosProyeccion, meses, esPremium, tasaCrecimiento],
   )
   const realEfectivo = useMemo(
     () => calcularRealEfectivoPorMes(categorias, facturas, clasificaciones, realManualPorMes, mesPresupuesto),
@@ -599,7 +607,8 @@ export function EmpresasPage({ esPremium }: Props) {
               saldoInicial={saldoInicial}
               ingresos={ingresosProyeccion}
               usaIngresosReales={usaPromedioVentasReal}
-              gastosTotales={gastosEfectivos}
+              gastosTotales={gastosProyeccion}
+              usaGastosReales={usaPromedioComprasReal}
               meses={meses}
               onCambiarMeses={setMeses}
               tasaCrecimiento={tasaCrecimiento}

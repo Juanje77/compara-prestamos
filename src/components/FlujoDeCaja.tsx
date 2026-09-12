@@ -8,6 +8,7 @@ interface Props {
   ingresos: number
   usaIngresosReales?: boolean
   gastosTotales: number
+  usaGastosReales?: boolean
   meses: number
   onCambiarMeses: (meses: number) => void
   tasaCrecimiento?: number
@@ -47,6 +48,7 @@ export function FlujoDeCaja({
   ingresos,
   usaIngresosReales = false,
   gastosTotales,
+  usaGastosReales = false,
   meses,
   onCambiarMeses,
   tasaCrecimiento = 0,
@@ -69,9 +71,15 @@ export function FlujoDeCaja({
           <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
             Proyección de flujo de caja
           </h3>
-          {usaIngresosReales && (
+          {(usaIngresosReales || usaGastosReales) && (
             <p className="text-xs" style={{ color: 'var(--series-blue)' }}>
-              📊 Usando el promedio real de tus ventas cargadas en Salud financiera
+              📊 Usando el promedio real de{' '}
+              {usaIngresosReales && usaGastosReales
+                ? 'tus ventas y compras cargadas'
+                : usaIngresosReales
+                  ? 'tus ventas cargadas'
+                  : 'tus compras cargadas'}{' '}
+              en Salud financiera
             </p>
           )}
         </div>
