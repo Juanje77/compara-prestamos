@@ -82,7 +82,9 @@ export async function importarComprobantesArca(file: File, plazoDiasCobroPago = 
   const idxMoneda = encabezados.indexOf('moneda')
   const idxTipoCambio = encabezados.indexOf('tipo cambio')
   const idxImpTotal = encabezados.indexOf('imp. total')
-  const idxIva = encabezados.indexOf('iva')
+  // ARCA desglosa el IVA por alícuota (2,5%, 5%, 10,5%, 21%, 27%) en columnas separadas — la
+  // columna con el total ya sumado se llama "Total IVA", no "IVA".
+  const idxIva = encabezados.indexOf('total iva')
 
   if (idxDenominacion === -1 || idxImpTotal === -1) {
     throw new Error('El archivo no tiene las columnas esperadas de contraparte e importe total.')
