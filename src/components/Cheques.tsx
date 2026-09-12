@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import type { Cheque, EstadoCheque, TipoCheque } from '../lib/cfo'
-import { ESTADOS_CHEQUE_LABEL, calcularTotalesCheques } from '../lib/cfo'
+import { calcularTotalesCheques, estadosChequeDisponibles, etiquetaEstadoCheque, montoNetoCheque } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
 
 interface Props {
   cheques: Cheque[]
   onAgregar: (cheque: Omit<Cheque, 'id'>) => void
   onCambiarEstado: (id: string, estado: EstadoCheque) => void
+  onCambiarComision: (id: string, comisionDescuento: number) => void
   onEliminar: (id: string) => void
 }
 
@@ -14,7 +15,7 @@ function hoyISO(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
-export function Cheques({ cheques, onAgregar, onCambiarEstado, onEliminar }: Props) {
+export function Cheques({ cheques, onAgregar, onCambiarEstado, onCambiarComision, onEliminar }: Props) {
   const [tipo, setTipo] = useState<TipoCheque>('recibido')
   const [numero, setNumero] = useState('')
   const [banco, setBanco] = useState('')
@@ -53,8 +54,9 @@ export function Cheques({ cheques, onAgregar, onCambiarEstado, onEliminar }: Pro
           Cheques
         </h2>
         <p className="mb-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
-          Cheques de terceros que recibiste y cheques propios que emitiste. Junto con tus cuentas bancarias, es
-          la base para armar un balance contable a fin de año.
+          Cheques de terceros que recibiste y cheques propios que emitiste. Un recibido lo podés cobrar al
+          vencimiento, o venderlo (descontarlo) antes en un banco a cambio de una comisión. Junto con tus
+          cuentas bancarias, es la base para armar un balance contable a fin de año.
         </p>
 
         <form onSubmit={handleSubmit} className="flex flex-wrap gap-2">
@@ -135,7 +137,7 @@ export function Cheques({ cheques, onAgregar, onCambiarEstado, onEliminar }: Pro
         </p>
       ) : (
         <>
-          <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                 Recibidos en cartera
@@ -161,6 +163,17 @@ export function Cheques({ cheques, onAgregar, onCambiarEstado, onEliminar }: Pro
                 style={{ color: totales.saldoNetoCheques >= 0 ? 'var(--status-good-text)' : 'var(--status-critical)' }}
               >
                 {formatoMoneda(totales.saldoNetoCheques)}
+              </p>
+            </div>
+            <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                Comisiones pagadas a bancos
+              </p>
+              <p
+                className="tabular text-lg font-semibold"
+                style={{ color: totales.totalComisionesDescuento > 0 ? 'var(--status-critical)' : 'var(--text-primary)' }}
+              >
+                {formatoMoneda(totales.totalComisionesDescuento)}
               </p>
             </div>
           </section>
@@ -202,18 +215,41 @@ export function Cheques({ cheques, onAgregar, onCambiarEstado, onEliminar }: Pro
                       color: 'var(--text-primary)',
                     }}
                   >
-                    {(Object.keys(ESTADOS_CHEQUE_LABEL) as EstadoCheque[]).map((estado) => (
+                    {estadosChequeDisponibles(c.tipo).map((estado) => (
                       <option key={estado} value={estado}>
-                        {ESTADOS_CHEQUE_LABEL[estado]}
+                        {etiquetaEstadoCheque(estado, c.tipo)}
                       </option>
                     ))}
                   </select>
-                  <span
-                    className="tabular shrink-0 font-medium"
-                    style={{ color: c.tipo === 'emitido' ? 'var(--status-critical)' : 'var(--text-primary)' }}
-                  >
-                    {formatoMoneda(c.monto)}
-                  </span>
+                  {c.estado === 'vendido' && (
+                    <label className="flex shrink-0 items-center gap-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                      Comisión banco
+                      <input
+                        type="number"
+                        min={0}
+                        value={c.comisionDescuento ?? ''}
+                        onChange={(e) => onCambiarComision(c.id, Number(e.target.value))}
+                        className="tabular w-24 rounded border px-1.5 py-0.5 text-xs"
+                        style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+                      />
+                    </label>
+                  )}
+                  {c.estado === 'vendido' ? (
+                    <span
+                      className="tabular shrink-0 font-medium"
+                      style={{ color: c.tipo === 'emitido' ? 'var(--status-critical)' : 'var(--text-primary)' }}
+                      title={`Bruto ${formatoMoneda(c.monto)} − comisión ${formatoMoneda(c.comisionDescuento ?? 0)}`}
+                    >
+                      {formatoMoneda(montoNetoCheque(c))} neto
+                    </span>
+                  ) : (
+                    <span
+                      className="tabular shrink-0 font-medium"
+                      style={{ color: c.tipo === 'emitido' ? 'var(--status-critical)' : 'var(--text-primary)' }}
+                    >
+                      {formatoMoneda(c.monto)}
+                    </span>
+                  )}
                   <button
                     onClick={() => onEliminar(c.id)}
                     aria-label="Eliminar cheque"

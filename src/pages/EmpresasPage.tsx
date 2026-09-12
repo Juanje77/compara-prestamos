@@ -290,6 +290,10 @@ export function EmpresasPage({ esPremium }: Props) {
     setCheques((prev) => prev.map((c) => (c.id === id ? { ...c, estado } : c)))
   }
 
+  function handleCambiarComisionCheque(id: string, comisionDescuento: number) {
+    setCheques((prev) => prev.map((c) => (c.id === id ? { ...c, comisionDescuento } : c)))
+  }
+
   function handleEliminarCheque(id: string) {
     setCheques((prev) => prev.filter((c) => c.id !== id))
   }
@@ -509,6 +513,7 @@ export function EmpresasPage({ esPremium }: Props) {
             cheques={cheques}
             onAgregar={handleAgregarCheque}
             onCambiarEstado={handleCambiarEstadoCheque}
+            onCambiarComision={handleCambiarComisionCheque}
             onEliminar={handleEliminarCheque}
           />
         </PremiumLock>

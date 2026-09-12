@@ -564,12 +564,30 @@ export function generarAlertas(input: {
 // cuentas bancarias, es la base para armar un balance contable a fin de año.
 
 export type TipoCheque = 'recibido' | 'emitido'
-export type EstadoCheque = 'cartera' | 'cobrado' | 'rechazado'
+/** "vendido" (descontado en un banco antes de la fecha de cobro) solo aplica a los recibidos: un
+ * cheque que emitiste vos no lo "vendés", el que lo tiene lo cobra o lo descuenta en su propio
+ * banco, y eso no te afecta a vos más que en la fecha en que se debita de tu cuenta. */
+export type EstadoCheque = 'cartera' | 'cobrado' | 'vendido' | 'rechazado'
 
-export const ESTADOS_CHEQUE_LABEL: Record<EstadoCheque, string> = {
-  cartera: 'En cartera',
-  cobrado: 'Cobrado',
-  rechazado: 'Rechazado',
+/** Estados válidos según el tipo de cheque — "vendido" solo tiene sentido para los recibidos. */
+export function estadosChequeDisponibles(tipo: TipoCheque): EstadoCheque[] {
+  return tipo === 'recibido' ? ['cartera', 'cobrado', 'vendido', 'rechazado'] : ['cartera', 'cobrado', 'rechazado']
+}
+
+/** Misma idea de "se hizo efectivo" tiene nombres distintos según el lado: a un cheque que
+ * recibiste lo "cobrás" vos, a uno que emitiste lo "paga" el banco cuando el que lo tiene lo
+ * presenta. */
+export function etiquetaEstadoCheque(estado: EstadoCheque, tipo: TipoCheque): string {
+  switch (estado) {
+    case 'cartera':
+      return 'En cartera'
+    case 'cobrado':
+      return tipo === 'emitido' ? 'Pagado' : 'Cobrado'
+    case 'vendido':
+      return 'Vendido (descontado)'
+    case 'rechazado':
+      return 'Rechazado'
+  }
 }
 
 export interface Cheque {
@@ -583,16 +601,27 @@ export interface Cheque {
   /** Fecha en la que se puede cobrar/se acredita — para cheques diferidos. */
   fechaCobro: string
   estado: EstadoCheque
+  /** Comisión/interés que cobró el banco por descontarlo antes de la fecha de cobro — solo
+   * aplica con estado "vendido". */
+  comisionDescuento?: number
+}
+
+/** Cuánto entró realmente a la cuenta por este cheque: si se vendió (descontó), el monto menos la
+ * comisión que se llevó el banco; si no, el monto completo. */
+export function montoNetoCheque(c: Cheque): number {
+  return c.estado === 'vendido' ? c.monto - (c.comisionDescuento ?? 0) : c.monto
 }
 
 export interface TotalesCheques {
   recibidosEnCartera: number
   emitidosEnCartera: number
   saldoNetoCheques: number
+  totalComisionesDescuento: number
 }
 
 /** Totales de cheques todavía "vivos" (en cartera): los recibidos suman a favor (son un activo que
- * todavía no se hizo caja), los emitidos restan (una obligación pendiente de que se cobre). */
+ * todavía no se hizo caja), los emitidos restan (una obligación pendiente de que se cobre). Los
+ * vendidos ya salieron de cartera (se convirtieron en caja, menos la comisión del banco). */
 export function calcularTotalesCheques(cheques: Cheque[]): TotalesCheques {
   const recibidosEnCartera = cheques
     .filter((c) => c.tipo === 'recibido' && c.estado === 'cartera')
@@ -600,5 +629,13 @@ export function calcularTotalesCheques(cheques: Cheque[]): TotalesCheques {
   const emitidosEnCartera = cheques
     .filter((c) => c.tipo === 'emitido' && c.estado === 'cartera')
     .reduce((s, c) => s + c.monto, 0)
-  return { recibidosEnCartera, emitidosEnCartera, saldoNetoCheques: recibidosEnCartera - emitidosEnCartera }
+  const totalComisionesDescuento = cheques
+    .filter((c) => c.estado === 'vendido')
+    .reduce((s, c) => s + (c.comisionDescuento ?? 0), 0)
+  return {
+    recibidosEnCartera,
+    emitidosEnCartera,
+    saldoNetoCheques: recibidosEnCartera - emitidosEnCartera,
+    totalComisionesDescuento,
+  }
 }
