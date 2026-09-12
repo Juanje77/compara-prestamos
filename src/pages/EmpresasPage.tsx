@@ -11,7 +11,9 @@ import { Facturas } from '../components/Facturas'
 import { PremiumLock } from '../components/PremiumLock'
 import { PremiumUpgradeModal } from '../components/PremiumUpgradeModal'
 import { buildWhatsAppLink } from '../components/WhatsAppContact'
+import { Proveedores } from '../components/Proveedores'
 import {
+  CATEGORIAS_GASTO,
   calcularCoberturaDeuda,
   calcularCuotaDeudaTotal,
   calcularDeudaTotal,
@@ -22,13 +24,16 @@ import {
   calcularMargenOperativo,
   calcularPuntoEquilibrio,
   calcularRanking,
+  calcularRealEfectivoPorMes,
   calcularResumenMensual,
   calcularRunwayMeses,
   calcularSaldoTotalBancos,
   calcularVentasComprasDelMes,
   generarAlertas,
+  listarProveedores,
   proyectarFlujoCaja,
   type CategoriaGasto,
+  type ClasificacionesProveedores,
   type CuentaBancaria,
   type Deuda as DeudaTipo,
   type Factura,
@@ -43,29 +48,18 @@ function generarId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
-interface CategoriaConfig {
-  key: string
-  label: string
-  tipo: CategoriaGasto['tipo']
-  color: string
-  default: number
-}
+const CATEGORIAS_CONFIG = CATEGORIAS_GASTO
 
-const CATEGORIAS_CONFIG: CategoriaConfig[] = [
-  { key: 'sueldos', label: 'Sueldos y cargas sociales', tipo: 'fijo', color: 'var(--series-blue)', default: 2500000 },
-  { key: 'alquiler', label: 'Alquiler', tipo: 'fijo', color: 'var(--series-2)', default: 600000 },
-  { key: 'servicios', label: 'Servicios (luz, gas, internet)', tipo: 'fijo', color: 'var(--series-3)', default: 300000 },
-  { key: 'impuestos', label: 'Impuestos', tipo: 'fijo', color: 'var(--series-4)', default: 600000 },
-  { key: 'seguros', label: 'Seguros y otros gastos fijos', tipo: 'fijo', color: 'var(--series-5)', default: 300000 },
-  { key: 'insumos', label: 'Insumos / mercadería', tipo: 'variable', color: 'var(--series-6)', default: 1500000 },
-  { key: 'otros', label: 'Otros gastos variables', tipo: 'variable', color: 'var(--series-7)', default: 500000 },
-]
+function mesActualISO(): string {
+  return new Date().toISOString().slice(0, 7)
+}
 
 const SECCIONES = [
   { key: 'dashboard', label: 'Dashboard' },
   { key: 'cobranzas', label: 'Cobranzas y pagos' },
   { key: 'presupuesto', label: 'Presupuesto vs. Real' },
   { key: 'facturas', label: 'Salud financiera' },
+  { key: 'proveedores', label: 'Proveedores' },
 ] as const
 
 type Seccion = (typeof SECCIONES)[number]['key']
@@ -92,8 +86,14 @@ export function EmpresasPage({ esPremium }: Props) {
       : [{ id: generarId(), nombre: 'Cuenta corriente principal', saldo: 2000000 }]
   })
   const [deudas, setDeudas] = useState<DeudaTipo[]>(() => cargarNegocioData()?.deudas ?? [])
-  const [real, setReal] = useState<Record<string, number>>(() => cargarNegocioData()?.real ?? {})
+  const [realManualPorMes, setRealManualPorMes] = useState<Record<string, Record<string, number>>>(
+    () => cargarNegocioData()?.realManualPorMes ?? {},
+  )
+  const [mesPresupuesto, setMesPresupuesto] = useState(() => mesActualISO())
   const [facturas, setFacturas] = useState<Factura[]>(() => cargarNegocioData()?.facturas ?? [])
+  const [clasificaciones, setClasificaciones] = useState<ClasificacionesProveedores>(
+    () => cargarNegocioData()?.clasificaciones ?? {},
+  )
   const [tasaCrecimiento, setTasaCrecimiento] = useState(() => cargarNegocioData()?.tasaCrecimiento ?? 0)
   const [nombreNegocio, setNombreNegocio] = useState(() => cargarNegocioData()?.nombreNegocio ?? '')
 
@@ -119,8 +119,9 @@ export function EmpresasPage({ esPremium }: Props) {
           setMontos((prev) => ({ ...prev, ...d.montos }))
           setCuentas(d.cuentas)
           setDeudas(d.deudas)
-          setReal(d.real ?? {})
+          setRealManualPorMes(d.realManualPorMes ?? {})
           setFacturas(d.facturas ?? [])
+          setClasificaciones(d.clasificaciones ?? {})
           setTasaCrecimiento(d.tasaCrecimiento ?? 0)
           setNombreNegocio(d.nombreNegocio ?? '')
         }
@@ -133,27 +134,65 @@ export function EmpresasPage({ esPremium }: Props) {
   }, [user])
 
   useEffect(() => {
-    guardarNegocioData({ ingresos, meses, montos, cuentas, deudas, real, facturas, tasaCrecimiento, nombreNegocio })
-  }, [ingresos, meses, montos, cuentas, deudas, real, facturas, tasaCrecimiento, nombreNegocio])
+    guardarNegocioData({
+      ingresos,
+      meses,
+      montos,
+      cuentas,
+      deudas,
+      realManualPorMes,
+      facturas,
+      clasificaciones,
+      tasaCrecimiento,
+      nombreNegocio,
+    })
+  }, [ingresos, meses, montos, cuentas, deudas, realManualPorMes, facturas, clasificaciones, tasaCrecimiento, nombreNegocio])
 
   useEffect(() => {
     if (!user || !nubeLista) return
     const timeout = setTimeout(() => {
       guardarDatosUsuario(user.uid, {
-        negocioData: { ingresos, meses, montos, cuentas, deudas, real, facturas, tasaCrecimiento, nombreNegocio },
+        negocioData: {
+          ingresos,
+          meses,
+          montos,
+          cuentas,
+          deudas,
+          realManualPorMes,
+          facturas,
+          clasificaciones,
+          tasaCrecimiento,
+          nombreNegocio,
+        },
       }).catch(() => {
         // Idem: si falla el guardado en la nube, los datos siguen a salvo en localStorage.
       })
     }, 800)
     return () => clearTimeout(timeout)
-  }, [user, nubeLista, ingresos, meses, montos, cuentas, deudas, real, facturas, tasaCrecimiento, nombreNegocio])
+  }, [
+    user,
+    nubeLista,
+    ingresos,
+    meses,
+    montos,
+    cuentas,
+    deudas,
+    realManualPorMes,
+    facturas,
+    clasificaciones,
+    tasaCrecimiento,
+    nombreNegocio,
+  ])
 
   function cambiarMonto(key: string, monto: number) {
     setMontos((prev) => ({ ...prev, [key]: monto }))
   }
 
   function cambiarReal(key: string, monto: number) {
-    setReal((prev) => ({ ...prev, [key]: monto }))
+    setRealManualPorMes((prev) => ({
+      ...prev,
+      [mesPresupuesto]: { ...(prev[mesPresupuesto] ?? {}), [key]: monto },
+    }))
   }
 
   function handleAgregarCuenta(nombre: string, saldo: number) {
@@ -196,6 +235,27 @@ export function EmpresasPage({ esPremium }: Props) {
     setFacturas([])
   }
 
+  function handleClasificarProveedor(proveedor: string, categoria: string) {
+    setClasificaciones((prev) => {
+      if (!categoria) {
+        const { [proveedor]: _eliminado, ...resto } = prev
+        return resto
+      }
+      return { ...prev, [proveedor]: categoria }
+    })
+  }
+
+  function handleAgregarProveedorManual(proveedor: string, categoria: string) {
+    setClasificaciones((prev) => ({ ...prev, [proveedor]: categoria }))
+  }
+
+  function handleEliminarProveedorManual(proveedor: string) {
+    setClasificaciones((prev) => {
+      const { [proveedor]: _eliminado, ...resto } = prev
+      return resto
+    })
+  }
+
   const categorias: CategoriaGasto[] = CATEGORIAS_CONFIG.map((c) => ({
     key: c.key,
     label: c.label,
@@ -234,7 +294,12 @@ export function EmpresasPage({ esPremium }: Props) {
     () => proyectarFlujoCaja(saldoInicial, ingresosEfectivos, gastosEfectivos, meses, esPremium ? tasaCrecimiento : 0),
     [saldoInicial, ingresosEfectivos, gastosEfectivos, meses, esPremium, tasaCrecimiento],
   )
-  const desvios = useMemo(() => calcularDesvios(categorias, real), [categorias, real])
+  const realEfectivo = useMemo(
+    () => calcularRealEfectivoPorMes(categorias, facturas, clasificaciones, realManualPorMes, mesPresupuesto),
+    [categorias, facturas, clasificaciones, realManualPorMes, mesPresupuesto],
+  )
+  const desvios = useMemo(() => calcularDesvios(categorias, realEfectivo), [categorias, realEfectivo])
+  const proveedores = useMemo(() => listarProveedores(facturas, clasificaciones), [facturas, clasificaciones])
   const coberturaDeuda = calcularCoberturaDeuda(ingresosEfectivos, cuotaDeudaTotal)
   const resumenMensual = useMemo(() => calcularResumenMensual(facturas), [facturas])
   const rankingClientes = useMemo(() => calcularRanking(facturas, 'emitida'), [facturas])
@@ -314,7 +379,7 @@ export function EmpresasPage({ esPremium }: Props) {
             }
           >
             {s.label}
-            {!esPremium && (s.key === 'presupuesto' || s.key === 'facturas') && ' 🔒'}
+            {!esPremium && (s.key === 'presupuesto' || s.key === 'facturas' || s.key === 'proveedores') && ' 🔒'}
           </button>
         ))}
       </nav>
@@ -333,7 +398,12 @@ export function EmpresasPage({ esPremium }: Props) {
           descripcion="Cargá lo que realmente gastaste cada mes y compará automáticamente contra tu presupuesto, con el desvío en pesos y en porcentaje por categoría."
           onQuieroPremium={abrirPlanes}
         >
-          <PresupuestoVsReal desvios={desvios} onCambiarReal={cambiarReal} />
+          <PresupuestoVsReal
+            desvios={desvios}
+            mes={mesPresupuesto}
+            onCambiarMes={setMesPresupuesto}
+            onCambiarReal={cambiarReal}
+          />
         </PremiumLock>
       )}
 
@@ -352,6 +422,22 @@ export function EmpresasPage({ esPremium }: Props) {
             onEliminar={handleEliminarFactura}
             onVaciar={handleVaciarFacturas}
             onDescargarInforme={handleDescargarInformeSalud}
+          />
+        </PremiumLock>
+      )}
+
+      {seccion === 'proveedores' && (
+        <PremiumLock
+          activo={esPremium}
+          titulo="Proveedores"
+          descripcion="Clasificá cada proveedor en una categoría de gasto para que Presupuesto vs. Real se complete solo con tus facturas recibidas."
+          onQuieroPremium={abrirPlanes}
+        >
+          <Proveedores
+            proveedores={proveedores}
+            onClasificar={handleClasificarProveedor}
+            onAgregarManual={handleAgregarProveedorManual}
+            onEliminarManual={handleEliminarProveedorManual}
           />
         </PremiumLock>
       )}

@@ -1,4 +1,4 @@
-import type { CuentaBancaria, Deuda, Factura } from './cfo'
+import type { ClasificacionesProveedores, CuentaBancaria, Deuda, Factura } from './cfo'
 
 export interface NegocioData {
   ingresos: number
@@ -6,8 +6,11 @@ export interface NegocioData {
   montos: Record<string, number>
   cuentas: CuentaBancaria[]
   deudas: Deuda[]
-  real: Record<string, number>
+  /** Ediciones manuales de "Real" por mes ("YYYY-MM") y categoría — lo que no está acá pero sí
+   * hay facturas clasificadas, se completa solo (ver calcularRealEfectivoPorMes). */
+  realManualPorMes: Record<string, Record<string, number>>
   facturas: Factura[]
+  clasificaciones: ClasificacionesProveedores
   tasaCrecimiento: number
   nombreNegocio: string
 }

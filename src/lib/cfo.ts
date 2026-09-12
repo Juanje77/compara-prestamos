@@ -41,6 +41,26 @@ export interface CategoriaGasto {
   color: string
 }
 
+export interface CategoriaConfig {
+  key: string
+  label: string
+  tipo: TipoGasto
+  color: string
+  default: number
+}
+
+/** Categorías de gasto del negocio — se usan tanto en el Dashboard (montos estimados) como en la
+ * clasificación de proveedores para Presupuesto vs. Real. */
+export const CATEGORIAS_GASTO: CategoriaConfig[] = [
+  { key: 'sueldos', label: 'Sueldos y cargas sociales', tipo: 'fijo', color: 'var(--series-blue)', default: 2500000 },
+  { key: 'alquiler', label: 'Alquiler', tipo: 'fijo', color: 'var(--series-2)', default: 600000 },
+  { key: 'servicios', label: 'Servicios (luz, gas, internet)', tipo: 'fijo', color: 'var(--series-3)', default: 300000 },
+  { key: 'impuestos', label: 'Impuestos', tipo: 'fijo', color: 'var(--series-4)', default: 600000 },
+  { key: 'seguros', label: 'Seguros y otros gastos fijos', tipo: 'fijo', color: 'var(--series-5)', default: 300000 },
+  { key: 'insumos', label: 'Insumos / mercadería', tipo: 'variable', color: 'var(--series-6)', default: 1500000 },
+  { key: 'otros', label: 'Otros gastos variables', tipo: 'variable', color: 'var(--series-7)', default: 500000 },
+]
+
 export function calcularGastosTotales(categorias: CategoriaGasto[]) {
   const fijos = categorias.filter((c) => c.tipo === 'fijo').reduce((s, c) => s + c.monto, 0)
   const variables = categorias.filter((c) => c.tipo === 'variable').reduce((s, c) => s + c.monto, 0)
@@ -130,15 +150,30 @@ export interface DesvioCategoria {
   real: number
   desvioMonto: number
   desvioPct: number
+  esAutomatico: boolean
+}
+
+export interface RealCategoria {
+  monto: number
+  automatico: boolean
 }
 
 /** Compara lo presupuestado (categorías) contra lo realmente gastado/ingresado en el mes. */
-export function calcularDesvios(categorias: CategoriaGasto[], real: Record<string, number>): DesvioCategoria[] {
+export function calcularDesvios(categorias: CategoriaGasto[], real: Record<string, RealCategoria>): DesvioCategoria[] {
   return categorias.map((c) => {
-    const montoReal = real[c.key] ?? 0
+    const info = real[c.key] ?? { monto: 0, automatico: false }
+    const montoReal = info.monto
     const desvioMonto = montoReal - c.monto
     const desvioPct = c.monto > 0 ? (desvioMonto / c.monto) * 100 : montoReal > 0 ? 100 : 0
-    return { key: c.key, label: c.label, presupuestado: c.monto, real: montoReal, desvioMonto, desvioPct }
+    return {
+      key: c.key,
+      label: c.label,
+      presupuestado: c.monto,
+      real: montoReal,
+      desvioMonto,
+      desvioPct,
+      esAutomatico: info.automatico,
+    }
   })
 }
 
@@ -183,6 +218,86 @@ export function sumarDias(fechaISO: string, dias: number): string {
  */
 export function montoConSigno(f: Factura): number {
   return f.tipoComprobante === 'nota_credito' ? -f.monto : f.monto
+}
+
+// ---------------------------------------------------------------------------
+// Clasificación de proveedores (Premium)
+// ---------------------------------------------------------------------------
+
+/** Mapa proveedor -> key de categoría de gasto (ver CATEGORIAS_GASTO). */
+export type ClasificacionesProveedores = Record<string, string>
+
+export interface ProveedorResumen {
+  proveedor: string
+  categoria: string
+  totalFacturado: number
+  cantidad: number
+}
+
+/**
+ * Todos los proveedores vistos en facturas recibidas, más los que se hayan clasificado a mano
+ * sin tener todavía ninguna factura cargada, con su categoría asignada (vacío si no tiene).
+ */
+export function listarProveedores(facturas: Factura[], clasificaciones: ClasificacionesProveedores): ProveedorResumen[] {
+  const mapa = new Map<string, { total: number; cantidad: number }>()
+  for (const f of facturas) {
+    if (f.tipo !== 'recibida') continue
+    const actual = mapa.get(f.contraparte) ?? { total: 0, cantidad: 0 }
+    actual.total += montoConSigno(f)
+    actual.cantidad += 1
+    mapa.set(f.contraparte, actual)
+  }
+  for (const proveedor of Object.keys(clasificaciones)) {
+    if (!mapa.has(proveedor)) mapa.set(proveedor, { total: 0, cantidad: 0 })
+  }
+  return [...mapa.entries()]
+    .map(([proveedor, { total, cantidad }]) => ({
+      proveedor,
+      categoria: clasificaciones[proveedor] ?? '',
+      totalFacturado: total,
+      cantidad,
+    }))
+    .sort((a, b) => b.totalFacturado - a.totalFacturado)
+}
+
+/** Suma, por categoría, las facturas recibidas de un mes cuyo proveedor ya está clasificado. */
+export function calcularRealAutomaticoPorMes(
+  facturas: Factura[],
+  clasificaciones: ClasificacionesProveedores,
+  mesISO: string,
+): Record<string, number> {
+  const resultado: Record<string, number> = {}
+  for (const f of facturas) {
+    if (f.tipo !== 'recibida' || f.fecha.slice(0, 7) !== mesISO) continue
+    const categoria = clasificaciones[f.contraparte]
+    if (!categoria) continue
+    resultado[categoria] = (resultado[categoria] ?? 0) + montoConSigno(f)
+  }
+  return resultado
+}
+
+/**
+ * El "Real" efectivo de cada categoría para un mes: usa lo cargado a mano si existe (el usuario
+ * lo pisó a propósito), y si no, lo automático calculado desde las facturas clasificadas.
+ */
+export function calcularRealEfectivoPorMes(
+  categorias: CategoriaGasto[],
+  facturas: Factura[],
+  clasificaciones: ClasificacionesProveedores,
+  realManualPorMes: Record<string, Record<string, number>>,
+  mesISO: string,
+): Record<string, RealCategoria> {
+  const automatico = calcularRealAutomaticoPorMes(facturas, clasificaciones, mesISO)
+  const manual = realManualPorMes[mesISO] ?? {}
+  const resultado: Record<string, RealCategoria> = {}
+  for (const c of categorias) {
+    if (manual[c.key] !== undefined) {
+      resultado[c.key] = { monto: manual[c.key], automatico: false }
+    } else {
+      resultado[c.key] = { monto: automatico[c.key] ?? 0, automatico: automatico[c.key] !== undefined }
+    }
+  }
+  return resultado
 }
 
 export interface ResumenMensual {
