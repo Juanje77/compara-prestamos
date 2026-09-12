@@ -43,6 +43,7 @@ import {
   type CuentaBancaria,
   type Deuda as DeudaTipo,
   type EstadoCheque,
+  type IvaManualMes,
   type Factura,
 } from '../lib/cfo'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
@@ -104,6 +105,9 @@ export function EmpresasPage({ esPremium }: Props) {
     () => cargarNegocioData()?.clasificaciones ?? {},
   )
   const [cheques, setCheques] = useState<Cheque[]>(() => cargarNegocioData()?.cheques ?? [])
+  const [ivaManualPorMes, setIvaManualPorMes] = useState<Record<string, IvaManualMes>>(
+    () => cargarNegocioData()?.ivaManualPorMes ?? {},
+  )
   const [tasaCrecimiento, setTasaCrecimiento] = useState(() => cargarNegocioData()?.tasaCrecimiento ?? 0)
   const [nombreNegocio, setNombreNegocio] = useState(() => cargarNegocioData()?.nombreNegocio ?? '')
 
@@ -133,6 +137,7 @@ export function EmpresasPage({ esPremium }: Props) {
           setFacturas(d.facturas ?? [])
           setClasificaciones(d.clasificaciones ?? {})
           setCheques(d.cheques ?? [])
+          setIvaManualPorMes(d.ivaManualPorMes ?? {})
           setTasaCrecimiento(d.tasaCrecimiento ?? 0)
           setNombreNegocio(d.nombreNegocio ?? '')
         }
@@ -155,6 +160,7 @@ export function EmpresasPage({ esPremium }: Props) {
       facturas,
       clasificaciones,
       cheques,
+      ivaManualPorMes,
       tasaCrecimiento,
       nombreNegocio,
     })
@@ -168,6 +174,7 @@ export function EmpresasPage({ esPremium }: Props) {
     facturas,
     clasificaciones,
     cheques,
+    ivaManualPorMes,
     tasaCrecimiento,
     nombreNegocio,
   ])
@@ -186,6 +193,7 @@ export function EmpresasPage({ esPremium }: Props) {
           facturas,
           clasificaciones,
           cheques,
+          ivaManualPorMes,
           tasaCrecimiento,
           nombreNegocio,
         },
@@ -206,6 +214,7 @@ export function EmpresasPage({ esPremium }: Props) {
     facturas,
     clasificaciones,
     cheques,
+    ivaManualPorMes,
     tasaCrecimiento,
     nombreNegocio,
   ])
@@ -301,6 +310,13 @@ export function EmpresasPage({ esPremium }: Props) {
     setCheques((prev) => prev.filter((c) => c.id !== id))
   }
 
+  function handleCambiarIvaManual(mes: string, campo: keyof IvaManualMes, valor: number | undefined) {
+    setIvaManualPorMes((prev) => ({
+      ...prev,
+      [mes]: { ...(prev[mes] ?? {}), [campo]: valor },
+    }))
+  }
+
   const categorias: CategoriaGasto[] = CATEGORIAS_CONFIG.map((c) => ({
     key: c.key,
     label: c.label,
@@ -366,7 +382,10 @@ export function EmpresasPage({ esPremium }: Props) {
   const rankingClientes = useMemo(() => calcularRanking(facturas, 'emitida'), [facturas])
   const rankingProveedores = useMemo(() => calcularRanking(facturas, 'recibida'), [facturas])
   const margenTotal = useMemo(() => calcularMargenBrutoTotal(facturas), [facturas])
-  const posicionIva = useMemo(() => calcularPosicionIvaPorMes(facturas), [facturas])
+  const posicionIva = useMemo(
+    () => calcularPosicionIvaPorMes(facturas, ivaManualPorMes),
+    [facturas, ivaManualPorMes],
+  )
   const alertas = useMemo(
     () => generarAlertas({ margenOperativo, runwayMeses, proyeccion, deudas, facturas }),
     [margenOperativo, runwayMeses, proyeccion, deudas, facturas],
@@ -534,7 +553,7 @@ export function EmpresasPage({ esPremium }: Props) {
           descripcion="Débito y crédito fiscal por mes, con el saldo técnico a favor arrastrado del mes anterior, a partir del IVA que cargues en cada comprobante de Salud financiera."
           onQuieroPremium={abrirPlanes}
         >
-          <PosicionIva posicion={posicionIva} />
+          <PosicionIva posicion={posicionIva} onCambiarManual={handleCambiarIvaManual} />
         </PremiumLock>
       )}
 

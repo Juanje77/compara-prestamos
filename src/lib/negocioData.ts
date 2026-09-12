@@ -1,4 +1,4 @@
-import type { Cheque, ClasificacionesProveedores, CuentaBancaria, Deuda, Factura } from './cfo'
+import type { Cheque, ClasificacionesProveedores, CuentaBancaria, Deuda, Factura, IvaManualMes } from './cfo'
 
 export interface NegocioData {
   ingresos: number
@@ -12,6 +12,8 @@ export interface NegocioData {
   facturas: Factura[]
   clasificaciones: ClasificacionesProveedores
   cheques: Cheque[]
+  /** Ediciones manuales de la Posición de IVA por mes — ver calcularPosicionIvaPorMes. */
+  ivaManualPorMes: Record<string, IvaManualMes>
   tasaCrecimiento: number
   nombreNegocio: string
 }

@@ -517,15 +517,31 @@ export function calcularRanking(facturas: Factura[], tipo: TipoFactura, top = 5)
 export interface PosicionIvaMes {
   mes: string
   saldoAFavorAnterior: number
+  saldoAFavorAnteriorEsManual: boolean
   debitoFiscal: number
+  debitoFiscalEsManual: boolean
   creditoFiscal: number
+  creditoFiscalEsManual: boolean
   saldoTecnico: number
   saldoAPagar: number
   saldoAFavor: number
 }
 
-/** Posición de IVA mes a mes, arrastrando el saldo a favor de un mes al siguiente. */
-export function calcularPosicionIvaPorMes(facturas: Factura[]): PosicionIvaMes[] {
+/** Ediciones manuales por mes ("YYYY-MM") — para cuando no cargaste el IVA comprobante por
+ * comprobante y preferís poner directamente el débito/crédito fiscal del mes, o para corregir el
+ * saldo a favor arrastrado (por ejemplo, el saldo real que traías de antes de usar FinCorp). */
+export interface IvaManualMes {
+  debitoFiscal?: number
+  creditoFiscal?: number
+  saldoAFavorAnterior?: number
+}
+
+/** Posición de IVA mes a mes, arrastrando el saldo a favor de un mes al siguiente. Cualquier valor
+ * cargado a mano en `manual` pisa el que sale de sumar el IVA de los comprobantes. */
+export function calcularPosicionIvaPorMes(
+  facturas: Factura[],
+  manual: Record<string, IvaManualMes> = {},
+): PosicionIvaMes[] {
   const porMes = new Map<string, { debito: number; credito: number }>()
   for (const f of facturas) {
     const mes = f.fecha.slice(0, 7)
@@ -534,24 +550,41 @@ export function calcularPosicionIvaPorMes(facturas: Factura[]): PosicionIvaMes[]
     else actual.credito += ivaConSigno(f)
     porMes.set(mes, actual)
   }
+  // Los meses que solo tienen una edición manual (sin comprobantes cargados) también aparecen.
+  for (const mes of Object.keys(manual)) {
+    if (!porMes.has(mes)) porMes.set(mes, { debito: 0, credito: 0 })
+  }
 
-  let saldoAFavorAnterior = 0
+  let saldoAFavorAnteriorCalculado = 0
   return [...porMes.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([mes, { debito, credito }]) => {
-      const saldoTecnico = saldoAFavorAnterior + credito - debito
+      const overrideMes = manual[mes] ?? {}
+      const debitoFiscalEsManual = overrideMes.debitoFiscal !== undefined
+      const debitoFiscal = debitoFiscalEsManual ? overrideMes.debitoFiscal! : debito
+      const creditoFiscalEsManual = overrideMes.creditoFiscal !== undefined
+      const creditoFiscal = creditoFiscalEsManual ? overrideMes.creditoFiscal! : credito
+      const saldoAFavorAnteriorEsManual = overrideMes.saldoAFavorAnterior !== undefined
+      const saldoAFavorAnterior = saldoAFavorAnteriorEsManual
+        ? overrideMes.saldoAFavorAnterior!
+        : saldoAFavorAnteriorCalculado
+
+      const saldoTecnico = saldoAFavorAnterior + creditoFiscal - debitoFiscal
       const saldoAPagar = Math.max(0, -saldoTecnico)
       const saldoAFavor = Math.max(0, saldoTecnico)
       const fila: PosicionIvaMes = {
         mes,
         saldoAFavorAnterior,
-        debitoFiscal: debito,
-        creditoFiscal: credito,
+        saldoAFavorAnteriorEsManual,
+        debitoFiscal,
+        debitoFiscalEsManual,
+        creditoFiscal,
+        creditoFiscalEsManual,
         saldoTecnico,
         saldoAPagar,
         saldoAFavor,
       }
-      saldoAFavorAnterior = saldoAFavor
+      saldoAFavorAnteriorCalculado = saldoAFavor
       return fila
     })
 }
