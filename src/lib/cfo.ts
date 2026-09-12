@@ -222,6 +222,10 @@ export interface Factura {
   cuotas?: number
   /** Con qué se cobró/pagó una vez marcada como cumplida — caja, cheque o transferencia. */
   medioPago?: MedioPago
+  /** Parte del monto total que corresponde a IVA (débito fiscal si es emitida, crédito fiscal si
+   * es recibida) — el resto (monto - iva) es el neto/base imponible. Opcional: si no se carga, se
+   * asume que el comprobante no discrimina IVA (monotributo, exento, etc.). */
+  iva?: number
 }
 
 /** Suma (o resta, con un número negativo) una cantidad de días a una fecha ISO (YYYY-MM-DD). */
@@ -238,6 +242,18 @@ export function sumarDias(fechaISO: string, dias: number): string {
  */
 export function montoConSigno(f: Factura): number {
   return f.tipoComprobante === 'nota_credito' ? -f.monto : f.monto
+}
+
+/** IVA con el mismo signo que montoConSigno — una nota de crédito también revierte el IVA que
+ * había generado el comprobante original. */
+export function ivaConSigno(f: Factura): number {
+  const iva = f.iva ?? 0
+  return f.tipoComprobante === 'nota_credito' ? -iva : iva
+}
+
+/** Monto neto (sin IVA) con signo: lo que queda del monto total una vez descontado el IVA. */
+export function montoNetoConSigno(f: Factura): number {
+  return montoConSigno(f) - ivaConSigno(f)
 }
 
 export interface CuotaFactura {
@@ -486,6 +502,58 @@ export function calcularRanking(facturas: Factura[], tipo: TipoFactura, top = 5)
     .map(([contraparte, { monto, cantidad }]) => ({ contraparte, monto, cantidad }))
     .sort((a, b) => b.monto - a.monto)
     .slice(0, top)
+}
+
+// ---------------------------------------------------------------------------
+// Posición de IVA (Premium)
+// ---------------------------------------------------------------------------
+//
+// Mecánica estándar de IVA en Argentina: Débito fiscal (IVA de ventas) menos
+// Crédito fiscal (IVA de compras) da el Saldo técnico del mes. Si da positivo,
+// hay que pagarlo a AFIP y no se traslada nada. Si da negativo (el crédito
+// superó al débito), ese saldo queda a favor y se resta del saldo técnico del
+// mes siguiente — por eso el saldo a favor que se arrastra nunca es negativo.
+
+export interface PosicionIvaMes {
+  mes: string
+  saldoAFavorAnterior: number
+  debitoFiscal: number
+  creditoFiscal: number
+  saldoTecnico: number
+  saldoAPagar: number
+  saldoAFavor: number
+}
+
+/** Posición de IVA mes a mes, arrastrando el saldo a favor de un mes al siguiente. */
+export function calcularPosicionIvaPorMes(facturas: Factura[]): PosicionIvaMes[] {
+  const porMes = new Map<string, { debito: number; credito: number }>()
+  for (const f of facturas) {
+    const mes = f.fecha.slice(0, 7)
+    const actual = porMes.get(mes) ?? { debito: 0, credito: 0 }
+    if (f.tipo === 'emitida') actual.debito += ivaConSigno(f)
+    else actual.credito += ivaConSigno(f)
+    porMes.set(mes, actual)
+  }
+
+  let saldoAFavorAnterior = 0
+  return [...porMes.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([mes, { debito, credito }]) => {
+      const saldoTecnico = saldoAFavorAnterior + credito - debito
+      const saldoAPagar = Math.max(0, -saldoTecnico)
+      const saldoAFavor = Math.max(0, saldoTecnico)
+      const fila: PosicionIvaMes = {
+        mes,
+        saldoAFavorAnterior,
+        debitoFiscal: debito,
+        creditoFiscal: credito,
+        saldoTecnico,
+        saldoAPagar,
+        saldoAFavor,
+      }
+      saldoAFavorAnterior = saldoAFavor
+      return fila
+    })
 }
 
 // ---------------------------------------------------------------------------

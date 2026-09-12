@@ -8,6 +8,7 @@ export interface FacturaImportadaArca {
   fecha: string
   fechaEstimadaCobroPago: string
   numero?: string
+  iva?: number
 }
 
 export interface ResultadoImportacionArca {
@@ -81,6 +82,7 @@ export async function importarComprobantesArca(file: File, plazoDiasCobroPago = 
   const idxMoneda = encabezados.indexOf('moneda')
   const idxTipoCambio = encabezados.indexOf('tipo cambio')
   const idxImpTotal = encabezados.indexOf('imp. total')
+  const idxIva = encabezados.indexOf('iva')
 
   if (idxDenominacion === -1 || idxImpTotal === -1) {
     throw new Error('El archivo no tiene las columnas esperadas de contraparte e importe total.')
@@ -107,6 +109,9 @@ export async function importarComprobantesArca(file: File, plazoDiasCobroPago = 
     const tipoCambio = idxTipoCambio !== -1 ? Number(fila[idxTipoCambio]) || 1 : 1
     const monto = Math.abs(moneda === '$' ? impTotal : impTotal * tipoCambio)
 
+    const ivaRaw = idxIva !== -1 ? Number(fila[idxIva]) : NaN
+    const iva = !Number.isNaN(ivaRaw) ? Math.round(Math.abs(moneda === '$' ? ivaRaw : ivaRaw * tipoCambio)) : undefined
+
     const numero =
       idxPtoVta !== -1 && idxNroDesde !== -1
         ? `${String(fila[idxPtoVta]).padStart(4, '0')}-${String(fila[idxNroDesde]).padStart(8, '0')}`
@@ -120,6 +125,7 @@ export async function importarComprobantesArca(file: File, plazoDiasCobroPago = 
       fecha,
       fechaEstimadaCobroPago: sumarDias(fecha, plazoDiasCobroPago),
       numero,
+      iva,
     })
   }
 

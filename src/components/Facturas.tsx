@@ -6,7 +6,9 @@ import {
   calcularMargenBrutoTotal,
   calcularRanking,
   calcularResumenMensual,
+  ivaConSigno,
   montoConSigno,
+  montoNetoConSigno,
   sumarDias,
   type MedioPago,
 } from '../lib/cfo'
@@ -82,6 +84,7 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
   const [tipoComprobante, setTipoComprobante] = useState<TipoComprobante>('factura')
   const [contraparte, setContraparte] = useState('')
   const [monto, setMonto] = useState('')
+  const [iva, setIva] = useState('')
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10))
   const [cuotas, setCuotas] = useState('1')
   const [filtro, setFiltro] = useState<'todas' | TipoFactura>('todas')
@@ -94,6 +97,22 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
   const rankingClientes = useMemo(() => calcularRanking(facturas, 'emitida'), [facturas])
   const rankingProveedores = useMemo(() => calcularRanking(facturas, 'recibida'), [facturas])
   const margenTotal = useMemo(() => calcularMargenBrutoTotal(facturas), [facturas])
+  const ivaTotales = useMemo(() => {
+    let netoVentas = 0
+    let ivaVentas = 0
+    let netoCompras = 0
+    let ivaCompras = 0
+    for (const f of facturas) {
+      if (f.tipo === 'emitida') {
+        netoVentas += montoNetoConSigno(f)
+        ivaVentas += ivaConSigno(f)
+      } else {
+        netoCompras += montoNetoConSigno(f)
+        ivaCompras += ivaConSigno(f)
+      }
+    }
+    return { netoVentas, ivaVentas, netoCompras, ivaCompras }
+  }, [facturas])
 
   const busquedaNormalizada = busqueda.trim().toLowerCase()
   const listado = facturas
@@ -109,6 +128,7 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const m = Number(monto)
+    const ivaNum = Number(iva)
     const cuotasNum = Math.max(1, Math.round(Number(cuotas) || 1))
     if (!contraparte.trim() || !m || m <= 0 || !fecha) return
     onAgregar({
@@ -120,9 +140,11 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
       fechaEstimadaCobroPago: sumarDias(fecha, plazoDias),
       cumplido: false,
       cuotas: cuotasNum > 1 ? cuotasNum : undefined,
+      iva: ivaNum > 0 ? ivaNum : undefined,
     })
     setContraparte('')
     setMonto('')
+    setIva('')
     setCuotas('1')
   }
 
@@ -255,6 +277,34 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
             style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
           />
           <input
+            type="number"
+            placeholder="IVA"
+            title="Monto de IVA incluido en el total (opcional)"
+            value={iva}
+            onChange={(e) => setIva(e.target.value)}
+            className="tabular w-24 shrink-0 rounded-lg border px-3 py-1.5 text-sm"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+          />
+          <select
+            title="Calcular el IVA a partir de una alícuota, sobre el monto total"
+            defaultValue=""
+            onChange={(e) => {
+              const pct = Number(e.target.value)
+              const m = Number(monto)
+              if (pct > 0 && m > 0) setIva(String(Math.round(m - m / (1 + pct / 100))))
+              e.target.value = ''
+            }}
+            className="shrink-0 rounded-lg border px-2 py-1.5 text-xs"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-muted)' }}
+          >
+            <option value="" disabled>
+              % IVA
+            </option>
+            <option value="21">21%</option>
+            <option value="10.5">10,5%</option>
+            <option value="27">27%</option>
+          </select>
+          <input
             type="date"
             value={fecha}
             onChange={(e) => setFecha(e.target.value)}
@@ -295,6 +345,9 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
               <p className="tabular text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
                 {formatoMoneda(margenTotal.ventasNetas)}
               </p>
+              <p className="tabular mt-0.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                Neto: {formatoMoneda(ivaTotales.netoVentas)} · IVA (débito fiscal): {formatoMoneda(ivaTotales.ivaVentas)}
+              </p>
             </div>
             <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
@@ -302,6 +355,9 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
               </p>
               <p className="tabular text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
                 {formatoMoneda(margenTotal.comprasNetas)}
+              </p>
+              <p className="tabular mt-0.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                Neto: {formatoMoneda(ivaTotales.netoCompras)} · IVA (crédito fiscal): {formatoMoneda(ivaTotales.ivaCompras)}
               </p>
             </div>
             <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
@@ -583,9 +639,15 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
                         color: f.tipoComprobante === 'nota_credito' ? 'var(--status-critical)' : 'var(--text-primary)',
                         opacity: f.cumplido ? 0.5 : 1,
                       }}
+                      title={f.iva ? `Neto ${formatoMoneda(montoNetoConSigno(f))} + IVA ${formatoMoneda(ivaConSigno(f))}` : undefined}
                     >
                       {formatoMoneda(montoConSigno(f))}
                     </span>
+                    {f.iva !== undefined && f.iva > 0 && (
+                      <span className="shrink-0 text-xs" style={{ color: 'var(--text-muted)' }}>
+                        (IVA {formatoMoneda(f.iva)})
+                      </span>
+                    )}
                     {(f.cuotas ?? 1) > 1 && (
                       <span
                         className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold"

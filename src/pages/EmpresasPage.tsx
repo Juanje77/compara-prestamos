@@ -13,6 +13,7 @@ import { PremiumUpgradeModal } from '../components/PremiumUpgradeModal'
 import { buildWhatsAppLink } from '../components/WhatsAppContact'
 import { Proveedores } from '../components/Proveedores'
 import { Cheques } from '../components/Cheques'
+import { PosicionIva } from '../components/PosicionIva'
 import {
   CATEGORIAS_GASTO,
   calcularCoberturaDeuda,
@@ -23,6 +24,7 @@ import {
   calcularGastosTotales,
   calcularMargenBrutoTotal,
   calcularMargenOperativo,
+  calcularPosicionIvaPorMes,
   calcularPromedioComprasMensual,
   calcularPromedioVentasMensual,
   calcularPuntoEquilibrio,
@@ -66,6 +68,7 @@ const SECCIONES = [
   { key: 'facturas', label: 'Salud financiera' },
   { key: 'proveedores', label: 'Proveedores' },
   { key: 'cheques', label: 'Cheques' },
+  { key: 'iva', label: 'Posición de IVA' },
 ] as const
 
 type Seccion = (typeof SECCIONES)[number]['key']
@@ -363,6 +366,7 @@ export function EmpresasPage({ esPremium }: Props) {
   const rankingClientes = useMemo(() => calcularRanking(facturas, 'emitida'), [facturas])
   const rankingProveedores = useMemo(() => calcularRanking(facturas, 'recibida'), [facturas])
   const margenTotal = useMemo(() => calcularMargenBrutoTotal(facturas), [facturas])
+  const posicionIva = useMemo(() => calcularPosicionIvaPorMes(facturas), [facturas])
   const alertas = useMemo(
     () => generarAlertas({ margenOperativo, runwayMeses, proyeccion, deudas, facturas }),
     [margenOperativo, runwayMeses, proyeccion, deudas, facturas],
@@ -438,7 +442,11 @@ export function EmpresasPage({ esPremium }: Props) {
           >
             {s.label}
             {!esPremium &&
-              (s.key === 'presupuesto' || s.key === 'facturas' || s.key === 'proveedores' || s.key === 'cheques') &&
+              (s.key === 'presupuesto' ||
+                s.key === 'facturas' ||
+                s.key === 'proveedores' ||
+                s.key === 'cheques' ||
+                s.key === 'iva') &&
               ' 🔒'}
           </button>
         ))}
@@ -516,6 +524,17 @@ export function EmpresasPage({ esPremium }: Props) {
             onCambiarComision={handleCambiarComisionCheque}
             onEliminar={handleEliminarCheque}
           />
+        </PremiumLock>
+      )}
+
+      {seccion === 'iva' && (
+        <PremiumLock
+          activo={esPremium}
+          titulo="Posición de IVA"
+          descripcion="Débito y crédito fiscal por mes, con el saldo técnico a favor arrastrado del mes anterior, a partir del IVA que cargues en cada comprobante de Salud financiera."
+          onQuieroPremium={abrirPlanes}
+        >
+          <PosicionIva posicion={posicionIva} />
         </PremiumLock>
       )}
 
