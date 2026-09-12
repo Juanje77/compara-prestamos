@@ -4,6 +4,7 @@ import {
   agregarMovimientos,
   alternarCumplido,
   eliminarMovimiento,
+  marcarCumplidoVarios,
   obtenerMovimientos,
   reemplazarMovimientos,
   vaciarSemana,
@@ -65,18 +66,106 @@ function ImportarExcelButton({
 
 interface ColumnaProps {
   titulo: string
+  tituloCumplido: string
   movimientos: Movimiento[]
   semanas: RangoSemana[]
   onAgregar: (concepto: string, monto: number, fecha: string) => void
   onToggle: (id: string) => void
   onEliminar: (id: string) => void
+  onMarcarVarios: (ids: string[], cumplido: boolean) => void
   extra?: React.ReactNode
 }
 
-function ColumnaMovimientos({ titulo, movimientos, semanas, onAgregar, onToggle, onEliminar, extra }: ColumnaProps) {
+function FilaMovimiento({
+  m,
+  semanas,
+  seleccionado,
+  onSeleccionar,
+  onToggle,
+  onEliminar,
+}: {
+  m: Movimiento
+  semanas: RangoSemana[]
+  seleccionado: boolean
+  onSeleccionar: (id: string, marcado: boolean) => void
+  onToggle: (id: string) => void
+  onEliminar: (id: string) => void
+}) {
+  const etiqueta = etiquetaSemana(m.fecha, semanas)
+  const deFactura = m.id.startsWith(PREFIJO_FACTURA)
+  return (
+    <li
+      className="flex items-center gap-3 rounded-lg border px-3 py-2 text-sm"
+      style={{ borderColor: 'var(--border)', opacity: m.cumplido ? 0.55 : 1 }}
+    >
+      <input
+        type="checkbox"
+        checked={seleccionado}
+        onChange={(e) => onSeleccionar(m.id, e.target.checked)}
+        aria-label="Seleccionar"
+        className="h-4 w-4 shrink-0"
+      />
+      <input
+        type="checkbox"
+        checked={m.cumplido}
+        onChange={() => onToggle(m.id)}
+        aria-label={m.cumplido ? 'Marcar como pendiente' : 'Marcar como cumplido'}
+        className="h-4 w-4 shrink-0 accent-current"
+        style={{ color: 'var(--series-blue)' }}
+      />
+      <span
+        className="flex-1 truncate"
+        style={{
+          color: 'var(--text-primary)',
+          textDecoration: m.cumplido ? 'line-through' : 'none',
+        }}
+        title={deFactura ? 'Generado desde Salud financiera' : undefined}
+      >
+        {deFactura && '🧾 '}
+        {m.concepto}
+      </span>
+      <span className="tabular shrink-0 text-xs" style={{ color: 'var(--text-muted)' }}>
+        {new Date(`${m.fecha}T00:00:00`).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}
+      </span>
+      <span
+        className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap"
+        style={{ color: etiqueta.color, background: 'var(--surface-2)' }}
+      >
+        {etiqueta.texto}
+      </span>
+      <span className="tabular shrink-0 font-medium" style={{ color: 'var(--text-primary)' }}>
+        {formatoMoneda(m.monto)}
+      </span>
+      {!deFactura && (
+        <button
+          onClick={() => onEliminar(m.id)}
+          aria-label="Eliminar"
+          className="shrink-0 text-xs"
+          style={{ color: 'var(--text-muted)' }}
+        >
+          🗑
+        </button>
+      )}
+    </li>
+  )
+}
+
+function ColumnaMovimientos({
+  titulo,
+  tituloCumplido,
+  movimientos,
+  semanas,
+  onAgregar,
+  onToggle,
+  onEliminar,
+  onMarcarVarios,
+  extra,
+}: ColumnaProps) {
   const [concepto, setConcepto] = useState('')
   const [monto, setMonto] = useState('')
   const [fecha, setFecha] = useState(hoyISO())
+  const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set())
+  const [verCumplidos, setVerCumplidos] = useState(false)
 
   const pendientes = movimientos.filter((m) => !m.cumplido)
   const cumplidos = movimientos.filter((m) => m.cumplido)
@@ -93,6 +182,35 @@ function ColumnaMovimientos({ titulo, movimientos, semanas, onAgregar, onToggle,
     setConcepto('')
     setMonto('')
   }
+
+  function alternarSeleccion(id: string, marcado: boolean) {
+    setSeleccionados((prev) => {
+      const next = new Set(prev)
+      if (marcado) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }
+
+  function seleccionarTodos(lista: Movimiento[], marcado: boolean) {
+    setSeleccionados((prev) => {
+      const next = new Set(prev)
+      for (const m of lista) {
+        if (marcado) next.add(m.id)
+        else next.delete(m.id)
+      }
+      return next
+    })
+  }
+
+  function handleMarcarSeleccionados(cumplido: boolean) {
+    onMarcarVarios([...seleccionados], cumplido)
+    setSeleccionados(new Set())
+  }
+
+  const todosPendientesSeleccionados = pendientes.length > 0 && pendientes.every((m) => seleccionados.has(m.id))
+  const todosCumplidosSeleccionados = cumplidos.length > 0 && cumplidos.every((m) => seleccionados.has(m.id))
+  const haySeleccion = seleccionados.size > 0
 
   return (
     <div className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
@@ -141,60 +259,112 @@ function ColumnaMovimientos({ titulo, movimientos, semanas, onAgregar, onToggle,
           Todavía no cargaste nada.
         </p>
       ) : (
-        <ul className="space-y-1.5">
-          {movimientos.map((m) => {
-            const etiqueta = etiquetaSemana(m.fecha, semanas)
-            const deFactura = m.id.startsWith(PREFIJO_FACTURA)
-            return (
-              <li
-                key={m.id}
-                className="flex items-center gap-3 rounded-lg border px-3 py-2 text-sm"
-                style={{ borderColor: 'var(--border)', opacity: m.cumplido ? 0.55 : 1 }}
+        <>
+          {haySeleccion && (
+            <div
+              className="mb-2 flex flex-wrap items-center gap-2 rounded-lg border p-2 text-xs"
+              style={{ borderColor: 'var(--series-blue)', background: 'var(--surface-2)' }}
+            >
+              <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>
+                {seleccionados.size} seleccionada(s)
+              </span>
+              <button
+                onClick={() => handleMarcarSeleccionados(true)}
+                className="rounded-full px-3 py-1 font-semibold text-white transition-opacity hover:opacity-90"
+                style={{ background: 'var(--status-good)' }}
               >
-                <input
-                  type="checkbox"
-                  checked={m.cumplido}
-                  onChange={() => onToggle(m.id)}
-                  className="h-4 w-4 shrink-0 accent-current"
-                  style={{ color: 'var(--series-blue)' }}
+                ✓ Marcar como {tituloCumplido}
+              </button>
+              <button
+                onClick={() => handleMarcarSeleccionados(false)}
+                className="rounded-full border px-3 py-1 font-medium"
+                style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
+              >
+                ↺ Marcar como pendiente
+              </button>
+              <button
+                onClick={() => setSeleccionados(new Set())}
+                className="ml-auto text-xs underline"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                Cancelar selección
+              </button>
+            </div>
+          )}
+
+          <div className="mb-1 flex items-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+            <label className="flex cursor-pointer items-center gap-1.5">
+              <input
+                type="checkbox"
+                checked={todosPendientesSeleccionados}
+                onChange={(e) => seleccionarTodos(pendientes, e.target.checked)}
+                className="h-3.5 w-3.5"
+              />
+              Seleccionar todas las pendientes ({pendientes.length})
+            </label>
+          </div>
+
+          {pendientes.length === 0 ? (
+            <p className="mb-2 text-sm" style={{ color: 'var(--text-muted)' }}>
+              No hay nada pendiente. 🎉
+            </p>
+          ) : (
+            <ul className="mb-2 max-h-72 space-y-1.5 overflow-y-auto">
+              {pendientes.map((m) => (
+                <FilaMovimiento
+                  key={m.id}
+                  m={m}
+                  semanas={semanas}
+                  seleccionado={seleccionados.has(m.id)}
+                  onSeleccionar={alternarSeleccion}
+                  onToggle={onToggle}
+                  onEliminar={onEliminar}
                 />
-                <span
-                  className="flex-1 truncate"
-                  style={{
-                    color: 'var(--text-primary)',
-                    textDecoration: m.cumplido ? 'line-through' : 'none',
-                  }}
-                  title={deFactura ? 'Generado desde Salud financiera' : undefined}
-                >
-                  {deFactura && '🧾 '}
-                  {m.concepto}
-                </span>
-                <span className="tabular shrink-0 text-xs" style={{ color: 'var(--text-muted)' }}>
-                  {new Date(`${m.fecha}T00:00:00`).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}
-                </span>
-                <span
-                  className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap"
-                  style={{ color: etiqueta.color, background: 'var(--surface-2)' }}
-                >
-                  {etiqueta.texto}
-                </span>
-                <span className="tabular shrink-0 font-medium" style={{ color: 'var(--text-primary)' }}>
-                  {formatoMoneda(m.monto)}
-                </span>
-                {!deFactura && (
-                  <button
-                    onClick={() => onEliminar(m.id)}
-                    aria-label="Eliminar"
-                    className="shrink-0 text-xs"
+              ))}
+            </ul>
+          )}
+
+          {cumplidos.length > 0 && (
+            <div className="mt-3 border-t pt-3" style={{ borderColor: 'var(--gridline)' }}>
+              <button
+                onClick={() => setVerCumplidos((v) => !v)}
+                className="mb-2 flex items-center gap-1.5 text-xs font-semibold"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                {verCumplidos ? '▾' : '▸'} {tituloCumplido} ({cumplidos.length}) — {formatoMoneda(totalCumplido)}
+              </button>
+              {verCumplidos && (
+                <>
+                  <label
+                    className="mb-1 flex cursor-pointer items-center gap-1.5 text-xs"
                     style={{ color: 'var(--text-muted)' }}
                   >
-                    🗑
-                  </button>
-                )}
-              </li>
-            )
-          })}
-        </ul>
+                    <input
+                      type="checkbox"
+                      checked={todosCumplidosSeleccionados}
+                      onChange={(e) => seleccionarTodos(cumplidos, e.target.checked)}
+                      className="h-3.5 w-3.5"
+                    />
+                    Seleccionar todas
+                  </label>
+                  <ul className="max-h-72 space-y-1.5 overflow-y-auto">
+                    {cumplidos.map((m) => (
+                      <FilaMovimiento
+                        key={m.id}
+                        m={m}
+                        semanas={semanas}
+                        seleccionado={seleccionados.has(m.id)}
+                        onSeleccionar={alternarSeleccion}
+                        onToggle={onToggle}
+                        onEliminar={onEliminar}
+                      />
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
+          )}
+        </>
       )}
 
       <div className="mt-4">
@@ -294,6 +464,18 @@ export function CobranzasPagosSemanal({ facturas = [], onCambiarFactura }: Props
   function handleEliminar(id: string) {
     eliminarMovimiento(id)
     refrescar()
+  }
+
+  function handleMarcarVarios(ids: string[], cumplido: boolean) {
+    const idsFactura = ids.filter((id) => id.startsWith(PREFIJO_FACTURA))
+    const idsManual = ids.filter((id) => !id.startsWith(PREFIJO_FACTURA))
+    for (const id of idsFactura) {
+      onCambiarFactura?.(id.slice(PREFIJO_FACTURA.length), { cumplido })
+    }
+    if (idsManual.length > 0) {
+      marcarCumplidoVarios(idsManual, cumplido)
+      refrescar()
+    }
   }
 
   function handleVaciar() {
@@ -438,22 +620,26 @@ export function CobranzasPagosSemanal({ facturas = [], onCambiarFactura }: Props
       <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <ColumnaMovimientos
           titulo="Cuentas a cobrar"
+          tituloCumplido="cobradas"
           movimientos={cobros}
           semanas={agrupacion.semanas}
           onAgregar={handleAgregar('cobro')}
           onToggle={handleToggle}
           onEliminar={handleEliminar}
+          onMarcarVarios={handleMarcarVarios}
           extra={
             <ImportarExcelButton activo={importandoTipo === 'cobro'} onImportar={handleImportarExcel('cobro')} />
           }
         />
         <ColumnaMovimientos
           titulo="Gastos a pagar"
+          tituloCumplido="pagadas"
           movimientos={pagos}
           semanas={agrupacion.semanas}
           onAgregar={handleAgregar('pago')}
           onToggle={handleToggle}
           onEliminar={handleEliminar}
+          onMarcarVarios={handleMarcarVarios}
           extra={
             <ImportarExcelButton activo={importandoTipo === 'pago'} onImportar={handleImportarExcel('pago')} />
           }

@@ -64,6 +64,13 @@ export function alternarCumplido(id: string) {
   escribirStorage(leerStorage().map((m) => (m.id === id ? { ...m, cumplido: !m.cumplido } : m)))
 }
 
+/** Marca (o desmarca) como cumplidos varios movimientos a la vez — para cargas históricas donde
+ * muchos ya están cobrados/pagados y no tiene sentido tildarlos uno por uno. */
+export function marcarCumplidoVarios(ids: string[], cumplido: boolean) {
+  const idsSet = new Set(ids)
+  escribirStorage(leerStorage().map((m) => (idsSet.has(m.id) ? { ...m, cumplido } : m)))
+}
+
 export function eliminarMovimiento(id: string) {
   escribirStorage(leerStorage().filter((m) => m.id !== id))
 }
