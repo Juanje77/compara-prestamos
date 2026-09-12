@@ -28,6 +28,14 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
+        // Sin esto, una pestaña abierta durante un deploy nuevo puede quedar con el service
+        // worker viejo controlándola y terminar pidiendo chunks JS de una build anterior que
+        // ya no existen (404 → el servidor devuelve el index.html, y el navegador lo rechaza
+        // por MIME type). skipWaiting + clientsClaim hacen que la versión nueva tome el control
+        // apenas se instala, y cleanupOutdatedCaches saca del caché las entradas de la build vieja.
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
       },
     }),
   ],
