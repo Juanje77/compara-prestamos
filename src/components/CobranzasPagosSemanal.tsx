@@ -27,6 +27,42 @@ function hoyISO(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
+/** Fecha "de hoy", que se actualiza sola a la medianoche (y al volver a la pestaña si se cruzó de
+ * día mientras estaba en segundo plano) para que las semanas se recalculen sin depender de que el
+ * usuario recargue la página. */
+function useFechaActual(): Date {
+  const [hoy, setHoy] = useState(() => new Date())
+
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout>
+    function programarProximaMedianoche() {
+      const ahora = new Date()
+      const proximaMedianoche = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() + 1, 0, 0, 5)
+      timeoutId = setTimeout(() => {
+        setHoy(new Date())
+        programarProximaMedianoche()
+      }, proximaMedianoche.getTime() - ahora.getTime())
+    }
+    programarProximaMedianoche()
+
+    function alVolverVisible() {
+      if (document.visibilityState !== 'visible') return
+      setHoy((prev) => {
+        const ahora = new Date()
+        return ahora.toDateString() !== prev.toDateString() ? ahora : prev
+      })
+    }
+    document.addEventListener('visibilitychange', alVolverVisible)
+
+    return () => {
+      clearTimeout(timeoutId)
+      document.removeEventListener('visibilitychange', alVolverVisible)
+    }
+  }, [])
+
+  return hoy
+}
+
 function facturaAMovimiento(f: Factura): Movimiento {
   return {
     id: `${PREFIJO_FACTURA}${f.id}`,
@@ -394,6 +430,7 @@ interface Props {
 
 export function CobranzasPagosSemanal({ facturas = [], onCambiarFactura }: Props) {
   const { user } = useAuth()
+  const hoy = useFechaActual()
   const [movimientos, setMovimientos] = useState<Movimiento[]>(() => obtenerMovimientos())
   const [errorImport, setErrorImport] = useState<string | null>(null)
   const [importandoTipo, setImportandoTipo] = useState<TipoMovimiento | null>(null)
@@ -512,7 +549,7 @@ export function CobranzasPagosSemanal({ facturas = [], onCambiarFactura }: Props
   const cobros = todosMovimientos.filter((m) => m.tipo === 'cobro')
   const pagos = todosMovimientos.filter((m) => m.tipo === 'pago')
 
-  const agrupacion = useMemo(() => agruparPorSemana(todosMovimientos, 4), [todosMovimientos])
+  const agrupacion = useMemo(() => agruparPorSemana(todosMovimientos, 4, hoy), [todosMovimientos, hoy])
   const totalVencidos = agrupacion.vencidos.reduce(
     (s, m) => s + (m.tipo === 'cobro' ? m.monto : -m.monto),
     0,

@@ -67,8 +67,8 @@ export interface AgrupacionSemanal {
 }
 
 /** Agrupa movimientos en las próximas N semanas según su fecha; lo que cae antes/después queda aparte. */
-export function agruparPorSemana(movimientos: Movimiento[], cantidadSemanas = 4): AgrupacionSemanal {
-  const semanas = obtenerProximasSemanas(cantidadSemanas)
+export function agruparPorSemana(movimientos: Movimiento[], cantidadSemanas = 4, hoy: Date = new Date()): AgrupacionSemanal {
+  const semanas = obtenerProximasSemanas(cantidadSemanas, hoy)
   const totalesPorSemana: TotalesSemana[] = semanas.map(() => ({ cobros: 0, pagos: 0, saldo: 0 }))
   const vencidos: Movimiento[] = []
   const aFuturo: Movimiento[] = []
