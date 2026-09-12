@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Bar, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { formatoMoneda } from '../lib/finance'
 import { proyectarFlujoCaja, type FilaProyeccion } from '../lib/cfo'
 
@@ -24,9 +24,18 @@ function ChartTooltip({ active, payload }: { active?: boolean; payload?: { paylo
       className="rounded-lg border px-3 py-2 text-sm shadow-lg"
       style={{ background: 'var(--surface-1)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
     >
-      <p className="font-semibold">Mes {fila.mes}</p>
-      <p style={{ color: fila.saldo < 0 ? 'var(--status-critical)' : 'var(--text-secondary)' }}>
-        Saldo proyectado: <span className="tabular font-medium">{formatoMoneda(fila.saldo)}</span>
+      <p className="mb-1 font-semibold">Mes {fila.mes}</p>
+      <p className="tabular" style={{ color: 'var(--series-blue)' }}>
+        Ingresos: {formatoMoneda(fila.ingresos)}
+      </p>
+      <p className="tabular" style={{ color: 'var(--series-2)' }}>
+        Gastos: {formatoMoneda(fila.gastos)}
+      </p>
+      <p
+        className="tabular font-medium"
+        style={{ color: fila.saldo < 0 ? 'var(--status-critical)' : 'var(--text-secondary)' }}
+      >
+        Saldo acumulado: {formatoMoneda(fila.saldo)}
       </p>
     </div>
   )
@@ -129,8 +138,8 @@ export function FlujoDeCaja({
         </div>
       </div>
 
-      <ResponsiveContainer width="100%" height={200}>
-        <BarChart data={proyeccion} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+      <ResponsiveContainer width="100%" height={240}>
+        <ComposedChart data={proyeccion} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
           <XAxis
             dataKey="mes"
             tickFormatter={(v) => `M${v}`}
@@ -140,6 +149,17 @@ export function FlujoDeCaja({
             tickLine={false}
           />
           <YAxis
+            yAxisId="flujo"
+            tickFormatter={(v) => formatoMoneda(v)}
+            stroke="var(--axis)"
+            tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+            axisLine={{ stroke: 'var(--gridline)' }}
+            tickLine={false}
+            width={90}
+          />
+          <YAxis
+            yAxisId="saldo"
+            orientation="right"
             tickFormatter={(v) => formatoMoneda(v)}
             stroke="var(--axis)"
             tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
@@ -148,12 +168,19 @@ export function FlujoDeCaja({
             width={90}
           />
           <Tooltip content={<ChartTooltip />} cursor={{ fill: 'var(--gridline)', opacity: 0.4 }} />
-          <Bar dataKey="saldo" radius={[4, 4, 0, 0]} maxBarSize={40}>
-            {proyeccion.map((fila) => (
-              <Cell key={fila.mes} fill={fila.saldo < 0 ? 'var(--status-critical)' : 'var(--series-blue)'} />
-            ))}
-          </Bar>
-        </BarChart>
+          <Legend wrapperStyle={{ fontSize: 12 }} />
+          <Bar yAxisId="flujo" dataKey="ingresos" name="Ingresos" fill="var(--series-blue)" radius={[4, 4, 0, 0]} maxBarSize={28} />
+          <Bar yAxisId="flujo" dataKey="gastos" name="Gastos" fill="var(--series-2)" radius={[4, 4, 0, 0]} maxBarSize={28} />
+          <Line
+            yAxisId="saldo"
+            type="monotone"
+            dataKey="saldo"
+            name="Saldo acumulado"
+            stroke="var(--series-7)"
+            strokeWidth={2}
+            dot={{ r: 3 }}
+          />
+        </ComposedChart>
       </ResponsiveContainer>
     </div>
   )

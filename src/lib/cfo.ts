@@ -87,13 +87,17 @@ export function calcularCoberturaDeuda(ingresos: number, cuotaDeudaTotal: number
 
 export interface FilaProyeccion {
   mes: number
+  ingresos: number
+  gastos: number
   saldo: number
 }
 
 /**
  * Proyección de saldo de caja mes a mes. Con `tasaCrecimientoMensualPct` en 0 (el valor por
  * defecto) es una proyección lineal simple, asumiendo ingresos y gastos constantes. Con una tasa
- * distinta de 0, los ingresos se ajustan ese porcentaje cada mes (función Premium).
+ * distinta de 0, los ingresos se ajustan ese porcentaje cada mes (función Premium). Cada fila
+ * incluye también el ingreso y el gasto de ese mes, para poder mostrarlos junto al saldo
+ * acumulado (y que se vea claro que los gastos sí se están restando).
  */
 export function proyectarFlujoCaja(
   saldoInicial: number,
@@ -107,7 +111,7 @@ export function proyectarFlujoCaja(
   let ingresoMes = ingresos
   for (let mes = 1; mes <= meses; mes++) {
     saldo += ingresoMes - gastosTotales
-    filas.push({ mes, saldo })
+    filas.push({ mes, ingresos: ingresoMes, gastos: gastosTotales, saldo })
     ingresoMes *= 1 + tasaCrecimientoMensualPct / 100
   }
   return filas
