@@ -22,6 +22,7 @@ import {
   calcularGastosTotales,
   calcularMargenBrutoTotal,
   calcularMargenOperativo,
+  calcularPromedioVentasMensual,
   calcularPuntoEquilibrio,
   calcularRanking,
   calcularRealEfectivoPorMes,
@@ -283,6 +284,15 @@ export function EmpresasPage({ esPremium }: Props) {
   const ingresosEfectivos = usaIngresosReales ? ventasComprasMes!.ventasNetas : ingresos
   const gastosEfectivos = usaGastosReales ? ventasComprasMes!.comprasNetas : gastosTotales
 
+  // La proyección de caja usa el promedio mensual de tus ventas cargadas (varios meses), en vez de
+  // depender de si hubo ventas justo este mes — y si no cargaste ninguna venta, la estimación manual.
+  const promedioVentas = useMemo(
+    () => (esPremium ? calcularPromedioVentasMensual(facturas) : null),
+    [esPremium, facturas],
+  )
+  const usaPromedioVentasReal = promedioVentas?.hayDatos ?? false
+  const ingresosProyeccion = usaPromedioVentasReal ? promedioVentas!.promedio : ingresos
+
   const margenOperativo = calcularMargenOperativo(ingresosEfectivos, gastosEfectivos)
   const runwayMeses = calcularRunwayMeses(saldoInicial, gastosEfectivos)
   const endeudamientoMeses = calcularEndeudamientoMeses(deudaTotal, ingresosEfectivos)
@@ -291,8 +301,8 @@ export function EmpresasPage({ esPremium }: Props) {
     [ingresosEfectivos, gastosFijos, gastosVariables],
   )
   const proyeccion = useMemo(
-    () => proyectarFlujoCaja(saldoInicial, ingresosEfectivos, gastosEfectivos, meses, esPremium ? tasaCrecimiento : 0),
-    [saldoInicial, ingresosEfectivos, gastosEfectivos, meses, esPremium, tasaCrecimiento],
+    () => proyectarFlujoCaja(saldoInicial, ingresosProyeccion, gastosEfectivos, meses, esPremium ? tasaCrecimiento : 0),
+    [saldoInicial, ingresosProyeccion, gastosEfectivos, meses, esPremium, tasaCrecimiento],
   )
   const realEfectivo = useMemo(
     () => calcularRealEfectivoPorMes(categorias, facturas, clasificaciones, realManualPorMes, mesPresupuesto),
@@ -587,8 +597,9 @@ export function EmpresasPage({ esPremium }: Props) {
             <GastosPorCategoria categorias={categorias} />
             <FlujoDeCaja
               saldoInicial={saldoInicial}
-              ingresos={ingresos}
-              gastosTotales={gastosTotales}
+              ingresos={ingresosProyeccion}
+              usaIngresosReales={usaPromedioVentasReal}
+              gastosTotales={gastosEfectivos}
               meses={meses}
               onCambiarMeses={setMeses}
               tasaCrecimiento={tasaCrecimiento}

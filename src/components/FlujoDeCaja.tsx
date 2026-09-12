@@ -6,6 +6,7 @@ import { proyectarFlujoCaja, type FilaProyeccion } from '../lib/cfo'
 interface Props {
   saldoInicial: number
   ingresos: number
+  usaIngresosReales?: boolean
   gastosTotales: number
   meses: number
   onCambiarMeses: (meses: number) => void
@@ -34,6 +35,7 @@ function ChartTooltip({ active, payload }: { active?: boolean; payload?: { paylo
 export function FlujoDeCaja({
   saldoInicial,
   ingresos,
+  usaIngresosReales = false,
   gastosTotales,
   meses,
   onCambiarMeses,
@@ -53,9 +55,16 @@ export function FlujoDeCaja({
   return (
     <div className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
-          Proyección de flujo de caja
-        </h3>
+        <div>
+          <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
+            Proyección de flujo de caja
+          </h3>
+          {usaIngresosReales && (
+            <p className="text-xs" style={{ color: 'var(--series-blue)' }}>
+              📊 Usando el promedio real de tus ventas cargadas en Salud financiera
+            </p>
+          )}
+        </div>
         <label className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
           Meses a proyectar
           <input

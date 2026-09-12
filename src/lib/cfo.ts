@@ -357,6 +357,23 @@ export function calcularResumenMensual(facturas: Factura[]): ResumenMensual[] {
     .map(([mes, { ventas, compras }]) => ({ mes, ventasNetas: ventas, comprasNetas: compras }))
 }
 
+export interface PromedioVentasMensual {
+  promedio: number
+  hayDatos: boolean
+}
+
+/**
+ * Promedio de ventas netas mensuales a partir de todas las facturas emitidas cargadas en Salud
+ * financiera — para proyectar el flujo de caja con un ingreso representativo del negocio real
+ * (varios meses), en vez de depender de si hubo ventas cargadas justo el mes en curso.
+ */
+export function calcularPromedioVentasMensual(facturas: Factura[]): PromedioVentasMensual {
+  const meses = calcularResumenMensual(facturas).filter((m) => m.ventasNetas !== 0)
+  if (meses.length === 0) return { promedio: 0, hayDatos: false }
+  const total = meses.reduce((s, m) => s + m.ventasNetas, 0)
+  return { promedio: total / meses.length, hayDatos: true }
+}
+
 export interface VentasComprasMes {
   hayVentas: boolean
   hayCompras: boolean
