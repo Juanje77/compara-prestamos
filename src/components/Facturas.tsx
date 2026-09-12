@@ -1,7 +1,15 @@
 import { useMemo, useState } from 'react'
 import { Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type { Factura, ResumenMensual, TipoComprobante, TipoFactura } from '../lib/cfo'
-import { calcularMargenBrutoTotal, calcularRanking, calcularResumenMensual, montoConSigno, sumarDias } from '../lib/cfo'
+import {
+  MEDIOS_PAGO_LABEL,
+  calcularMargenBrutoTotal,
+  calcularRanking,
+  calcularResumenMensual,
+  montoConSigno,
+  sumarDias,
+  type MedioPago,
+} from '../lib/cfo'
 import { importarComprobantesArca } from '../lib/arcaImport'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
 
@@ -9,7 +17,7 @@ interface Props {
   facturas: Factura[]
   onAgregar: (factura: Omit<Factura, 'id'>) => void
   onImportarVarias: (facturas: Omit<Factura, 'id'>[]) => void
-  onCambiar: (id: string, cambios: Partial<Pick<Factura, 'fechaEstimadaCobroPago' | 'cumplido'>>) => void
+  onCambiar: (id: string, cambios: Partial<Pick<Factura, 'fechaEstimadaCobroPago' | 'cumplido' | 'medioPago'>>) => void
   onEliminar: (id: string) => void
   onVaciar: () => void
   onDescargarInforme: () => void
@@ -549,6 +557,26 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
                       />
                       {f.tipo === 'emitida' ? 'Cobrada' : 'Pagada'}
                     </label>
+                    {f.cumplido && (
+                      <select
+                        value={f.medioPago ?? ''}
+                        onChange={(e) => onCambiar(f.id, { medioPago: (e.target.value || undefined) as MedioPago | undefined })}
+                        title="Con qué se cobró/pagó"
+                        className="shrink-0 rounded border px-1.5 py-0.5 text-xs"
+                        style={{
+                          borderColor: f.medioPago ? 'var(--border)' : 'var(--status-warning)',
+                          background: 'var(--surface-1)',
+                          color: 'var(--text-primary)',
+                        }}
+                      >
+                        <option value="">Medio…</option>
+                        {(Object.keys(MEDIOS_PAGO_LABEL) as MedioPago[]).map((medio) => (
+                          <option key={medio} value={medio}>
+                            {MEDIOS_PAGO_LABEL[medio]}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                     <span
                       className="tabular shrink-0 font-medium"
                       style={{

@@ -3,6 +3,7 @@ import {
   agregarMovimiento,
   agregarMovimientos,
   alternarCumplido,
+  cambiarMedioPago,
   eliminarMovimiento,
   marcarCumplidoVarios,
   obtenerMovimientos,
@@ -17,7 +18,7 @@ import { formatoMoneda } from '../lib/finance'
 import { descargarPdfCobranzasSemanal } from '../lib/pdf'
 import { cargarDatosUsuario, guardarDatosUsuario } from '../lib/userSync'
 import { useAuth } from '../lib/AuthContext'
-import type { Factura } from '../lib/cfo'
+import { MEDIOS_PAGO_LABEL, type Factura, type MedioPago } from '../lib/cfo'
 
 /** Los movimientos generados a partir de una factura llevan este prefijo en el id, para poder
  * distinguirlos de los cargados a mano (que no se pueden borrar ni editar desde acá). */
@@ -71,6 +72,7 @@ function facturaAMovimiento(f: Factura): Movimiento {
     monto: f.monto,
     fecha: f.fechaEstimadaCobroPago ?? f.fecha,
     cumplido: f.cumplido ?? false,
+    medioPago: f.medioPago,
   }
 }
 
@@ -109,6 +111,7 @@ interface ColumnaProps {
   onToggle: (id: string) => void
   onEliminar: (id: string) => void
   onMarcarVarios: (ids: string[], cumplido: boolean) => void
+  onCambiarMedioPago: (id: string, medioPago: MedioPago | undefined) => void
   extra?: React.ReactNode
 }
 
@@ -119,6 +122,7 @@ function FilaMovimiento({
   onSeleccionar,
   onToggle,
   onEliminar,
+  onCambiarMedioPago,
 }: {
   m: Movimiento
   semanas: RangoSemana[]
@@ -126,6 +130,7 @@ function FilaMovimiento({
   onSeleccionar: (id: string, marcado: boolean) => void
   onToggle: (id: string) => void
   onEliminar: (id: string) => void
+  onCambiarMedioPago: (id: string, medioPago: MedioPago | undefined) => void
 }) {
   const etiqueta = etiquetaSemana(m.fecha, semanas)
   const deFactura = m.id.startsWith(PREFIJO_FACTURA)
@@ -169,6 +174,26 @@ function FilaMovimiento({
       >
         {etiqueta.texto}
       </span>
+      {m.cumplido && (
+        <select
+          value={m.medioPago ?? ''}
+          onChange={(e) => onCambiarMedioPago(m.id, (e.target.value || undefined) as MedioPago | undefined)}
+          title="Con qué se cobró/pagó"
+          className="shrink-0 rounded border px-1.5 py-0.5 text-xs"
+          style={{
+            borderColor: m.medioPago ? 'var(--border)' : 'var(--status-warning)',
+            background: 'var(--surface-1)',
+            color: 'var(--text-primary)',
+          }}
+        >
+          <option value="">Medio…</option>
+          {(Object.keys(MEDIOS_PAGO_LABEL) as MedioPago[]).map((medio) => (
+            <option key={medio} value={medio}>
+              {MEDIOS_PAGO_LABEL[medio]}
+            </option>
+          ))}
+        </select>
+      )}
       <span className="tabular shrink-0 font-medium" style={{ color: 'var(--text-primary)' }}>
         {formatoMoneda(m.monto)}
       </span>
@@ -195,6 +220,7 @@ function ColumnaMovimientos({
   onToggle,
   onEliminar,
   onMarcarVarios,
+  onCambiarMedioPago,
   extra,
 }: ColumnaProps) {
   const [concepto, setConcepto] = useState('')
@@ -355,6 +381,7 @@ function ColumnaMovimientos({
                   onSeleccionar={alternarSeleccion}
                   onToggle={onToggle}
                   onEliminar={onEliminar}
+                  onCambiarMedioPago={onCambiarMedioPago}
                 />
               ))}
             </ul>
@@ -393,6 +420,7 @@ function ColumnaMovimientos({
                         onSeleccionar={alternarSeleccion}
                         onToggle={onToggle}
                         onEliminar={onEliminar}
+                        onCambiarMedioPago={onCambiarMedioPago}
                       />
                     ))}
                   </ul>
@@ -425,7 +453,7 @@ function ColumnaMovimientos({
 
 interface Props {
   facturas?: Factura[]
-  onCambiarFactura?: (id: string, cambios: Partial<Pick<Factura, 'cumplido'>>) => void
+  onCambiarFactura?: (id: string, cambios: Partial<Pick<Factura, 'cumplido' | 'medioPago'>>) => void
 }
 
 export function CobranzasPagosSemanal({ facturas = [], onCambiarFactura }: Props) {
@@ -513,6 +541,15 @@ export function CobranzasPagosSemanal({ facturas = [], onCambiarFactura }: Props
       marcarCumplidoVarios(idsManual, cumplido)
       refrescar()
     }
+  }
+
+  function handleCambiarMedioPago(id: string, medioPago: MedioPago | undefined) {
+    if (id.startsWith(PREFIJO_FACTURA)) {
+      onCambiarFactura?.(id.slice(PREFIJO_FACTURA.length), { medioPago })
+      return
+    }
+    cambiarMedioPago(id, medioPago)
+    refrescar()
   }
 
   function handleVaciar() {
@@ -664,6 +701,7 @@ export function CobranzasPagosSemanal({ facturas = [], onCambiarFactura }: Props
           onToggle={handleToggle}
           onEliminar={handleEliminar}
           onMarcarVarios={handleMarcarVarios}
+          onCambiarMedioPago={handleCambiarMedioPago}
           extra={
             <ImportarExcelButton activo={importandoTipo === 'cobro'} onImportar={handleImportarExcel('cobro')} />
           }
@@ -677,6 +715,7 @@ export function CobranzasPagosSemanal({ facturas = [], onCambiarFactura }: Props
           onToggle={handleToggle}
           onEliminar={handleEliminar}
           onMarcarVarios={handleMarcarVarios}
+          onCambiarMedioPago={handleCambiarMedioPago}
           extra={
             <ImportarExcelButton activo={importandoTipo === 'pago'} onImportar={handleImportarExcel('pago')} />
           }

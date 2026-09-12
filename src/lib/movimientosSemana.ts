@@ -1,3 +1,5 @@
+import type { MedioPago } from './cfo'
+
 export type TipoMovimiento = 'cobro' | 'pago'
 
 export interface Movimiento {
@@ -7,6 +9,8 @@ export interface Movimiento {
   monto: number
   fecha: string
   cumplido: boolean
+  /** Con qué se cobró/pagó — solo tiene sentido una vez marcado como cumplido. */
+  medioPago?: MedioPago
 }
 
 const STORAGE_KEY = 'compara-prestamos.movimientos-semana'
@@ -69,6 +73,10 @@ export function alternarCumplido(id: string) {
 export function marcarCumplidoVarios(ids: string[], cumplido: boolean) {
   const idsSet = new Set(ids)
   escribirStorage(leerStorage().map((m) => (idsSet.has(m.id) ? { ...m, cumplido } : m)))
+}
+
+export function cambiarMedioPago(id: string, medioPago: MedioPago | undefined) {
+  escribirStorage(leerStorage().map((m) => (m.id === id ? { ...m, medioPago } : m)))
 }
 
 export function eliminarMovimiento(id: string) {

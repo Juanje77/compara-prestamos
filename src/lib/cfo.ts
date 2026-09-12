@@ -193,6 +193,16 @@ export function calcularDesvios(categorias: CategoriaGasto[], real: Record<strin
 export type TipoFactura = 'emitida' | 'recibida'
 export type TipoComprobante = 'factura' | 'nota_credito' | 'nota_debito'
 
+/** Con qué se cobró o se pagó — para poder armar más adelante un balance contable
+ * (caja + bancos + cheques en cartera) a partir de lo cargado durante el año. */
+export type MedioPago = 'caja' | 'cheque' | 'transferencia'
+
+export const MEDIOS_PAGO_LABEL: Record<MedioPago, string> = {
+  caja: 'Caja (efectivo)',
+  cheque: 'Cheque',
+  transferencia: 'Transferencia bancaria',
+}
+
 export interface Factura {
   id: string
   tipo: TipoFactura
@@ -210,6 +220,8 @@ export interface Factura {
    * impacto en la caja mes a mes (Dashboard y Presupuesto vs. Real): el total facturado y el
    * margen bruto siempre usan el monto completo, sin importar en cuántas cuotas se pague. */
   cuotas?: number
+  /** Con qué se cobró/pagó una vez marcada como cumplida — caja, cheque o transferencia. */
+  medioPago?: MedioPago
 }
 
 /** Suma (o resta, con un número negativo) una cantidad de días a una fecha ISO (YYYY-MM-DD). */
@@ -540,4 +552,53 @@ export function generarAlertas(input: {
   }
 
   return alertas
+}
+
+// ---------------------------------------------------------------------------
+// Cheques (Premium)
+// ---------------------------------------------------------------------------
+//
+// Cheques de terceros que recibiste (activo: los tenés en cartera hasta
+// depositarlos/cobrarlos) y cheques propios que emitiste (pasivo: siguen
+// "vivos" hasta que el que los recibió los cobra). Junto con la caja y las
+// cuentas bancarias, es la base para armar un balance contable a fin de año.
+
+export type TipoCheque = 'recibido' | 'emitido'
+export type EstadoCheque = 'cartera' | 'cobrado' | 'rechazado'
+
+export const ESTADOS_CHEQUE_LABEL: Record<EstadoCheque, string> = {
+  cartera: 'En cartera',
+  cobrado: 'Cobrado',
+  rechazado: 'Rechazado',
+}
+
+export interface Cheque {
+  id: string
+  tipo: TipoCheque
+  numero?: string
+  banco: string
+  contraparte: string
+  monto: number
+  fechaEmision: string
+  /** Fecha en la que se puede cobrar/se acredita — para cheques diferidos. */
+  fechaCobro: string
+  estado: EstadoCheque
+}
+
+export interface TotalesCheques {
+  recibidosEnCartera: number
+  emitidosEnCartera: number
+  saldoNetoCheques: number
+}
+
+/** Totales de cheques todavía "vivos" (en cartera): los recibidos suman a favor (son un activo que
+ * todavía no se hizo caja), los emitidos restan (una obligación pendiente de que se cobre). */
+export function calcularTotalesCheques(cheques: Cheque[]): TotalesCheques {
+  const recibidosEnCartera = cheques
+    .filter((c) => c.tipo === 'recibido' && c.estado === 'cartera')
+    .reduce((s, c) => s + c.monto, 0)
+  const emitidosEnCartera = cheques
+    .filter((c) => c.tipo === 'emitido' && c.estado === 'cartera')
+    .reduce((s, c) => s + c.monto, 0)
+  return { recibidosEnCartera, emitidosEnCartera, saldoNetoCheques: recibidosEnCartera - emitidosEnCartera }
 }

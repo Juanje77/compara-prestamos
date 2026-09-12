@@ -1,4 +1,4 @@
-import type { ClasificacionesProveedores, CuentaBancaria, Deuda, Factura } from './cfo'
+import type { Cheque, ClasificacionesProveedores, CuentaBancaria, Deuda, Factura } from './cfo'
 
 export interface NegocioData {
   ingresos: number
@@ -11,6 +11,7 @@ export interface NegocioData {
   realManualPorMes: Record<string, Record<string, number>>
   facturas: Factura[]
   clasificaciones: ClasificacionesProveedores
+  cheques: Cheque[]
   tasaCrecimiento: number
   nombreNegocio: string
 }

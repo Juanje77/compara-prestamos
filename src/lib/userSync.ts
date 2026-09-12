@@ -1,5 +1,5 @@
 import { app, firebaseHabilitado } from './firebase'
-import type { ClasificacionesProveedores, CuentaBancaria, Deuda, Factura } from './cfo'
+import type { Cheque, ClasificacionesProveedores, CuentaBancaria, Deuda, Factura } from './cfo'
 import type { Movimiento } from './movimientosSemana'
 
 export interface NegocioDataUsuario {
@@ -11,6 +11,7 @@ export interface NegocioDataUsuario {
   realManualPorMes?: Record<string, Record<string, number>>
   facturas?: Factura[]
   clasificaciones?: ClasificacionesProveedores
+  cheques?: Cheque[]
   tasaCrecimiento?: number
   nombreNegocio?: string
 }

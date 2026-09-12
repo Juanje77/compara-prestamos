@@ -12,6 +12,7 @@ import { PremiumLock } from '../components/PremiumLock'
 import { PremiumUpgradeModal } from '../components/PremiumUpgradeModal'
 import { buildWhatsAppLink } from '../components/WhatsAppContact'
 import { Proveedores } from '../components/Proveedores'
+import { Cheques } from '../components/Cheques'
 import {
   CATEGORIAS_GASTO,
   calcularCoberturaDeuda,
@@ -35,9 +36,11 @@ import {
   listarProveedores,
   proyectarFlujoCaja,
   type CategoriaGasto,
+  type Cheque,
   type ClasificacionesProveedores,
   type CuentaBancaria,
   type Deuda as DeudaTipo,
+  type EstadoCheque,
   type Factura,
 } from '../lib/cfo'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
@@ -62,6 +65,7 @@ const SECCIONES = [
   { key: 'presupuesto', label: 'Presupuesto vs. Real' },
   { key: 'facturas', label: 'Salud financiera' },
   { key: 'proveedores', label: 'Proveedores' },
+  { key: 'cheques', label: 'Cheques' },
 ] as const
 
 type Seccion = (typeof SECCIONES)[number]['key']
@@ -96,6 +100,7 @@ export function EmpresasPage({ esPremium }: Props) {
   const [clasificaciones, setClasificaciones] = useState<ClasificacionesProveedores>(
     () => cargarNegocioData()?.clasificaciones ?? {},
   )
+  const [cheques, setCheques] = useState<Cheque[]>(() => cargarNegocioData()?.cheques ?? [])
   const [tasaCrecimiento, setTasaCrecimiento] = useState(() => cargarNegocioData()?.tasaCrecimiento ?? 0)
   const [nombreNegocio, setNombreNegocio] = useState(() => cargarNegocioData()?.nombreNegocio ?? '')
 
@@ -124,6 +129,7 @@ export function EmpresasPage({ esPremium }: Props) {
           setRealManualPorMes(d.realManualPorMes ?? {})
           setFacturas(d.facturas ?? [])
           setClasificaciones(d.clasificaciones ?? {})
+          setCheques(d.cheques ?? [])
           setTasaCrecimiento(d.tasaCrecimiento ?? 0)
           setNombreNegocio(d.nombreNegocio ?? '')
         }
@@ -145,10 +151,23 @@ export function EmpresasPage({ esPremium }: Props) {
       realManualPorMes,
       facturas,
       clasificaciones,
+      cheques,
       tasaCrecimiento,
       nombreNegocio,
     })
-  }, [ingresos, meses, montos, cuentas, deudas, realManualPorMes, facturas, clasificaciones, tasaCrecimiento, nombreNegocio])
+  }, [
+    ingresos,
+    meses,
+    montos,
+    cuentas,
+    deudas,
+    realManualPorMes,
+    facturas,
+    clasificaciones,
+    cheques,
+    tasaCrecimiento,
+    nombreNegocio,
+  ])
 
   useEffect(() => {
     if (!user || !nubeLista) return
@@ -163,6 +182,7 @@ export function EmpresasPage({ esPremium }: Props) {
           realManualPorMes,
           facturas,
           clasificaciones,
+          cheques,
           tasaCrecimiento,
           nombreNegocio,
         },
@@ -182,6 +202,7 @@ export function EmpresasPage({ esPremium }: Props) {
     realManualPorMes,
     facturas,
     clasificaciones,
+    cheques,
     tasaCrecimiento,
     nombreNegocio,
   ])
@@ -225,7 +246,10 @@ export function EmpresasPage({ esPremium }: Props) {
     setFacturas((prev) => [...prev, ...nuevas.map((f) => ({ ...f, id: generarId() }))])
   }
 
-  function handleCambiarFactura(id: string, cambios: Partial<Pick<Factura, 'fechaEstimadaCobroPago' | 'cumplido'>>) {
+  function handleCambiarFactura(
+    id: string,
+    cambios: Partial<Pick<Factura, 'fechaEstimadaCobroPago' | 'cumplido' | 'medioPago'>>,
+  ) {
     setFacturas((prev) => prev.map((f) => (f.id === id ? { ...f, ...cambios } : f)))
   }
 
@@ -256,6 +280,18 @@ export function EmpresasPage({ esPremium }: Props) {
       const { [proveedor]: _eliminado, ...resto } = prev
       return resto
     })
+  }
+
+  function handleAgregarCheque(cheque: Omit<Cheque, 'id'>) {
+    setCheques((prev) => [...prev, { ...cheque, id: generarId() }])
+  }
+
+  function handleCambiarEstadoCheque(id: string, estado: EstadoCheque) {
+    setCheques((prev) => prev.map((c) => (c.id === id ? { ...c, estado } : c)))
+  }
+
+  function handleEliminarCheque(id: string) {
+    setCheques((prev) => prev.filter((c) => c.id !== id))
   }
 
   const categorias: CategoriaGasto[] = CATEGORIAS_CONFIG.map((c) => ({
@@ -397,7 +433,9 @@ export function EmpresasPage({ esPremium }: Props) {
             }
           >
             {s.label}
-            {!esPremium && (s.key === 'presupuesto' || s.key === 'facturas' || s.key === 'proveedores') && ' 🔒'}
+            {!esPremium &&
+              (s.key === 'presupuesto' || s.key === 'facturas' || s.key === 'proveedores' || s.key === 'cheques') &&
+              ' 🔒'}
           </button>
         ))}
       </nav>
@@ -456,6 +494,22 @@ export function EmpresasPage({ esPremium }: Props) {
             onClasificar={handleClasificarProveedor}
             onAgregarManual={handleAgregarProveedorManual}
             onEliminarManual={handleEliminarProveedorManual}
+          />
+        </PremiumLock>
+      )}
+
+      {seccion === 'cheques' && (
+        <PremiumLock
+          activo={esPremium}
+          titulo="Cheques"
+          descripcion="Gestioná los cheques de terceros que recibís y los propios que emitís, para ir armando junto con tus cuentas bancarias un balance contable a fin de año."
+          onQuieroPremium={abrirPlanes}
+        >
+          <Cheques
+            cheques={cheques}
+            onAgregar={handleAgregarCheque}
+            onCambiarEstado={handleCambiarEstadoCheque}
+            onEliminar={handleEliminarCheque}
           />
         </PremiumLock>
       )}
