@@ -76,6 +76,7 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
   const [monto, setMonto] = useState('')
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10))
   const [filtro, setFiltro] = useState<'todas' | TipoFactura>('todas')
+  const [busqueda, setBusqueda] = useState('')
   const [importando, setImportando] = useState(false)
   const [mensajeImport, setMensajeImport] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const [plazoDias, setPlazoDias] = useState(30)
@@ -85,8 +86,15 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
   const rankingProveedores = useMemo(() => calcularRanking(facturas, 'recibida'), [facturas])
   const margenTotal = useMemo(() => calcularMargenBrutoTotal(facturas), [facturas])
 
+  const busquedaNormalizada = busqueda.trim().toLowerCase()
   const listado = facturas
     .filter((f) => filtro === 'todas' || f.tipo === filtro)
+    .filter(
+      (f) =>
+        !busquedaNormalizada ||
+        f.contraparte.toLowerCase().includes(busquedaNormalizada) ||
+        (f.numero ?? '').toLowerCase().includes(busquedaNormalizada),
+    )
     .sort((a, b) => b.fecha.localeCompare(a.fecha))
 
   function handleSubmit(e: React.FormEvent) {
@@ -431,7 +439,15 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
               <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
                 Comprobantes cargados
               </h3>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="search"
+                  placeholder="🔍 Buscar por cliente/proveedor o número…"
+                  value={busqueda}
+                  onChange={(e) => setBusqueda(e.target.value)}
+                  className="w-56 rounded-full border px-3 py-1 text-xs"
+                  style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+                />
                 {(['todas', 'emitida', 'recibida'] as const).map((f) => (
                   <button
                     key={f}
@@ -456,75 +472,81 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
               </div>
             </div>
 
-            <ul className="max-h-80 space-y-1.5 overflow-y-auto">
-              {listado.map((f) => (
-                <li
-                  key={f.id}
-                  className="flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2 text-sm"
-                  style={{ borderColor: 'var(--border)' }}
-                >
-                  <span
-                    className="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium"
-                    style={{ background: 'var(--gridline)', color: 'var(--text-secondary)' }}
+            {listado.length === 0 ? (
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                No hay comprobantes que coincidan con la búsqueda.
+              </p>
+            ) : (
+              <ul className="max-h-80 space-y-1.5 overflow-y-auto">
+                {listado.map((f) => (
+                  <li
+                    key={f.id}
+                    className="flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2 text-sm"
+                    style={{ borderColor: 'var(--border)' }}
                   >
-                    {f.tipo === 'emitida' ? 'Venta' : 'Compra'}
-                  </span>
-                  <span className="shrink-0 text-xs" style={{ color: 'var(--text-muted)' }}>
-                    {TIPO_COMPROBANTE_LABEL[f.tipoComprobante]}
-                  </span>
-                  <span className="min-w-[100px] flex-1 truncate" style={{ color: 'var(--text-primary)' }}>
-                    {f.contraparte}
-                    {f.numero && (
-                      <span className="ml-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
-                        ({f.numero})
-                      </span>
-                    )}
-                  </span>
-                  <span className="tabular shrink-0 text-xs" style={{ color: 'var(--text-muted)' }}>
-                    {new Date(`${f.fecha}T00:00:00`).toLocaleDateString('es-AR')}
-                  </span>
-                  <label className="flex shrink-0 items-center gap-1 text-xs" style={{ color: 'var(--text-muted)' }}>
-                    {f.tipo === 'emitida' ? 'Cobro' : 'Pago'} est.
-                    <input
-                      type="date"
-                      value={f.fechaEstimadaCobroPago ?? f.fecha}
-                      onChange={(e) => onCambiar(f.id, { fechaEstimadaCobroPago: e.target.value })}
-                      className="rounded border px-1.5 py-0.5 text-xs"
-                      style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
-                    />
-                  </label>
-                  <label
-                    className="flex shrink-0 items-center gap-1 text-xs"
-                    style={{ color: f.cumplido ? 'var(--status-good-text)' : 'var(--text-muted)' }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={f.cumplido ?? false}
-                      onChange={(e) => onCambiar(f.id, { cumplido: e.target.checked })}
-                      className="h-3.5 w-3.5 accent-current"
-                    />
-                    {f.tipo === 'emitida' ? 'Cobrada' : 'Pagada'}
-                  </label>
-                  <span
-                    className="tabular shrink-0 font-medium"
-                    style={{
-                      color: f.tipoComprobante === 'nota_credito' ? 'var(--status-critical)' : 'var(--text-primary)',
-                      opacity: f.cumplido ? 0.5 : 1,
-                    }}
-                  >
-                    {formatoMoneda(montoConSigno(f))}
-                  </span>
-                  <button
-                    onClick={() => onEliminar(f.id)}
-                    aria-label="Eliminar comprobante"
-                    className="shrink-0 text-xs"
-                    style={{ color: 'var(--text-muted)' }}
-                  >
-                    🗑
-                  </button>
-                </li>
-              ))}
-            </ul>
+                    <span
+                      className="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium"
+                      style={{ background: 'var(--gridline)', color: 'var(--text-secondary)' }}
+                    >
+                      {f.tipo === 'emitida' ? 'Venta' : 'Compra'}
+                    </span>
+                    <span className="shrink-0 text-xs" style={{ color: 'var(--text-muted)' }}>
+                      {TIPO_COMPROBANTE_LABEL[f.tipoComprobante]}
+                    </span>
+                    <span className="min-w-[100px] flex-1 truncate" style={{ color: 'var(--text-primary)' }}>
+                      {f.contraparte}
+                      {f.numero && (
+                        <span className="ml-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                          ({f.numero})
+                        </span>
+                      )}
+                    </span>
+                    <span className="tabular shrink-0 text-xs" style={{ color: 'var(--text-muted)' }}>
+                      {new Date(`${f.fecha}T00:00:00`).toLocaleDateString('es-AR')}
+                    </span>
+                    <label className="flex shrink-0 items-center gap-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                      {f.tipo === 'emitida' ? 'Cobro' : 'Pago'} est.
+                      <input
+                        type="date"
+                        value={f.fechaEstimadaCobroPago ?? f.fecha}
+                        onChange={(e) => onCambiar(f.id, { fechaEstimadaCobroPago: e.target.value })}
+                        className="rounded border px-1.5 py-0.5 text-xs"
+                        style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+                      />
+                    </label>
+                    <label
+                      className="flex shrink-0 items-center gap-1 text-xs"
+                      style={{ color: f.cumplido ? 'var(--status-good-text)' : 'var(--text-muted)' }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={f.cumplido ?? false}
+                        onChange={(e) => onCambiar(f.id, { cumplido: e.target.checked })}
+                        className="h-3.5 w-3.5 accent-current"
+                      />
+                      {f.tipo === 'emitida' ? 'Cobrada' : 'Pagada'}
+                    </label>
+                    <span
+                      className="tabular shrink-0 font-medium"
+                      style={{
+                        color: f.tipoComprobante === 'nota_credito' ? 'var(--status-critical)' : 'var(--text-primary)',
+                        opacity: f.cumplido ? 0.5 : 1,
+                      }}
+                    >
+                      {formatoMoneda(montoConSigno(f))}
+                    </span>
+                    <button
+                      onClick={() => onEliminar(f.id)}
+                      aria-label="Eliminar comprobante"
+                      className="shrink-0 text-xs"
+                      style={{ color: 'var(--text-muted)' }}
+                    >
+                      🗑
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
         </>
       )}
