@@ -1,5 +1,6 @@
 const WHATSAPP_NUMBER = '5492392583117'
-const DEFAULT_MESSAGE = 'Hola Juan! Vi el comparador de préstamos y quisiera asesoramiento.'
+const DEFAULT_MESSAGE = 'Hola Juan! Vi FinCorp y quisiera asesoramiento sobre el sistema de gestión para mi negocio.'
+const MENSAJE_PRESTAMOS = 'Hola Juan! Vi el comparador de préstamos y quisiera asesoramiento.'
 
 export function buildWhatsAppLink(message: string = DEFAULT_MESSAGE) {
   return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`
@@ -43,7 +44,7 @@ export function WhatsAppBanner() {
         </p>
       </div>
       <a
-        href={buildWhatsAppLink(DEFAULT_MESSAGE)}
+        href={buildWhatsAppLink(MENSAJE_PRESTAMOS)}
         target="_blank"
         rel="noreferrer"
         className="flex shrink-0 items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
