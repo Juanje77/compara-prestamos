@@ -75,6 +75,7 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
   const [contraparte, setContraparte] = useState('')
   const [monto, setMonto] = useState('')
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10))
+  const [cuotas, setCuotas] = useState('1')
   const [filtro, setFiltro] = useState<'todas' | TipoFactura>('todas')
   const [busqueda, setBusqueda] = useState('')
   const [importando, setImportando] = useState(false)
@@ -100,6 +101,7 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const m = Number(monto)
+    const cuotasNum = Math.max(1, Math.round(Number(cuotas) || 1))
     if (!contraparte.trim() || !m || m <= 0 || !fecha) return
     onAgregar({
       tipo,
@@ -109,9 +111,11 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
       fecha,
       fechaEstimadaCobroPago: sumarDias(fecha, plazoDias),
       cumplido: false,
+      cuotas: cuotasNum > 1 ? cuotasNum : undefined,
     })
     setContraparte('')
     setMonto('')
+    setCuotas('1')
   }
 
   function handleVaciar() {
@@ -249,6 +253,16 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
             className="shrink-0 rounded-lg border px-3 py-1.5 text-sm"
             style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
           />
+          <input
+            type="number"
+            min={1}
+            title="En cuántas cuotas mensuales se paga (1 = de contado)"
+            placeholder="Cuotas"
+            value={cuotas}
+            onChange={(e) => setCuotas(e.target.value)}
+            className="tabular w-20 shrink-0 rounded-lg border px-3 py-1.5 text-sm"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+          />
           <button
             type="submit"
             className="shrink-0 rounded-lg px-4 py-1.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
@@ -294,6 +308,15 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
               </p>
             </div>
           </section>
+
+          {margenTotal.margenBruto < 0 && (
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              ⚠️ Compraste más de lo que facturaste en el período. Esto no implica necesariamente un quiebre de
+              caja: si cargaste esas compras con la cantidad de cuotas en las que las estás pagando, el
+              Dashboard ya reparte el impacto real mes a mes en vez de contarlo todo de una vez — mirá el
+              runway y la proyección de caja para tu situación real.
+            </p>
+          )}
 
           <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
             <h3 className="mb-1 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
@@ -535,6 +558,15 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
                     >
                       {formatoMoneda(montoConSigno(f))}
                     </span>
+                    {(f.cuotas ?? 1) > 1 && (
+                      <span
+                        className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                        style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}
+                        title={`Se reparte en ${f.cuotas} cuotas mensuales para el impacto en caja`}
+                      >
+                        ×{f.cuotas} cuotas
+                      </span>
+                    )}
                     <button
                       onClick={() => onEliminar(f.id)}
                       aria-label="Eliminar comprobante"

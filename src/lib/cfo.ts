@@ -202,6 +202,10 @@ export interface Factura {
   fechaEstimadaCobroPago?: string
   /** Si ya se cobró (emitida) o se pagó (recibida) en la realidad. */
   cumplido?: boolean
+  /** En cuántas cuotas mensuales se cobra/paga — por defecto 1 (de contado). Solo afecta el
+   * impacto en la caja mes a mes (Dashboard y Presupuesto vs. Real): el total facturado y el
+   * margen bruto siempre usan el monto completo, sin importar en cuántas cuotas se pague. */
+  cuotas?: number
 }
 
 /** Suma (o resta, con un número negativo) una cantidad de días a una fecha ISO (YYYY-MM-DD). */
@@ -218,6 +222,27 @@ export function sumarDias(fechaISO: string, dias: number): string {
  */
 export function montoConSigno(f: Factura): number {
   return f.tipoComprobante === 'nota_credito' ? -f.monto : f.monto
+}
+
+export interface CuotaFactura {
+  fecha: string
+  monto: number
+}
+
+/**
+ * Reparte el monto (con signo) de un comprobante en sus cuotas mensuales, para medir el impacto
+ * real en la caja mes a mes: una compra grande financiada en muchas cuotas no golpea la caja de
+ * un solo mes, aunque el total facturado sea alto (eso no cambia el margen bruto ni el ranking,
+ * que siguen usando el monto completo). Con 1 cuota (o sin definir) da el mismo resultado que
+ * antes: una sola entrada con la fecha y el monto original.
+ */
+export function distribuirEnCuotas(f: Factura): CuotaFactura[] {
+  const cuotas = Math.max(1, Math.round(f.cuotas ?? 1))
+  const montoCuota = montoConSigno(f) / cuotas
+  return Array.from({ length: cuotas }, (_, i) => ({
+    fecha: i === 0 ? f.fecha : sumarDias(f.fecha, i * 30),
+    monto: montoCuota,
+  }))
 }
 
 // ---------------------------------------------------------------------------
@@ -260,7 +285,8 @@ export function listarProveedores(facturas: Factura[], clasificaciones: Clasific
     .sort((a, b) => b.totalFacturado - a.totalFacturado)
 }
 
-/** Suma, por categoría, las facturas recibidas de un mes cuyo proveedor ya está clasificado. */
+/** Suma, por categoría, las facturas recibidas de un mes cuyo proveedor ya está clasificado —
+ * repartiendo en cuotas las compras que se pagan en varios meses (ver distribuirEnCuotas). */
 export function calcularRealAutomaticoPorMes(
   facturas: Factura[],
   clasificaciones: ClasificacionesProveedores,
@@ -268,10 +294,13 @@ export function calcularRealAutomaticoPorMes(
 ): Record<string, number> {
   const resultado: Record<string, number> = {}
   for (const f of facturas) {
-    if (f.tipo !== 'recibida' || f.fecha.slice(0, 7) !== mesISO) continue
+    if (f.tipo !== 'recibida') continue
     const categoria = clasificaciones[f.contraparte]
     if (!categoria) continue
-    resultado[categoria] = (resultado[categoria] ?? 0) + montoConSigno(f)
+    for (const cuota of distribuirEnCuotas(f)) {
+      if (cuota.fecha.slice(0, 7) !== mesISO) continue
+      resultado[categoria] = (resultado[categoria] ?? 0) + cuota.monto
+    }
   }
   return resultado
 }
@@ -341,15 +370,23 @@ export interface VentasComprasMes {
  * estimación manual cuando no.
  */
 export function calcularVentasComprasDelMes(facturas: Factura[], mesISO: string): VentasComprasMes {
-  const delMes = facturas.filter((f) => f.fecha.slice(0, 7) === mesISO)
-  const emitidas = delMes.filter((f) => f.tipo === 'emitida')
-  const recibidas = delMes.filter((f) => f.tipo === 'recibida')
-  return {
-    hayVentas: emitidas.length > 0,
-    hayCompras: recibidas.length > 0,
-    ventasNetas: emitidas.reduce((s, f) => s + montoConSigno(f), 0),
-    comprasNetas: recibidas.reduce((s, f) => s + montoConSigno(f), 0),
+  let ventasNetas = 0
+  let comprasNetas = 0
+  let hayVentas = false
+  let hayCompras = false
+  for (const f of facturas) {
+    for (const cuota of distribuirEnCuotas(f)) {
+      if (cuota.fecha.slice(0, 7) !== mesISO) continue
+      if (f.tipo === 'emitida') {
+        ventasNetas += cuota.monto
+        hayVentas = true
+      } else {
+        comprasNetas += cuota.monto
+        hayCompras = true
+      }
+    }
   }
+  return { hayVentas, hayCompras, ventasNetas, comprasNetas }
 }
 
 export interface MargenBrutoTotal {
@@ -449,8 +486,9 @@ export function generarAlertas(input: {
     if (margenBruto < 0) {
       alertas.push({
         id: 'margen-bruto-negativo',
-        severidad: 'critical',
-        mensaje: 'Según tus comprobantes, compraste más de lo que facturaste en el período cargado (margen bruto negativo).',
+        severidad: 'warning',
+        mensaje:
+          'Según tus comprobantes, compraste más de lo que facturaste en el período cargado (margen bruto negativo). Esto no implica necesariamente un quiebre de caja: si esas compras las estás pagando en cuotas, el impacto real en tu caja se reparte en el tiempo — revisá el runway y la proyección para ver tu situación real.',
       })
     }
   }
