@@ -1,4 +1,4 @@
-import type { Cheque, ClasificacionesProveedores, CuentaBancaria, Deuda, Factura, IngresosBrutosManualMes, IvaManualMes, MovimientoDiario } from './cfo'
+import type { Bien, Cheque, ClasificacionesProveedores, CuentaBancaria, Deuda, Factura, IngresosBrutosManualMes, IvaManualMes, MovimientoDiario } from './cfo'
 
 export interface NegocioData {
   ingresos: number
@@ -6,6 +6,8 @@ export interface NegocioData {
   montos: Record<string, number>
   cuentas: CuentaBancaria[]
   deudas: Deuda[]
+  /** Patrimonio / bienes realizables ante un quiebre de caja — ver calcularRunwayExtendido. */
+  bienes: Bien[]
   /** Ediciones manuales de "Real" por mes ("YYYY-MM") y categoría — lo que no está acá pero sí
    * hay facturas clasificadas, se completa solo (ver calcularRealEfectivoPorMes). */
   realManualPorMes: Record<string, Record<string, number>>

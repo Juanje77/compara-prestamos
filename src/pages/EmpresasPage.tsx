@@ -18,6 +18,7 @@ import { PosicionIva } from '../components/PosicionIva'
 import { PosicionIngresosBrutos } from '../components/PosicionIngresosBrutos'
 import { IngresosGastos } from '../components/IngresosGastos'
 import { InputMoneda } from '../components/InputMoneda'
+import { Patrimonio } from '../components/Patrimonio'
 import {
   CATEGORIAS_GASTO,
   calcularCoberturaDeuda,
@@ -37,15 +38,18 @@ import {
   calcularPuntoEquilibrio,
   calcularRanking,
   calcularRealEfectivoPorMes,
+  calcularRunwayExtendido,
   calcularRunwayMeses,
   calcularSaldoTotalBancos,
   calcularTendenciaMensual,
+  calcularValorTotalBienes,
   calcularVentasComprasDelMes,
   generarAlertas,
   generarRecomendaciones,
   listarProveedores,
   proyectarFlujoCaja,
   proyectarFlujoCajaEscenarios,
+  type Bien,
   type CategoriaGasto,
   type Cheque,
   type ClasificacionesProveedores,
@@ -83,6 +87,7 @@ const SECCIONES = [
   { key: 'cheques', label: 'Cheques' },
   { key: 'iva', label: 'Posición de IVA' },
   { key: 'iibb', label: 'Ingresos Brutos' },
+  { key: 'patrimonio', label: 'Patrimonio' },
 ] as const
 
 type Seccion = (typeof SECCIONES)[number]['key']
@@ -109,6 +114,7 @@ export function EmpresasPage({ esPremium }: Props) {
       : [{ id: generarId(), nombre: 'Cuenta corriente principal', saldo: 2000000 }]
   })
   const [deudas, setDeudas] = useState<DeudaTipo[]>(() => cargarNegocioData()?.deudas ?? [])
+  const [bienes, setBienes] = useState<Bien[]>(() => cargarNegocioData()?.bienes ?? [])
   const [realManualPorMes, setRealManualPorMes] = useState<Record<string, Record<string, number>>>(
     () => cargarNegocioData()?.realManualPorMes ?? {},
   )
@@ -152,6 +158,7 @@ export function EmpresasPage({ esPremium }: Props) {
           setMontos((prev) => ({ ...prev, ...d.montos }))
           setCuentas(d.cuentas)
           setDeudas(d.deudas)
+          setBienes(d.bienes ?? [])
           setRealManualPorMes(d.realManualPorMes ?? {})
           setFacturas(d.facturas ?? [])
           setClasificaciones(d.clasificaciones ?? {})
@@ -177,6 +184,7 @@ export function EmpresasPage({ esPremium }: Props) {
       montos,
       cuentas,
       deudas,
+      bienes,
       realManualPorMes,
       facturas,
       clasificaciones,
@@ -193,6 +201,7 @@ export function EmpresasPage({ esPremium }: Props) {
     montos,
     cuentas,
     deudas,
+    bienes,
     realManualPorMes,
     facturas,
     clasificaciones,
@@ -214,6 +223,7 @@ export function EmpresasPage({ esPremium }: Props) {
           montos,
           cuentas,
           deudas,
+          bienes,
           realManualPorMes,
           facturas,
           clasificaciones,
@@ -237,6 +247,7 @@ export function EmpresasPage({ esPremium }: Props) {
     montos,
     cuentas,
     deudas,
+    bienes,
     realManualPorMes,
     facturas,
     clasificaciones,
@@ -277,6 +288,14 @@ export function EmpresasPage({ esPremium }: Props) {
 
   function handleEliminarDeuda(id: string) {
     setDeudas((prev) => prev.filter((d) => d.id !== id))
+  }
+
+  function handleAgregarBien(bien: Omit<Bien, 'id'>) {
+    setBienes((prev) => [...prev, { ...bien, id: generarId() }])
+  }
+
+  function handleEliminarBien(id: string) {
+    setBienes((prev) => prev.filter((b) => b.id !== id))
   }
 
   function handleAgregarFactura(factura: Omit<Factura, 'id'>) {
@@ -423,6 +442,8 @@ export function EmpresasPage({ esPremium }: Props) {
   // cero — no los gastos totales, porque los variables (insumos, mercadería) dejarían de
   // comprarse junto con la caída del ingreso que los genera.
   const runwayMeses = calcularRunwayMeses(saldoInicial, gastosFijos)
+  const valorBienes = useMemo(() => calcularValorTotalBienes(bienes), [bienes])
+  const runwayExtendido = calcularRunwayExtendido(saldoInicial, valorBienes, gastosFijos)
   const endeudamientoMeses = calcularEndeudamientoMeses(deudaTotal, ingresosEfectivos)
   const puntoEquilibrio = useMemo(
     () => calcularPuntoEquilibrio(ingresosEfectivos, gastosFijos, gastosVariables),
@@ -562,7 +583,8 @@ export function EmpresasPage({ esPremium }: Props) {
                 s.key === 'proveedores' ||
                 s.key === 'cheques' ||
                 s.key === 'iva' ||
-                s.key === 'iibb') &&
+                s.key === 'iibb' ||
+                s.key === 'patrimonio') &&
               ' 🔒'}
           </button>
         ))}
@@ -677,6 +699,17 @@ export function EmpresasPage({ esPremium }: Props) {
         </PremiumLock>
       )}
 
+      {seccion === 'patrimonio' && (
+        <PremiumLock
+          activo={esPremium}
+          titulo="Patrimonio / Bienes"
+          descripcion="Inversiones, inmuebles, vehículos, maquinaria o stock que podrías liquidar ante un quiebre de caja — un colchón de referencia, aparte del runway principal."
+          onQuieroPremium={abrirPlanes}
+        >
+          <Patrimonio bienes={bienes} runwayExtendido={runwayExtendido} onAgregar={handleAgregarBien} onEliminar={handleEliminarBien} />
+        </PremiumLock>
+      )}
+
       {seccion === 'dashboard' && (
         <>
           {esPremium ? (
@@ -787,7 +820,11 @@ export function EmpresasPage({ esPremium }: Props) {
               label="Runway de caja"
               value={runwayMeses === Infinity ? '∞' : `${runwayMeses.toFixed(1)} meses`}
               status={runwayMeses >= 6 ? 'good' : runwayMeses >= 3 ? 'warning' : 'critical'}
-              statusLabel="Si el ingreso cayera a cero, así de lejos llega tu caja pagando solo tus gastos fijos"
+              statusLabel={
+                valorBienes > 0
+                  ? `Pagando solo gastos fijos. Con tu patrimonio: ${runwayExtendido === Infinity ? '∞' : `${runwayExtendido.toFixed(1)} meses`}`
+                  : 'Si el ingreso cayera a cero, así de lejos llega tu caja pagando solo tus gastos fijos'
+              }
             />
             <KpiCard
               label="Punto de equilibrio"

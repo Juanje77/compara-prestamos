@@ -41,6 +41,7 @@ const PLANES: PlanConfig[] = [
       'Proveedores clasificados y gestión de cheques (cartera, cobrado, vendido) para tu balance contable',
       'Posición de IVA e Ingresos Brutos mes a mes, con alícuota y retenciones editables a mano',
       'DSO/DPO y antigüedad de cuentas por cobrar y pagar',
+      'Patrimonio y bienes realizables, con el runway extendido ante un quiebre de caja',
     ],
   },
 ]

@@ -8,6 +8,48 @@ export function calcularSaldoTotalBancos(cuentas: CuentaBancaria[]): number {
   return cuentas.reduce((s, c) => s + c.saldo, 0)
 }
 
+// ---------------------------------------------------------------------------
+// Patrimonio / bienes realizables (Premium)
+// ---------------------------------------------------------------------------
+//
+// Activos que no forman parte de la caja del día a día, pero que se podrían
+// vender o liquidar ante un quiebre de caja — inversiones, inmuebles,
+// vehículos, maquinaria o stock excedente. No se suman al runway principal
+// (que debe reflejar la caja real, ver calcularRunwayMeses), sino que se
+// muestran como un colchón adicional aparte.
+
+export type TipoBien = 'inversion' | 'inmueble' | 'vehiculo' | 'maquinaria' | 'stock' | 'otro'
+
+export const TIPOS_BIEN_LABEL: Record<TipoBien, string> = {
+  inversion: 'Inversión financiera',
+  inmueble: 'Inmueble',
+  vehiculo: 'Vehículo',
+  maquinaria: 'Maquinaria / equipamiento',
+  stock: 'Stock excedente',
+  otro: 'Otro',
+}
+
+export interface Bien {
+  id: string
+  concepto: string
+  tipo: TipoBien
+  valorEstimado: number
+}
+
+export function calcularValorTotalBienes(bienes: Bien[]): number {
+  return bienes.reduce((s, b) => s + b.valorEstimado, 0)
+}
+
+/**
+ * Runway "extendido": cuántos meses cubrirían la caja MÁS lo que se podría liquidar del
+ * patrimonio, pagando solo gastos fijos — un colchón adicional de referencia, no la liquidez
+ * inmediata real (esa es calcularRunwayMeses, que no incluye el patrimonio).
+ */
+export function calcularRunwayExtendido(saldoInicial: number, valorBienes: number, gastosFijos: number): number {
+  if (gastosFijos <= 0) return Infinity
+  return Math.max(0, (saldoInicial + valorBienes) / gastosFijos)
+}
+
 export interface Deuda {
   id: string
   concepto: string
