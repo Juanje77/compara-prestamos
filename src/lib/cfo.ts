@@ -478,37 +478,6 @@ export function calcularPromedioComprasMensual(facturas: Factura[]): PromedioMen
   return calcularPromedioMensualPorTipo(facturas, 'recibida')
 }
 
-export interface VentasComprasMes {
-  hayVentas: boolean
-  hayCompras: boolean
-  ventasNetas: number
-  comprasNetas: number
-}
-
-/**
- * Ventas y compras netas cargadas para un mes puntual (formato "YYYY-MM"), con un flag de si hay
- * datos reales para cada lado — así el Dashboard puede usar el número real cuando existe, y la
- * estimación manual cuando no.
- */
-export function calcularVentasComprasDelMes(facturas: Factura[], mesISO: string): VentasComprasMes {
-  let ventasNetas = 0
-  let comprasNetas = 0
-  let hayVentas = false
-  let hayCompras = false
-  for (const f of facturas) {
-    for (const cuota of distribuirEnCuotas(f)) {
-      if (cuota.fecha.slice(0, 7) !== mesISO) continue
-      if (f.tipo === 'emitida') {
-        ventasNetas += cuota.monto
-        hayVentas = true
-      } else {
-        comprasNetas += cuota.monto
-        hayCompras = true
-      }
-    }
-  }
-  return { hayVentas, hayCompras, ventasNetas, comprasNetas }
-}
 
 export interface MargenBrutoTotal {
   ventasNetas: number

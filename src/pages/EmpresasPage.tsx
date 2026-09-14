@@ -43,7 +43,6 @@ import {
   calcularSaldoTotalBancos,
   calcularTendenciaMensual,
   calcularValorTotalBienes,
-  calcularVentasComprasDelMes,
   generarAlertas,
   generarRecomendaciones,
   listarProveedores,
@@ -407,23 +406,11 @@ export function EmpresasPage({ esPremium }: Props) {
   const deudaTotal = calcularDeudaTotal(deudas)
   const cuotaDeudaTotal = calcularCuotaDeudaTotal(deudas)
 
-  // Híbrido (Premium): si hay comprobantes cargados este mes en Comprobantes, los indicadores
-  // usan esos números reales en vez de la estimación manual de arriba. El desglose por categoría
-  // (para Composición de gastos y Punto de equilibrio) sigue siendo siempre manual, porque un
-  // comprobante importado no viene categorizado como fijo/variable.
-  const mesActual = new Date().toISOString().slice(0, 7)
-  const ventasComprasMes = useMemo(
-    () => (esPremium ? calcularVentasComprasDelMes(facturas, mesActual) : null),
-    [esPremium, facturas, mesActual],
-  )
-  const usaIngresosReales = ventasComprasMes?.hayVentas ?? false
-  const usaGastosReales = ventasComprasMes?.hayCompras ?? false
-  const ingresosEfectivos = usaIngresosReales ? ventasComprasMes!.ventasNetas : ingresos
-  const gastosEfectivos = usaGastosReales ? ventasComprasMes!.comprasNetas : gastosTotales
-
-  // La proyección de caja usa el promedio mensual de tus ventas y compras cargadas (varios meses),
-  // en vez de depender de si hubo movimientos justo este mes — y si no cargaste nada, la
-  // estimación manual.
+  // Híbrido (Premium): si hay comprobantes cargados en Comprobantes, los indicadores usan el
+  // promedio real de tus ventas/compras mensuales (todos los meses cargados, no solo el mes en
+  // curso) en vez de la estimación manual de arriba. El desglose por categoría (para Composición
+  // de gastos y Punto de equilibrio) sigue siendo siempre manual, porque un comprobante importado
+  // no viene categorizado como fijo/variable.
   const promedioVentas = useMemo(
     () => (esPremium ? calcularPromedioVentasMensual(facturas) : null),
     [esPremium, facturas],
@@ -432,10 +419,12 @@ export function EmpresasPage({ esPremium }: Props) {
     () => (esPremium ? calcularPromedioComprasMensual(facturas) : null),
     [esPremium, facturas],
   )
-  const usaPromedioVentasReal = promedioVentas?.hayDatos ?? false
-  const usaPromedioComprasReal = promedioCompras?.hayDatos ?? false
-  const ingresosProyeccion = usaPromedioVentasReal ? promedioVentas!.promedio : ingresos
-  const gastosProyeccion = usaPromedioComprasReal ? promedioCompras!.promedio : gastosTotales
+  const usaIngresosReales = promedioVentas?.hayDatos ?? false
+  const usaGastosReales = promedioCompras?.hayDatos ?? false
+  const ingresosEfectivos = usaIngresosReales ? promedioVentas!.promedio : ingresos
+  const gastosEfectivos = usaGastosReales ? promedioCompras!.promedio : gastosTotales
+  const ingresosProyeccion = ingresosEfectivos
+  const gastosProyeccion = gastosEfectivos
 
   const margenOperativo = calcularMargenOperativo(ingresosEfectivos, gastosEfectivos)
   // Runway: cuántos meses cubre la caja pagando SOLO los gastos fijos si el ingreso cayera a
@@ -746,12 +735,12 @@ export function EmpresasPage({ esPremium }: Props) {
             </h2>
             {(usaIngresosReales || usaGastosReales) && (
               <p className="-mt-2 mb-4 text-xs" style={{ color: 'var(--series-blue)' }}>
-                📊 Este mes ya cargaste ventas o compras en la solapa Comprobantes: los indicadores de abajo usan{' '}
+                📊 Ya cargaste ventas o compras en la solapa Comprobantes: los indicadores de abajo usan{' '}
                 {usaIngresosReales && usaGastosReales
-                  ? 'esas ventas y compras reales'
+                  ? 'el promedio real de esas ventas y compras'
                   : usaIngresosReales
-                    ? 'esas ventas reales'
-                    : 'esas compras reales'}{' '}
+                    ? 'el promedio real de esas ventas'
+                    : 'el promedio real de esas compras'}{' '}
                 en vez de esta estimación (que sigue sirviendo para la composición de gastos y el punto de
                 equilibrio).
               </p>
@@ -761,7 +750,7 @@ export function EmpresasPage({ esPremium }: Props) {
                 <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
                   Ingresos mensuales estimados
                   {usaIngresosReales && (
-                    <span style={{ color: 'var(--series-blue)' }}> (no usado este mes)</span>
+                    <span style={{ color: 'var(--series-blue)' }}> (no usado)</span>
                   )}
                 </span>
                 <InputMoneda
@@ -874,9 +863,9 @@ export function EmpresasPage({ esPremium }: Props) {
             <FlujoDeCaja
               saldoInicial={saldoInicial}
               ingresos={ingresosProyeccion}
-              usaIngresosReales={usaPromedioVentasReal}
+              usaIngresosReales={usaIngresosReales}
               gastosTotales={gastosProyeccion}
-              usaGastosReales={usaPromedioComprasReal}
+              usaGastosReales={usaGastosReales}
               meses={meses}
               onCambiarMeses={setMeses}
               tasaCrecimiento={tasaCrecimiento}
