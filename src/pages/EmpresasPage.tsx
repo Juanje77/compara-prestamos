@@ -803,7 +803,7 @@ export function EmpresasPage({ esPremium }: Props) {
             )}
           </section>
 
-          <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <section className={`mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 ${esPremium ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}>
             <KpiCard
               label="Margen operativo"
               value={formatoPorcentaje(margenOperativo)}
@@ -820,12 +820,20 @@ export function EmpresasPage({ esPremium }: Props) {
               label="Runway de caja"
               value={runwayMeses === Infinity ? '∞' : `${runwayMeses.toFixed(1)} meses`}
               status={runwayMeses >= 6 ? 'good' : runwayMeses >= 3 ? 'warning' : 'critical'}
-              statusLabel={
-                valorBienes > 0
-                  ? `Pagando solo gastos fijos. Con tu patrimonio: ${runwayExtendido === Infinity ? '∞' : `${runwayExtendido.toFixed(1)} meses`}`
-                  : 'Si el ingreso cayera a cero, así de lejos llega tu caja pagando solo tus gastos fijos'
-              }
+              statusLabel="Si el ingreso cayera a cero, así de lejos llega tu caja pagando solo tus gastos fijos"
             />
+            {esPremium && (
+              <KpiCard
+                label="Runway extendido"
+                value={runwayExtendido === Infinity ? '∞' : `${runwayExtendido.toFixed(1)} meses`}
+                status={runwayExtendido >= 6 ? 'good' : runwayExtendido >= 3 ? 'warning' : 'critical'}
+                statusLabel={
+                  valorBienes > 0
+                    ? `Caja + patrimonio (${formatoMoneda(valorBienes)}), pagando solo gastos fijos`
+                    : 'Cargá tus bienes en la solapa Patrimonio para sumarlos acá'
+                }
+              />
+            )}
             <KpiCard
               label="Punto de equilibrio"
               value={puntoEquilibrio.alcanzable ? formatoMoneda(puntoEquilibrio.ingresosNecesarios) : 'No alcanzable'}
