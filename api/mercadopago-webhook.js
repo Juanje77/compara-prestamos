@@ -63,6 +63,7 @@ export default async function handler(req, res) {
         {
           plan,
           estado,
+          esPrueba: false,
           mpPreapprovalId: preapprovalId,
           actualizadoEn: new Date().toISOString(),
         },

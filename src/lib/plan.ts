@@ -7,9 +7,25 @@ export type EstadoPlan = 'activo' | 'pausado' | 'cancelado' | 'pendiente'
 export interface PlanUsuario {
   plan: PlanTier | null
   estado: EstadoPlan | null
+  /** true mientras el acceso viene de la prueba gratis de 15 días, no de una suscripción paga. */
+  esPrueba: boolean
+  /** Fecha ISO en la que termina la prueba gratis (solo tiene sentido si esPrueba es true). */
+  pruebaFin: string | null
 }
 
-const PLAN_VACIO: PlanUsuario = { plan: null, estado: null }
+const PLAN_VACIO: PlanUsuario = { plan: null, estado: null, esPrueba: false, pruebaFin: null }
+
+/** true si la prueba gratis ya venció — a partir de ahí no alcanza con estado "activo". */
+export function pruebaVencida(plan: PlanUsuario): boolean {
+  return !!(plan.esPrueba && plan.pruebaFin && new Date(plan.pruebaFin) < new Date())
+}
+
+/** Días que quedan de prueba gratis (0 si no está en prueba o ya venció). */
+export function diasRestantesPrueba(plan: PlanUsuario): number {
+  if (!plan.esPrueba || !plan.pruebaFin) return 0
+  const ms = new Date(plan.pruebaFin).getTime() - Date.now()
+  return Math.max(0, Math.ceil(ms / (24 * 60 * 60 * 1000)))
+}
 
 type FirestoreApi = {
   db: import('firebase/firestore').Firestore
@@ -46,7 +62,12 @@ function suscribirsePlanUsuario(uid: string, callback: (plan: PlanUsuario) => vo
         api.doc(api.db, 'users', uid, 'meta', 'plan'),
         (snap) => {
           const data = snap.data() as Partial<PlanUsuario> | undefined
-          callback({ plan: data?.plan ?? null, estado: data?.estado ?? null })
+          callback({
+            plan: data?.plan ?? null,
+            estado: data?.estado ?? null,
+            esPrueba: data?.esPrueba ?? false,
+            pruebaFin: data?.pruebaFin ?? null,
+          })
         },
         () => callback(PLAN_VACIO),
       )

@@ -75,6 +75,7 @@ export default async function handler(req, res) {
         {
           plan,
           estado: 'pendiente',
+          esPrueba: false,
           mpPreapprovalId: data.id,
           actualizadoEn: new Date().toISOString(),
         },

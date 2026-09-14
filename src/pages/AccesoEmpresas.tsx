@@ -1,12 +1,30 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useAuth } from '../lib/AuthContext'
-import { usePlanUsuario } from '../lib/plan'
+import { usePlanUsuario, pruebaVencida, diasRestantesPrueba } from '../lib/plan'
 import { EmpresasPage } from './EmpresasPage'
 import { PlanesEmpresa } from '../components/PlanesEmpresa'
 
 export function AccesoEmpresas() {
   const { user, cargando: cargandoAuth, habilitado } = useAuth()
   const { plan, cargando: cargandoPlan } = usePlanUsuario(user?.uid)
+  const pruebaIniciada = useRef(false)
+
+  // Un usuario que nunca tuvo ningún plan registrado arranca automáticamente una prueba gratis
+  // de 15 días con acceso Premium completo — sin que tenga que elegir nada. Se activa en el
+  // servidor (con permisos de administrador) para que no se pueda reiniciar la prueba a mano.
+  useEffect(() => {
+    if (!habilitado || !user?.uid || cargandoPlan) return
+    if (plan.plan !== null || plan.estado !== null) return
+    if (pruebaIniciada.current) return
+    pruebaIniciada.current = true
+    fetch('/api/iniciar-prueba', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid: user.uid }),
+    }).catch(() => {
+      // Si falla, el usuario simplemente ve la pantalla de planes en el próximo render.
+    })
+  }, [habilitado, user?.uid, cargandoPlan, plan.plan, plan.estado])
 
   // Respaldo del webhook: si el plan quedó "pendiente" (ya se creó la suscripción pero
   // todavía no se confirmó), consultamos nosotros mismos a Mercado Pago cada pocos segundos
@@ -63,9 +81,34 @@ export function AccesoEmpresas() {
     )
   }
 
-  if (plan.estado !== 'activo') {
-    return <PlanesEmpresa />
+  if (user && plan.plan === null && plan.estado === null) {
+    // Recién llegó y no tiene ningún plan registrado: la prueba gratis se está activando en
+    // segundo plano (ver el useEffect de arriba) — en cuanto se cree el documento, este mismo
+    // componente se vuelve a renderizar solo, gracias al listener en tiempo real de usePlanUsuario.
+    return (
+      <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+        Activando tu prueba gratis de 15 días…
+      </p>
+    )
   }
 
-  return <EmpresasPage esPremium={plan.plan === 'premium'} />
+  const vencida = pruebaVencida(plan)
+  if (plan.estado !== 'activo' || vencida) {
+    return <PlanesEmpresa motivoVencimiento={vencida ? 'prueba' : plan.estado ? 'suscripcion' : undefined} />
+  }
+
+  return (
+    <>
+      {plan.esPrueba && (
+        <div
+          className="mb-6 flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm"
+          style={{ borderColor: 'var(--series-blue)', background: 'var(--surface-1)', color: 'var(--series-blue)' }}
+        >
+          🎁 Estás en tu prueba gratis de FinCorp Premium — te quedan {diasRestantesPrueba(plan)}{' '}
+          {diasRestantesPrueba(plan) === 1 ? 'día' : 'días'}.
+        </div>
+      )}
+      <EmpresasPage esPremium={plan.plan === 'premium'} />
+    </>
+  )
 }

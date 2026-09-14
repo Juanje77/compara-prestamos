@@ -45,7 +45,13 @@ const PLANES: PlanConfig[] = [
   },
 ]
 
-export function PlanesEmpresa() {
+interface Props {
+  /** "prueba" si lo que venció fue la prueba gratis de 15 días; "suscripcion" si tenía una
+   * suscripción paga que se pausó o canceló; undefined para un visitante que nunca tuvo plan. */
+  motivoVencimiento?: 'prueba' | 'suscripcion'
+}
+
+export function PlanesEmpresa({ motivoVencimiento }: Props) {
   const { user } = useAuth()
   const [cargando, setCargando] = useState<PlanTier | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -93,10 +99,18 @@ export function PlanesEmpresa() {
           🧮 FinCorp para empresas
         </p>
         <h1 className="mt-1 text-3xl font-semibold sm:text-4xl" style={{ color: 'var(--text-primary)' }}>
-          Elegí tu plan
+          {motivoVencimiento === 'prueba'
+            ? 'Tu prueba gratis terminó'
+            : motivoVencimiento === 'suscripcion'
+              ? 'Tu suscripción no está activa'
+              : 'Elegí tu plan'}
         </h1>
         <p className="mx-auto mt-2 max-w-xl text-sm" style={{ color: 'var(--text-secondary)' }}>
-          Para acceder al dashboard financiero de tu negocio necesitás una suscripción activa.
+          {motivoVencimiento === 'prueba'
+            ? 'Ya usaste tus 15 días de prueba gratis con acceso Premium completo. Elegí un plan para seguir usando FinCorp.'
+            : motivoVencimiento === 'suscripcion'
+              ? 'Reactivala eligiendo un plan para volver a acceder al dashboard financiero de tu negocio.'
+              : 'Para acceder al dashboard financiero de tu negocio necesitás una suscripción activa.'}
           {!user && ' Al elegir un plan te vamos a pedir crear una cuenta gratis para completar el pago.'}
         </p>
       </div>
