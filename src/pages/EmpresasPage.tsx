@@ -14,6 +14,7 @@ import { buildWhatsAppLink } from '../components/WhatsAppContact'
 import { Proveedores } from '../components/Proveedores'
 import { Cheques } from '../components/Cheques'
 import { PosicionIva } from '../components/PosicionIva'
+import { IngresosGastos } from '../components/IngresosGastos'
 import {
   CATEGORIAS_GASTO,
   calcularCoberturaDeuda,
@@ -45,6 +46,7 @@ import {
   type EstadoCheque,
   type IvaManualMes,
   type Factura,
+  type MovimientoDiario,
 } from '../lib/cfo'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
 import { descargarInformeFinanciero, descargarInformeSaludFinanciera } from '../lib/pdf'
@@ -64,6 +66,7 @@ function mesActualISO(): string {
 
 const SECCIONES = [
   { key: 'dashboard', label: 'Dashboard' },
+  { key: 'ingresosGastos', label: 'Ingresos y gastos' },
   { key: 'cobranzas', label: 'Cobranzas y pagos' },
   { key: 'presupuesto', label: 'Presupuesto vs. Real' },
   { key: 'facturas', label: 'Salud financiera' },
@@ -108,6 +111,9 @@ export function EmpresasPage({ esPremium }: Props) {
   const [ivaManualPorMes, setIvaManualPorMes] = useState<Record<string, IvaManualMes>>(
     () => cargarNegocioData()?.ivaManualPorMes ?? {},
   )
+  const [movimientosDiarios, setMovimientosDiarios] = useState<MovimientoDiario[]>(
+    () => cargarNegocioData()?.movimientosDiarios ?? [],
+  )
   const [tasaCrecimiento, setTasaCrecimiento] = useState(() => cargarNegocioData()?.tasaCrecimiento ?? 0)
   const [nombreNegocio, setNombreNegocio] = useState(() => cargarNegocioData()?.nombreNegocio ?? '')
 
@@ -138,6 +144,7 @@ export function EmpresasPage({ esPremium }: Props) {
           setClasificaciones(d.clasificaciones ?? {})
           setCheques(d.cheques ?? [])
           setIvaManualPorMes(d.ivaManualPorMes ?? {})
+          setMovimientosDiarios(d.movimientosDiarios ?? [])
           setTasaCrecimiento(d.tasaCrecimiento ?? 0)
           setNombreNegocio(d.nombreNegocio ?? '')
         }
@@ -161,6 +168,7 @@ export function EmpresasPage({ esPremium }: Props) {
       clasificaciones,
       cheques,
       ivaManualPorMes,
+      movimientosDiarios,
       tasaCrecimiento,
       nombreNegocio,
     })
@@ -175,6 +183,7 @@ export function EmpresasPage({ esPremium }: Props) {
     clasificaciones,
     cheques,
     ivaManualPorMes,
+    movimientosDiarios,
     tasaCrecimiento,
     nombreNegocio,
   ])
@@ -194,6 +203,7 @@ export function EmpresasPage({ esPremium }: Props) {
           clasificaciones,
           cheques,
           ivaManualPorMes,
+          movimientosDiarios,
           tasaCrecimiento,
           nombreNegocio,
         },
@@ -215,6 +225,7 @@ export function EmpresasPage({ esPremium }: Props) {
     clasificaciones,
     cheques,
     ivaManualPorMes,
+    movimientosDiarios,
     tasaCrecimiento,
     nombreNegocio,
   ])
@@ -308,6 +319,14 @@ export function EmpresasPage({ esPremium }: Props) {
 
   function handleEliminarCheque(id: string) {
     setCheques((prev) => prev.filter((c) => c.id !== id))
+  }
+
+  function handleAgregarMovimientoDiario(movimiento: Omit<MovimientoDiario, 'id'>) {
+    setMovimientosDiarios((prev) => [...prev, { ...movimiento, id: generarId() }])
+  }
+
+  function handleEliminarMovimientoDiario(id: string) {
+    setMovimientosDiarios((prev) => prev.filter((m) => m.id !== id))
   }
 
   function handleCambiarIvaManual(mes: string, campo: keyof IvaManualMes, valor: number | undefined) {
@@ -470,6 +489,14 @@ export function EmpresasPage({ esPremium }: Props) {
           </button>
         ))}
       </nav>
+
+      {seccion === 'ingresosGastos' && (
+        <IngresosGastos
+          movimientos={movimientosDiarios}
+          onAgregar={handleAgregarMovimientoDiario}
+          onEliminar={handleEliminarMovimientoDiario}
+        />
+      )}
 
       {seccion === 'cobranzas' && (
         <CobranzasPagosSemanal

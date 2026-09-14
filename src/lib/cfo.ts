@@ -740,3 +740,67 @@ export function calcularTotalesCheques(cheques: Cheque[]): TotalesCheques {
     totalComisionesDescuento,
   }
 }
+
+// ---------------------------------------------------------------------------
+// Ingresos y gastos diarios (Básico)
+// ---------------------------------------------------------------------------
+//
+// Un registro simple día a día pensado para negocios chicos / monotributistas
+// que no facturan con el detalle de Salud financiera (sin IVA, sin cuotas):
+// cada ingreso (venta) o gasto se carga con su monto y fecha, y los ingresos
+// además con qué se cobró — para saber cuánto entró en efectivo vs. digital.
+
+export type TipoMovimientoDiario = 'ingreso' | 'gasto'
+export type MedioCobro = 'efectivo' | 'transferencia' | 'qr' | 'debito' | 'credito'
+
+export const MEDIOS_COBRO_LABEL: Record<MedioCobro, string> = {
+  efectivo: 'Efectivo',
+  transferencia: 'Transferencia',
+  qr: 'QR',
+  debito: 'Débito',
+  credito: 'Crédito',
+}
+
+export interface MovimientoDiario {
+  id: string
+  tipo: TipoMovimientoDiario
+  concepto: string
+  monto: number
+  fecha: string
+  /** Con qué se cobró — solo aplica a ingresos (ventas), no a gastos. */
+  medioCobro?: MedioCobro
+}
+
+export interface ResumenMovimientosDiarios {
+  totalIngresos: number
+  totalGastos: number
+  saldo: number
+}
+
+export function calcularResumenMovimientosDiarios(movimientos: MovimientoDiario[]): ResumenMovimientosDiarios {
+  let totalIngresos = 0
+  let totalGastos = 0
+  for (const m of movimientos) {
+    if (m.tipo === 'ingreso') totalIngresos += m.monto
+    else totalGastos += m.monto
+  }
+  return { totalIngresos, totalGastos, saldo: totalIngresos - totalGastos }
+}
+
+export interface TotalPorMedioCobro {
+  medio: MedioCobro
+  monto: number
+}
+
+/** Cuánto entró (solo ingresos) por cada medio de cobro — para ver de un vistazo cuánto fue en
+ * efectivo contra cuánto fue digital (transferencia, QR, débito, crédito). */
+export function calcularTotalesPorMedioCobro(movimientos: MovimientoDiario[]): TotalPorMedioCobro[] {
+  const totales = new Map<MedioCobro, number>()
+  for (const m of movimientos) {
+    if (m.tipo !== 'ingreso' || !m.medioCobro) continue
+    totales.set(m.medioCobro, (totales.get(m.medioCobro) ?? 0) + m.monto)
+  }
+  return [...totales.entries()]
+    .map(([medio, monto]) => ({ medio, monto }))
+    .sort((a, b) => b.monto - a.monto)
+}
