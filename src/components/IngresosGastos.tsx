@@ -3,6 +3,7 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 import type { MedioCobro, MovimientoDiario, TipoMovimientoDiario } from '../lib/cfo'
 import { MEDIOS_COBRO_LABEL, calcularResumenMovimientosDiarios, calcularTotalesPorMedioCobro } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
+import { InputMoneda } from './InputMoneda'
 
 interface Props {
   movimientos: MovimientoDiario[]
@@ -40,7 +41,7 @@ function RankingTooltip({ active, payload }: { active?: boolean; payload?: { nam
 export function IngresosGastos({ movimientos, onAgregar, onEliminar }: Props) {
   const [tipo, setTipo] = useState<TipoMovimientoDiario>('ingreso')
   const [concepto, setConcepto] = useState('')
-  const [monto, setMonto] = useState('')
+  const [monto, setMonto] = useState(0)
   const [fecha, setFecha] = useState(hoyISO)
   const [medioCobro, setMedioCobro] = useState<MedioCobro>('efectivo')
   const [filtro, setFiltro] = useState<'todos' | TipoMovimientoDiario>('todos')
@@ -54,17 +55,16 @@ export function IngresosGastos({ movimientos, onAgregar, onEliminar }: Props) {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const m = Number(monto)
-    if (!concepto.trim() || !m || m <= 0 || !fecha) return
+    if (!concepto.trim() || !monto || monto <= 0 || !fecha) return
     onAgregar({
       tipo,
       concepto: concepto.trim(),
-      monto: m,
+      monto,
       fecha,
       medioCobro: tipo === 'ingreso' ? medioCobro : undefined,
     })
     setConcepto('')
-    setMonto('')
+    setMonto(0)
   }
 
   return (
@@ -96,11 +96,10 @@ export function IngresosGastos({ movimientos, onAgregar, onEliminar }: Props) {
             className="min-w-[140px] flex-1 rounded-lg border px-3 py-1.5 text-sm"
             style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
           />
-          <input
-            type="number"
+          <InputMoneda
             placeholder="Monto"
             value={monto}
-            onChange={(e) => setMonto(e.target.value)}
+            onChange={setMonto}
             className="tabular w-28 shrink-0 rounded-lg border px-3 py-1.5 text-sm"
             style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
           />

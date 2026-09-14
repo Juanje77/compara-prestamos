@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { CuentaBancaria } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
+import { InputMoneda } from './InputMoneda'
 
 interface Props {
   cuentas: CuentaBancaria[]
@@ -11,18 +12,17 @@ interface Props {
 
 export function CuentasBancarias({ cuentas, onAgregar, onCambiarSaldo, onEliminar }: Props) {
   const [nombre, setNombre] = useState('')
-  const [saldo, setSaldo] = useState('')
+  const [saldo, setSaldo] = useState(0)
 
   const total = cuentas.reduce((s, c) => s + c.saldo, 0)
   const hayDescubierto = cuentas.some((c) => c.saldo < 0)
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const saldoNum = Number(saldo)
-    if (!nombre.trim() || saldo === '' || Number.isNaN(saldoNum)) return
-    onAgregar(nombre.trim(), saldoNum)
+    if (!nombre.trim()) return
+    onAgregar(nombre.trim(), saldo)
     setNombre('')
-    setSaldo('')
+    setSaldo(0)
   }
 
   return (
@@ -46,11 +46,10 @@ export function CuentasBancarias({ cuentas, onAgregar, onCambiarSaldo, onElimina
           className="min-w-[180px] flex-1 rounded-lg border px-3 py-1.5 text-sm"
           style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
         />
-        <input
-          type="number"
+        <InputMoneda
           placeholder="Saldo"
           value={saldo}
-          onChange={(e) => setSaldo(e.target.value)}
+          onChange={setSaldo}
           className="tabular w-32 shrink-0 rounded-lg border px-3 py-1.5 text-sm"
           style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
         />
@@ -86,10 +85,9 @@ export function CuentasBancarias({ cuentas, onAgregar, onCambiarSaldo, onElimina
                   Descubierto
                 </span>
               )}
-              <input
-                type="number"
+              <InputMoneda
                 value={c.saldo}
-                onChange={(e) => onCambiarSaldo(c.id, Number(e.target.value))}
+                onChange={(v) => onCambiarSaldo(c.id, v)}
                 className="tabular w-32 shrink-0 rounded-lg border px-2 py-1 text-right font-medium"
                 style={{
                   borderColor: 'var(--border)',

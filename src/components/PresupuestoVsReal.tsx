@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { generarComentariosDesvio, type DesvioCategoria } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
+import { InputMoneda } from './InputMoneda'
 
 interface Props {
   desvios: DesvioCategoria[]
@@ -108,10 +109,9 @@ export function PresupuestoVsReal({ desvios, mes, onCambiarMes, onCambiarReal }:
                         🧾 auto
                       </span>
                     )}
-                    <input
-                      type="number"
+                    <InputMoneda
                       value={d.real}
-                      onChange={(e) => onCambiarReal(d.key, Number(e.target.value))}
+                      onChange={(v) => onCambiarReal(d.key, v)}
                       className="tabular w-28 rounded-lg border px-2 py-1 text-right text-sm"
                       style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
                     />

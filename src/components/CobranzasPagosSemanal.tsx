@@ -19,6 +19,7 @@ import { descargarPdfCobranzasSemanal } from '../lib/pdf'
 import { cargarDatosUsuario, guardarDatosUsuario } from '../lib/userSync'
 import { useAuth } from '../lib/AuthContext'
 import { MEDIOS_PAGO_LABEL, type Factura, type MedioPago } from '../lib/cfo'
+import { InputMoneda } from './InputMoneda'
 
 /** Los movimientos generados a partir de una factura llevan este prefijo en el id, para poder
  * distinguirlos de los cargados a mano (que no se pueden borrar ni editar desde acá). */
@@ -224,7 +225,7 @@ function ColumnaMovimientos({
   extra,
 }: ColumnaProps) {
   const [concepto, setConcepto] = useState('')
-  const [monto, setMonto] = useState('')
+  const [monto, setMonto] = useState(0)
   const [fecha, setFecha] = useState(hoyISO())
   const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set())
   const [verCumplidos, setVerCumplidos] = useState(false)
@@ -238,11 +239,10 @@ function ColumnaMovimientos({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const montoNum = Number(monto)
-    if (!concepto.trim() || !montoNum || montoNum <= 0) return
-    onAgregar(concepto.trim(), montoNum, fecha)
+    if (!concepto.trim() || !monto || monto <= 0) return
+    onAgregar(concepto.trim(), monto, fecha)
     setConcepto('')
-    setMonto('')
+    setMonto(0)
   }
 
   function alternarSeleccion(id: string, marcado: boolean) {
@@ -292,11 +292,10 @@ function ColumnaMovimientos({
           className="min-w-[140px] flex-1 rounded-lg border px-3 py-1.5 text-sm"
           style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
         />
-        <input
-          type="number"
+        <InputMoneda
           placeholder="Monto"
           value={monto}
-          onChange={(e) => setMonto(e.target.value)}
+          onChange={setMonto}
           className="tabular w-24 shrink-0 rounded-lg border px-3 py-1.5 text-sm"
           style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
         />

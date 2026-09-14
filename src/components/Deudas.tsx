@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Deuda } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
+import { InputMoneda } from './InputMoneda'
 
 interface Props {
   deudas: Deuda[]
@@ -10,8 +11,8 @@ interface Props {
 
 export function Deudas({ deudas, onAgregar, onEliminar }: Props) {
   const [concepto, setConcepto] = useState('')
-  const [montoAdeudado, setMontoAdeudado] = useState('')
-  const [cuotaMensual, setCuotaMensual] = useState('')
+  const [montoAdeudado, setMontoAdeudado] = useState(0)
+  const [cuotaMensual, setCuotaMensual] = useState(0)
   const [proximoVencimiento, setProximoVencimiento] = useState('')
 
   const totalAdeudado = deudas.reduce((s, d) => s + d.montoAdeudado, 0)
@@ -19,13 +20,11 @@ export function Deudas({ deudas, onAgregar, onEliminar }: Props) {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const monto = Number(montoAdeudado)
-    const cuota = Number(cuotaMensual || 0)
-    if (!concepto.trim() || !monto || monto <= 0) return
-    onAgregar(concepto.trim(), monto, cuota, proximoVencimiento || undefined)
+    if (!concepto.trim() || !montoAdeudado || montoAdeudado <= 0) return
+    onAgregar(concepto.trim(), montoAdeudado, cuotaMensual, proximoVencimiento || undefined)
     setConcepto('')
-    setMontoAdeudado('')
-    setCuotaMensual('')
+    setMontoAdeudado(0)
+    setCuotaMensual(0)
     setProximoVencimiento('')
   }
 
@@ -50,19 +49,17 @@ export function Deudas({ deudas, onAgregar, onEliminar }: Props) {
           className="min-w-[160px] flex-1 rounded-lg border px-3 py-1.5 text-sm"
           style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
         />
-        <input
-          type="number"
+        <InputMoneda
           placeholder="Monto adeudado"
           value={montoAdeudado}
-          onChange={(e) => setMontoAdeudado(e.target.value)}
+          onChange={setMontoAdeudado}
           className="tabular w-32 shrink-0 rounded-lg border px-3 py-1.5 text-sm"
           style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
         />
-        <input
-          type="number"
+        <InputMoneda
           placeholder="Cuota mensual"
           value={cuotaMensual}
-          onChange={(e) => setCuotaMensual(e.target.value)}
+          onChange={setCuotaMensual}
           className="tabular w-32 shrink-0 rounded-lg border px-3 py-1.5 text-sm"
           style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
         />

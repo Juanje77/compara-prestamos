@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Cheque, EstadoCheque, TipoCheque } from '../lib/cfo'
 import { calcularTotalesCheques, estadosChequeDisponibles, etiquetaEstadoCheque, montoNetoCheque } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
+import { InputMoneda } from './InputMoneda'
 
 interface Props {
   cheques: Cheque[]
@@ -20,7 +21,7 @@ export function Cheques({ cheques, onAgregar, onCambiarEstado, onCambiarComision
   const [numero, setNumero] = useState('')
   const [banco, setBanco] = useState('')
   const [contraparte, setContraparte] = useState('')
-  const [monto, setMonto] = useState('')
+  const [monto, setMonto] = useState(0)
   const [fechaEmision, setFechaEmision] = useState(hoyISO)
   const [fechaCobro, setFechaCobro] = useState(hoyISO)
 
@@ -29,14 +30,13 @@ export function Cheques({ cheques, onAgregar, onCambiarEstado, onCambiarComision
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const m = Number(monto)
-    if (!banco.trim() || !contraparte.trim() || !m || m <= 0 || !fechaEmision || !fechaCobro) return
+    if (!banco.trim() || !contraparte.trim() || !monto || monto <= 0 || !fechaEmision || !fechaCobro) return
     onAgregar({
       tipo,
       numero: numero.trim() || undefined,
       banco: banco.trim(),
       contraparte: contraparte.trim(),
-      monto: m,
+      monto,
       fechaEmision,
       fechaCobro,
       estado: 'cartera',
@@ -44,7 +44,7 @@ export function Cheques({ cheques, onAgregar, onCambiarEstado, onCambiarComision
     setNumero('')
     setBanco('')
     setContraparte('')
-    setMonto('')
+    setMonto(0)
   }
 
   return (
@@ -93,11 +93,10 @@ export function Cheques({ cheques, onAgregar, onCambiarEstado, onCambiarComision
             className="min-w-[140px] flex-1 rounded-lg border px-3 py-1.5 text-sm"
             style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
           />
-          <input
-            type="number"
+          <InputMoneda
             placeholder="Monto"
             value={monto}
-            onChange={(e) => setMonto(e.target.value)}
+            onChange={setMonto}
             className="tabular w-28 shrink-0 rounded-lg border px-3 py-1.5 text-sm"
             style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
           />
@@ -224,11 +223,9 @@ export function Cheques({ cheques, onAgregar, onCambiarEstado, onCambiarComision
                   {c.estado === 'vendido' && (
                     <label className="flex shrink-0 items-center gap-1 text-xs" style={{ color: 'var(--text-muted)' }}>
                       Comisión banco
-                      <input
-                        type="number"
-                        min={0}
-                        value={c.comisionDescuento ?? ''}
-                        onChange={(e) => onCambiarComision(c.id, Number(e.target.value))}
+                      <InputMoneda
+                        value={c.comisionDescuento ?? 0}
+                        onChange={(v) => onCambiarComision(c.id, v)}
                         className="tabular w-24 rounded border px-1.5 py-0.5 text-xs"
                         style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
                       />

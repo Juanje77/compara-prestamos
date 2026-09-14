@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { IngresosBrutosManualMes, PosicionIngresosBrutosMes } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
+import { InputMoneda } from './InputMoneda'
 
 interface Props {
   posicion: PosicionIngresosBrutosMes[]
@@ -40,18 +41,31 @@ function CeldaEditable({
           ↺
         </button>
       )}
-      <input
-        type="number"
-        step={sufijo === '%' ? 0.1 : 1}
-        value={valor}
-        onChange={(e) => onCambiar(Number(e.target.value))}
-        className="tabular w-24 rounded-lg border px-2 py-1 text-right text-sm"
-        style={{
-          borderColor: esManual ? 'var(--series-blue)' : 'var(--border)',
-          background: 'var(--surface-1)',
-          color: 'var(--text-primary)',
-        }}
-      />
+      {sufijo === '%' ? (
+        <input
+          type="number"
+          step={0.1}
+          value={valor}
+          onChange={(e) => onCambiar(Number(e.target.value))}
+          className="tabular w-24 rounded-lg border px-2 py-1 text-right text-sm"
+          style={{
+            borderColor: esManual ? 'var(--series-blue)' : 'var(--border)',
+            background: 'var(--surface-1)',
+            color: 'var(--text-primary)',
+          }}
+        />
+      ) : (
+        <InputMoneda
+          value={valor}
+          onChange={onCambiar}
+          className="tabular w-24 rounded-lg border px-2 py-1 text-right text-sm"
+          style={{
+            borderColor: esManual ? 'var(--series-blue)' : 'var(--border)',
+            background: 'var(--surface-1)',
+            color: 'var(--text-primary)',
+          }}
+        />
+      )}
       {sufijo && (
         <span className="shrink-0 text-xs" style={{ color: 'var(--text-muted)' }}>
           {sufijo}

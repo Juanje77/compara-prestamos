@@ -17,6 +17,7 @@ import { Cheques } from '../components/Cheques'
 import { PosicionIva } from '../components/PosicionIva'
 import { PosicionIngresosBrutos } from '../components/PosicionIngresosBrutos'
 import { IngresosGastos } from '../components/IngresosGastos'
+import { InputMoneda } from '../components/InputMoneda'
 import {
   CATEGORIAS_GASTO,
   calcularCoberturaDeuda,
@@ -730,10 +731,9 @@ export function EmpresasPage({ esPremium }: Props) {
                     <span style={{ color: 'var(--series-blue)' }}> (no usado este mes)</span>
                   )}
                 </span>
-                <input
-                  type="number"
+                <InputMoneda
                   value={ingresos}
-                  onChange={(e) => setIngresos(Number(e.target.value))}
+                  onChange={setIngresos}
                   className="tabular mt-1 w-full rounded-lg border px-3 py-1.5 text-sm font-semibold"
                   style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
                 />
@@ -753,10 +753,9 @@ export function EmpresasPage({ esPremium }: Props) {
                       ({c.tipo})
                     </span>
                   </span>
-                  <input
-                    type="number"
+                  <InputMoneda
                     value={montos[c.key] ?? 0}
-                    onChange={(e) => cambiarMonto(c.key, Number(e.target.value))}
+                    onChange={(v) => cambiarMonto(c.key, v)}
                     className="tabular mt-1 w-full rounded-lg border px-3 py-1.5 text-sm font-semibold"
                     style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
                   />

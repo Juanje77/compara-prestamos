@@ -16,6 +16,7 @@ import {
 } from '../lib/cfo'
 import { importarComprobantesArca } from '../lib/arcaImport'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
+import { InputMoneda } from './InputMoneda'
 
 interface Props {
   facturas: Factura[]
@@ -88,8 +89,8 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
   const [tipo, setTipo] = useState<TipoFactura>('emitida')
   const [tipoComprobante, setTipoComprobante] = useState<TipoComprobante>('factura')
   const [contraparte, setContraparte] = useState('')
-  const [monto, setMonto] = useState('')
-  const [iva, setIva] = useState('')
+  const [monto, setMonto] = useState(0)
+  const [iva, setIva] = useState(0)
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10))
   const [cuotas, setCuotas] = useState('1')
   const [filtro, setFiltro] = useState<'todas' | TipoFactura>('todas')
@@ -134,24 +135,22 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const m = Number(monto)
-    const ivaNum = Number(iva)
     const cuotasNum = Math.max(1, Math.round(Number(cuotas) || 1))
-    if (!contraparte.trim() || !m || m <= 0 || !fecha) return
+    if (!contraparte.trim() || !monto || monto <= 0 || !fecha) return
     onAgregar({
       tipo,
       tipoComprobante,
       contraparte: contraparte.trim(),
-      monto: m,
+      monto,
       fecha,
       fechaEstimadaCobroPago: sumarDias(fecha, plazoDias),
       cumplido: false,
       cuotas: cuotasNum > 1 ? cuotasNum : undefined,
-      iva: ivaNum > 0 ? ivaNum : undefined,
+      iva: iva > 0 ? iva : undefined,
     })
     setContraparte('')
-    setMonto('')
-    setIva('')
+    setMonto(0)
+    setIva(0)
     setCuotas('1')
   }
 
@@ -275,20 +274,18 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
             className="min-w-[140px] flex-1 rounded-lg border px-3 py-1.5 text-sm"
             style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
           />
-          <input
-            type="number"
+          <InputMoneda
             placeholder="Monto"
             value={monto}
-            onChange={(e) => setMonto(e.target.value)}
+            onChange={setMonto}
             className="tabular w-28 shrink-0 rounded-lg border px-3 py-1.5 text-sm"
             style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
           />
-          <input
-            type="number"
+          <InputMoneda
             placeholder="IVA"
             title="Monto de IVA incluido en el total (opcional)"
             value={iva}
-            onChange={(e) => setIva(e.target.value)}
+            onChange={setIva}
             className="tabular w-24 shrink-0 rounded-lg border px-3 py-1.5 text-sm"
             style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
           />
@@ -297,8 +294,7 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
             defaultValue=""
             onChange={(e) => {
               const pct = Number(e.target.value)
-              const m = Number(monto)
-              if (pct > 0 && m > 0) setIva(String(Math.round(m - m / (1 + pct / 100))))
+              if (pct > 0 && monto > 0) setIva(Math.round(monto - monto / (1 + pct / 100)))
               e.target.value = ''
             }}
             className="shrink-0 rounded-lg border px-2 py-1.5 text-xs"

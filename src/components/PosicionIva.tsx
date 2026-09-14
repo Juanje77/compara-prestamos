@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { IvaManualMes, PosicionIvaMes } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
+import { InputMoneda } from './InputMoneda'
 
 interface Props {
   posicion: PosicionIvaMes[]
@@ -38,10 +39,9 @@ function CeldaEditable({
           ↺
         </button>
       )}
-      <input
-        type="number"
+      <InputMoneda
         value={valor}
-        onChange={(e) => onCambiar(Number(e.target.value))}
+        onChange={onCambiar}
         className="tabular w-28 rounded-lg border px-2 py-1 text-right text-sm"
         style={{
           borderColor: esManual ? 'var(--series-blue)' : 'var(--border)',
