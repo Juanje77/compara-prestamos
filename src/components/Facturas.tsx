@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react'
 import { Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import type { Factura, ResumenMensual, TipoComprobante, TipoFactura } from '../lib/cfo'
+import type { Factura, TendenciaMensual, TipoComprobante, TipoFactura } from '../lib/cfo'
 import {
   MEDIOS_PAGO_LABEL,
+  calcularAgingCuentas,
+  calcularDSOyDPO,
   calcularMargenBrutoTotal,
   calcularRanking,
-  calcularResumenMensual,
+  calcularTendenciaMensual,
   ivaConSigno,
   montoConSigno,
   montoNetoConSigno,
@@ -60,7 +62,7 @@ function RankingTooltip({ active, payload }: { active?: boolean; payload?: { nam
   )
 }
 
-function EvolucionTooltip({ active, payload }: { active?: boolean; payload?: { payload: ResumenMensual }[] }) {
+function EvolucionTooltip({ active, payload }: { active?: boolean; payload?: { payload: TendenciaMensual }[] }) {
   if (!active || !payload || payload.length === 0) return null
   const r = payload[0].payload
   return (
@@ -74,6 +76,9 @@ function EvolucionTooltip({ active, payload }: { active?: boolean; payload?: { p
       </p>
       <p className="tabular" style={{ color: 'var(--series-2)' }}>
         Compras: {formatoMoneda(r.comprasNetas)}
+      </p>
+      <p className="tabular" style={{ color: 'var(--series-4)' }}>
+        Margen: {formatoPorcentaje(r.margenPct)}
       </p>
     </div>
   )
@@ -93,10 +98,12 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
   const [mensajeImport, setMensajeImport] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const [plazoDias, setPlazoDias] = useState(30)
 
-  const resumenMensual = useMemo(() => calcularResumenMensual(facturas), [facturas])
+  const resumenMensual = useMemo(() => calcularTendenciaMensual(facturas), [facturas])
   const rankingClientes = useMemo(() => calcularRanking(facturas, 'emitida'), [facturas])
   const rankingProveedores = useMemo(() => calcularRanking(facturas, 'recibida'), [facturas])
   const margenTotal = useMemo(() => calcularMargenBrutoTotal(facturas), [facturas])
+  const indicadoresCobroPago = useMemo(() => calcularDSOyDPO(facturas), [facturas])
+  const aging = useMemo(() => calcularAgingCuentas(facturas), [facturas])
   const ivaTotales = useMemo(() => {
     let netoVentas = 0
     let ivaVentas = 0
@@ -382,6 +389,107 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
             </p>
           )}
 
+          {indicadoresCobroPago.hayDatos && (
+            <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+              <h3 className="mb-1 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                Indicadores de cobro y pago
+              </h3>
+              <p className="mb-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+                Días promedio en base a lo que tenés pendiente hoy y tu facturación mensual habitual — lo que
+                mira primero cualquier CFO para saber si estás financiando a tus clientes o financiándote con
+                tus proveedores.
+              </p>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    DSO — días de cobro
+                  </p>
+                  <p className="tabular text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+                    {indicadoresCobroPago.dso.toFixed(0)} días
+                  </p>
+                  <p className="tabular text-xs" style={{ color: 'var(--text-muted)' }}>
+                    Pendiente de cobrar: {formatoMoneda(indicadoresCobroPago.cuentasPorCobrar)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    DPO — días de pago
+                  </p>
+                  <p className="tabular text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+                    {indicadoresCobroPago.dpo.toFixed(0)} días
+                  </p>
+                  <p className="tabular text-xs" style={{ color: 'var(--text-muted)' }}>
+                    Pendiente de pagar: {formatoMoneda(indicadoresCobroPago.cuentasPorPagar)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    Ciclo de conversión de efectivo
+                  </p>
+                  <p
+                    className="tabular text-lg font-semibold"
+                    style={{
+                      color: indicadoresCobroPago.cicloConversionEfectivo <= 0 ? 'var(--status-good-text)' : 'var(--status-warning)',
+                    }}
+                  >
+                    {indicadoresCobroPago.cicloConversionEfectivo >= 0 ? '+' : ''}
+                    {indicadoresCobroPago.cicloConversionEfectivo.toFixed(0)} días
+                  </p>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    {indicadoresCobroPago.cicloConversionEfectivo <= 0
+                      ? 'Te financiás con tus proveedores'
+                      : 'Estás financiando a tus clientes'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 grid grid-cols-1 gap-6 lg:grid-cols-2">
+                <div>
+                  <h4 className="mb-2 text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
+                    Antigüedad de lo que falta cobrar
+                  </h4>
+                  <ul className="space-y-1.5">
+                    {aging.cobrar.map((t) => (
+                      <li key={t.etiqueta} className="flex items-center justify-between gap-2 text-xs">
+                        <span style={{ color: t.etiqueta === 'Al día' ? 'var(--text-muted)' : 'var(--text-primary)' }}>
+                          {t.etiqueta}
+                          {t.cantidad > 0 && <span style={{ color: 'var(--text-muted)' }}> ({t.cantidad})</span>}
+                        </span>
+                        <span
+                          className="tabular font-medium"
+                          style={{ color: t.monto > 0 && t.etiqueta !== 'Al día' ? 'var(--status-warning)' : 'var(--text-secondary)' }}
+                        >
+                          {formatoMoneda(t.monto)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="mb-2 text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
+                    Antigüedad de lo que falta pagar
+                  </h4>
+                  <ul className="space-y-1.5">
+                    {aging.pagar.map((t) => (
+                      <li key={t.etiqueta} className="flex items-center justify-between gap-2 text-xs">
+                        <span style={{ color: t.etiqueta === 'Al día' ? 'var(--text-muted)' : 'var(--text-primary)' }}>
+                          {t.etiqueta}
+                          {t.cantidad > 0 && <span style={{ color: 'var(--text-muted)' }}> ({t.cantidad})</span>}
+                        </span>
+                        <span
+                          className="tabular font-medium"
+                          style={{ color: t.monto > 0 && t.etiqueta !== 'Al día' ? 'var(--status-warning)' : 'var(--text-secondary)' }}
+                        >
+                          {formatoMoneda(t.monto)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </section>
+          )}
+
           <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
             <h3 className="mb-1 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
               Ventas y compras netas por mes
@@ -403,6 +511,7 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
                     tickLine={false}
                   />
                   <YAxis
+                    yAxisId="monto"
                     tickFormatter={(v) => formatoMoneda(v)}
                     stroke="var(--axis)"
                     tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
@@ -410,10 +519,30 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
                     tickLine={false}
                     width={90}
                   />
+                  <YAxis
+                    yAxisId="pct"
+                    orientation="right"
+                    tickFormatter={(v) => `${v}%`}
+                    stroke="var(--axis)"
+                    tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+                    axisLine={{ stroke: 'var(--gridline)' }}
+                    tickLine={false}
+                    width={44}
+                  />
                   <Tooltip content={<EvolucionTooltip />} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Line type="monotone" dataKey="ventasNetas" name="Ventas netas" stroke="var(--series-blue)" strokeWidth={2} dot={{ r: 3 }} />
-                  <Line type="monotone" dataKey="comprasNetas" name="Compras netas" stroke="var(--series-2)" strokeWidth={2} dot={{ r: 3 }} />
+                  <Line yAxisId="monto" type="monotone" dataKey="ventasNetas" name="Ventas netas" stroke="var(--series-blue)" strokeWidth={2} dot={{ r: 3 }} />
+                  <Line yAxisId="monto" type="monotone" dataKey="comprasNetas" name="Compras netas" stroke="var(--series-2)" strokeWidth={2} dot={{ r: 3 }} />
+                  <Line
+                    yAxisId="pct"
+                    type="monotone"
+                    dataKey="margenPct"
+                    name="Margen %"
+                    stroke="var(--series-4)"
+                    strokeWidth={2}
+                    strokeDasharray="4 3"
+                    dot={{ r: 3 }}
+                  />
                 </LineChart>
               </ResponsiveContainer>
             )}

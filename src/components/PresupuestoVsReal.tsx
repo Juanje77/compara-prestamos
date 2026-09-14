@@ -1,4 +1,5 @@
-import type { DesvioCategoria } from '../lib/cfo'
+import { useMemo } from 'react'
+import { generarComentariosDesvio, type DesvioCategoria } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
 
 interface Props {
@@ -19,6 +20,7 @@ export function PresupuestoVsReal({ desvios, mes, onCambiarMes, onCambiarReal }:
   const totalPresupuestado = desvios.reduce((s, d) => s + d.presupuestado, 0)
   const totalReal = desvios.reduce((s, d) => s + d.real, 0)
   const desvioTotalPct = totalPresupuestado > 0 ? ((totalReal - totalPresupuestado) / totalPresupuestado) * 100 : 0
+  const comentarios = useMemo(() => generarComentariosDesvio(desvios), [desvios])
 
   function sumarMeses(delta: number) {
     const [anio, m] = mes.split('-').map(Number)
@@ -58,6 +60,27 @@ export function PresupuestoVsReal({ desvios, mes, onCambiarMes, onCambiarReal }:
         Lo que facturaste ese mes en cada categoría se completa solo con tus facturas recibidas clasificadas (🧾
         auto). Podés pisarlo a mano si hace falta.
       </p>
+
+      {comentarios.length > 0 && (
+        <ul className="mb-4 space-y-1.5">
+          {comentarios.map((c) => (
+            <li
+              key={c.categoria}
+              className="flex items-start gap-2 rounded-lg border p-2.5 text-xs"
+              style={{
+                borderColor: c.direccion === 'exceso' ? 'var(--status-warning)' : 'var(--status-good-text)',
+                color: 'var(--text-primary)',
+              }}
+            >
+              <span className="shrink-0">{c.direccion === 'exceso' ? '📈' : '📉'}</span>
+              <span>
+                <strong>{c.categoria}:</strong> gastaste {formatoMoneda(Math.abs(c.desvioMonto))}{' '}
+                {c.direccion === 'exceso' ? 'más' : 'menos'} de lo presupuestado ({Math.abs(c.desvioPct).toFixed(0)}%).
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
 
       <div className="overflow-x-auto">
         <table className="w-full min-w-[560px] text-sm">

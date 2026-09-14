@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
-import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart, Cell, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { formatoMoneda } from '../lib/finance'
-import { proyectarFlujoCaja, type FilaProyeccion } from '../lib/cfo'
+import { proyectarFlujoCaja, proyectarFlujoCajaEscenarios, type FilaProyeccion } from '../lib/cfo'
 
 interface Props {
   saldoInicial: number
@@ -15,6 +15,35 @@ interface Props {
   onCambiarTasaCrecimiento?: (tasa: number) => void
   esPremium?: boolean
   onQuierePremium?: () => void
+}
+
+interface FilaEscenarios {
+  mes: number
+  pesimista: number
+  base: number
+  optimista: number
+}
+
+function EscenariosTooltip({ active, payload }: { active?: boolean; payload?: { payload: FilaEscenarios }[] }) {
+  if (!active || !payload || payload.length === 0) return null
+  const fila = payload[0].payload
+  return (
+    <div
+      className="rounded-lg border px-3 py-2 text-sm shadow-lg"
+      style={{ background: 'var(--surface-1)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
+    >
+      <p className="mb-1 font-semibold">Mes {fila.mes}</p>
+      <p className="tabular" style={{ color: 'var(--status-critical)' }}>
+        Pesimista: {formatoMoneda(fila.pesimista)}
+      </p>
+      <p className="tabular" style={{ color: 'var(--series-blue)' }}>
+        Base: {formatoMoneda(fila.base)}
+      </p>
+      <p className="tabular" style={{ color: 'var(--status-good-text)' }}>
+        Optimista: {formatoMoneda(fila.optimista)}
+      </p>
+    </div>
+  )
 }
 
 function ChartTooltip({ active, payload }: { active?: boolean; payload?: { payload: FilaProyeccion }[] }) {
@@ -63,6 +92,15 @@ export function FlujoDeCaja({
 
   const saldoFinal = proyeccion[proyeccion.length - 1]?.saldo ?? saldoInicial
   const mesQuiebre = proyeccion.find((f) => f.saldo < 0)?.mes ?? null
+
+  const datosEscenarios = useMemo(() => {
+    if (!esPremium) return []
+    const escenarios = proyectarFlujoCajaEscenarios(saldoInicial, ingresos, gastosTotales, meses, tasaCrecimiento)
+    const base = escenarios.find((e) => e.nombre === 'base')!.filas
+    const pesimista = escenarios.find((e) => e.nombre === 'pesimista')!.filas
+    const optimista = escenarios.find((e) => e.nombre === 'optimista')!.filas
+    return base.map((f, i) => ({ mes: f.mes, pesimista: pesimista[i].saldo, base: f.saldo, optimista: optimista[i].saldo }))
+  }, [esPremium, saldoInicial, ingresos, gastosTotales, meses, tasaCrecimiento])
 
   return (
     <div className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
@@ -173,6 +211,43 @@ export function FlujoDeCaja({
           </Bar>
         </BarChart>
       </ResponsiveContainer>
+
+      {esPremium && datosEscenarios.length > 0 && (
+        <div className="mt-6 border-t pt-4" style={{ borderColor: 'var(--gridline)' }}>
+          <h4 className="mb-1 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+            Saldo proyectado por escenario
+          </h4>
+          <p className="mb-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+            Pesimista: 10% menos de ingresos y 10% más de gastos. Optimista: lo inverso. Ningún CFO presenta una
+            proyección con un solo número.
+          </p>
+          <ResponsiveContainer width="100%" height={180}>
+            <LineChart data={datosEscenarios} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+              <XAxis
+                dataKey="mes"
+                tickFormatter={(v) => `M${v}`}
+                stroke="var(--axis)"
+                tick={{ fill: 'var(--text-muted)', fontSize: 12 }}
+                axisLine={{ stroke: 'var(--gridline)' }}
+                tickLine={false}
+              />
+              <YAxis
+                tickFormatter={(v) => formatoMoneda(v)}
+                stroke="var(--axis)"
+                tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+                axisLine={{ stroke: 'var(--gridline)' }}
+                tickLine={false}
+                width={90}
+              />
+              <Tooltip content={<EscenariosTooltip />} />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Line type="monotone" dataKey="pesimista" name="Pesimista" stroke="var(--status-critical)" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="base" name="Base" stroke="var(--series-blue)" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="optimista" name="Optimista" stroke="var(--status-good-text)" strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   )
 }

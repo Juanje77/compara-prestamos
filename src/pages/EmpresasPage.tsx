@@ -6,6 +6,7 @@ import { CuentasBancarias } from '../components/CuentasBancarias'
 import { Deudas } from '../components/Deudas'
 import { CobranzasPagosSemanal } from '../components/CobranzasPagosSemanal'
 import { AlertasPanel } from '../components/AlertasPanel'
+import { Recomendaciones } from '../components/Recomendaciones'
 import { PresupuestoVsReal } from '../components/PresupuestoVsReal'
 import { Facturas } from '../components/Facturas'
 import { PremiumLock } from '../components/PremiumLock'
@@ -25,19 +26,23 @@ import {
   calcularGastosTotales,
   calcularMargenBrutoTotal,
   calcularMargenOperativo,
+  calcularAgingCuentas,
+  calcularDSOyDPO,
   calcularPosicionIvaPorMes,
   calcularPromedioComprasMensual,
   calcularPromedioVentasMensual,
   calcularPuntoEquilibrio,
   calcularRanking,
   calcularRealEfectivoPorMes,
-  calcularResumenMensual,
   calcularRunwayMeses,
   calcularSaldoTotalBancos,
+  calcularTendenciaMensual,
   calcularVentasComprasDelMes,
   generarAlertas,
+  generarRecomendaciones,
   listarProveedores,
   proyectarFlujoCaja,
+  proyectarFlujoCajaEscenarios,
   type CategoriaGasto,
   type Cheque,
   type ClasificacionesProveedores,
@@ -49,7 +54,7 @@ import {
   type MovimientoDiario,
 } from '../lib/cfo'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
-import { descargarInformeFinanciero, descargarInformeSaludFinanciera } from '../lib/pdf'
+import { abrirInformeFinanciero, abrirInformeSaludFinanciera } from '../lib/htmlReport'
 import { cargarNegocioData, guardarNegocioData } from '../lib/negocioData'
 import { cargarDatosUsuario, guardarDatosUsuario } from '../lib/userSync'
 import { useAuth } from '../lib/AuthContext'
@@ -397,10 +402,11 @@ export function EmpresasPage({ esPremium }: Props) {
   const desvios = useMemo(() => calcularDesvios(categorias, realEfectivo), [categorias, realEfectivo])
   const proveedores = useMemo(() => listarProveedores(facturas, clasificaciones), [facturas, clasificaciones])
   const coberturaDeuda = calcularCoberturaDeuda(ingresosEfectivos, cuotaDeudaTotal)
-  const resumenMensual = useMemo(() => calcularResumenMensual(facturas), [facturas])
+  const resumenMensual = useMemo(() => calcularTendenciaMensual(facturas), [facturas])
   const rankingClientes = useMemo(() => calcularRanking(facturas, 'emitida'), [facturas])
   const rankingProveedores = useMemo(() => calcularRanking(facturas, 'recibida'), [facturas])
   const margenTotal = useMemo(() => calcularMargenBrutoTotal(facturas), [facturas])
+  const aging = useMemo(() => calcularAgingCuentas(facturas), [facturas])
   const posicionIva = useMemo(
     () => calcularPosicionIvaPorMes(facturas, ivaManualPorMes),
     [facturas, ivaManualPorMes],
@@ -409,13 +415,33 @@ export function EmpresasPage({ esPremium }: Props) {
     () => generarAlertas({ margenOperativo, runwayMeses, proyeccion, deudas, facturas }),
     [margenOperativo, runwayMeses, proyeccion, deudas, facturas],
   )
+  const indicadoresCobroPago = useMemo(() => calcularDSOyDPO(facturas), [facturas])
+  const recomendaciones = useMemo(
+    () =>
+      esPremium
+        ? generarRecomendaciones({
+            margenOperativo,
+            runwayMeses,
+            proyeccion,
+            deudas,
+            dso: indicadoresCobroPago.dso,
+            dpo: indicadoresCobroPago.dpo,
+            hayDatosCobroPago: indicadoresCobroPago.hayDatos,
+          })
+        : [],
+    [esPremium, margenOperativo, runwayMeses, proyeccion, deudas, indicadoresCobroPago],
+  )
+  const escenarios = useMemo(
+    () => proyectarFlujoCajaEscenarios(saldoInicial, ingresosProyeccion, gastosProyeccion, meses, esPremium ? tasaCrecimiento : 0),
+    [saldoInicial, ingresosProyeccion, gastosProyeccion, meses, esPremium, tasaCrecimiento],
+  )
 
   const mensajeWhatsApp = `Hola Juan! Armé mi dashboard financiero en FinCorp (margen operativo: ${formatoPorcentaje(
     margenOperativo,
   )}, runway de caja: ${runwayMeses === Infinity ? 'sin límite' : `${runwayMeses.toFixed(1)} meses`}) y quiero asesoramiento para mi negocio.`
 
   function handleDescargarPdf() {
-    descargarInformeFinanciero({
+    abrirInformeFinanciero({
       nombreNegocio,
       cuentas,
       deudas,
@@ -433,11 +459,21 @@ export function EmpresasPage({ esPremium }: Props) {
       endeudamientoMeses,
       coberturaDeuda,
       proyeccion,
+      escenarios,
+      recomendaciones,
     })
   }
 
   function handleDescargarInformeSalud() {
-    descargarInformeSaludFinanciera({ nombreNegocio, resumenMensual, rankingClientes, rankingProveedores, margenTotal })
+    abrirInformeSaludFinanciera({
+      nombreNegocio,
+      resumenMensual,
+      rankingClientes,
+      rankingProveedores,
+      margenTotal,
+      indicadoresCobroPago,
+      aging,
+    })
   }
 
   function abrirPlanes() {
@@ -587,7 +623,10 @@ export function EmpresasPage({ esPremium }: Props) {
       {seccion === 'dashboard' && (
         <>
           {esPremium ? (
-            <AlertasPanel alertas={alertas} />
+            <>
+              <AlertasPanel alertas={alertas} />
+              <Recomendaciones recomendaciones={recomendaciones} />
+            </>
           ) : (
             <button
               onClick={abrirPlanes}

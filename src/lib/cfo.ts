@@ -804,3 +804,245 @@ export function calcularTotalesPorMedioCobro(movimientos: MovimientoDiario[]): T
     .map(([medio, monto]) => ({ medio, monto }))
     .sort((a, b) => b.monto - a.monto)
 }
+
+// ---------------------------------------------------------------------------
+// Indicadores de cobro y pago: DSO, DPO y aging (Premium)
+// ---------------------------------------------------------------------------
+//
+// Son los indicadores que cualquier CFO mira primero para saber si el negocio
+// está financiando a sus clientes (cobra tarde) o si vive de financiarse con
+// sus proveedores (paga tarde) — y en qué antigüedad están las facturas
+// pendientes, para priorizar la gestión de cobranza.
+
+export interface IndicadoresCobroPago {
+  /** Días de Ventas Pendientes de Cobro: en promedio, cuántos días de venta representa lo que
+   * todavía no cobraste. */
+  dso: number
+  /** Días de Compras Pendientes de Pago: análogo a DSO, del lado de tus proveedores. */
+  dpo: number
+  /** DSO - DPO: cuántos días netos estás financiando de tu bolsillo (positivo) o financiándote
+   * con tus proveedores (negativo). */
+  cicloConversionEfectivo: number
+  cuentasPorCobrar: number
+  cuentasPorPagar: number
+  hayDatos: boolean
+}
+
+/** DSO/DPO estándar: (saldo pendiente / ventas o compras promedio mensual) × 30 días. */
+export function calcularDSOyDPO(facturas: Factura[]): IndicadoresCobroPago {
+  const cuentasPorCobrar = facturas.filter((f) => f.tipo === 'emitida' && !f.cumplido).reduce((s, f) => s + montoConSigno(f), 0)
+  const cuentasPorPagar = facturas.filter((f) => f.tipo === 'recibida' && !f.cumplido).reduce((s, f) => s + montoConSigno(f), 0)
+  const promedioVentas = calcularPromedioVentasMensual(facturas)
+  const promedioCompras = calcularPromedioComprasMensual(facturas)
+  const dso = promedioVentas.hayDatos && promedioVentas.promedio > 0 ? Math.max(0, (cuentasPorCobrar / promedioVentas.promedio) * 30) : 0
+  const dpo = promedioCompras.hayDatos && promedioCompras.promedio > 0 ? Math.max(0, (cuentasPorPagar / promedioCompras.promedio) * 30) : 0
+  return {
+    dso,
+    dpo,
+    cicloConversionEfectivo: dso - dpo,
+    cuentasPorCobrar,
+    cuentasPorPagar,
+    hayDatos: promedioVentas.hayDatos || promedioCompras.hayDatos,
+  }
+}
+
+export interface TramoAging {
+  etiqueta: string
+  monto: number
+  cantidad: number
+}
+
+export interface AgingCuentas {
+  cobrar: TramoAging[]
+  pagar: TramoAging[]
+}
+
+const TRAMOS_AGING = [
+  { etiqueta: 'Al día', min: -Infinity, max: 0 },
+  { etiqueta: '1-30 días vencido', min: 1, max: 30 },
+  { etiqueta: '31-60 días vencido', min: 31, max: 60 },
+  { etiqueta: '61-90 días vencido', min: 61, max: 90 },
+  { etiqueta: 'Más de 90 días vencido', min: 91, max: Infinity },
+]
+
+function calcularAgingPorTipo(facturas: Factura[], tipo: TipoFactura, hoyISO: string): TramoAging[] {
+  const hoy = new Date(`${hoyISO}T00:00:00`).getTime()
+  const tramos = TRAMOS_AGING.map((t) => ({ etiqueta: t.etiqueta, monto: 0, cantidad: 0 }))
+  for (const f of facturas) {
+    if (f.tipo !== tipo || f.cumplido) continue
+    const vencimiento = new Date(`${f.fechaEstimadaCobroPago ?? f.fecha}T00:00:00`).getTime()
+    const diasVencido = Math.floor((hoy - vencimiento) / (1000 * 60 * 60 * 24))
+    const idx = TRAMOS_AGING.findIndex((t) => diasVencido >= t.min && diasVencido <= t.max)
+    const tramo = tramos[idx === -1 ? 0 : idx]
+    tramo.monto += montoConSigno(f)
+    tramo.cantidad += 1
+  }
+  return tramos
+}
+
+/** Facturas pendientes (no cumplidas) agrupadas por antigüedad de vencimiento, tanto para lo que
+ * falta cobrar (emitidas) como para lo que falta pagar (recibidas). */
+export function calcularAgingCuentas(facturas: Factura[], hoyISO = new Date().toISOString().slice(0, 10)): AgingCuentas {
+  return {
+    cobrar: calcularAgingPorTipo(facturas, 'emitida', hoyISO),
+    pagar: calcularAgingPorTipo(facturas, 'recibida', hoyISO),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Tendencia mensual de margen (Premium)
+// ---------------------------------------------------------------------------
+
+export interface TendenciaMensual {
+  mes: string
+  ventasNetas: number
+  comprasNetas: number
+  margenPct: number
+}
+
+/** Igual que calcularResumenMensual, sumando el margen (%) de cada mes por separado — para ver la
+ * tendencia mes a mes, no solo el total acumulado del período (ver calcularMargenBrutoTotal). */
+export function calcularTendenciaMensual(facturas: Factura[]): TendenciaMensual[] {
+  return calcularResumenMensual(facturas).map((r) => ({
+    ...r,
+    margenPct: r.ventasNetas > 0 ? ((r.ventasNetas - r.comprasNetas) / r.ventasNetas) * 100 : 0,
+  }))
+}
+
+// ---------------------------------------------------------------------------
+// Comentarios automáticos de desvío (Premium)
+// ---------------------------------------------------------------------------
+
+export interface ComentarioDesvio {
+  categoria: string
+  desvioMonto: number
+  desvioPct: number
+  direccion: 'exceso' | 'ahorro'
+}
+
+/** Las categorías con mayor desvío (en $) del mes, para explicar en 1-2 líneas por qué se movió el
+ * total — igual que haría un CFO al presentar el Presupuesto vs. Real, en vez de solo mostrar la
+ * tabla de números. */
+export function generarComentariosDesvio(desvios: DesvioCategoria[], top = 3): ComentarioDesvio[] {
+  return desvios
+    .filter((d) => Math.abs(d.desvioMonto) > 0)
+    .sort((a, b) => Math.abs(b.desvioMonto) - Math.abs(a.desvioMonto))
+    .slice(0, top)
+    .map((d) => ({
+      categoria: d.label,
+      desvioMonto: d.desvioMonto,
+      desvioPct: d.desvioPct,
+      direccion: d.desvioMonto > 0 ? 'exceso' : 'ahorro',
+    }))
+}
+
+// ---------------------------------------------------------------------------
+// Escenarios de proyección de caja (Premium)
+// ---------------------------------------------------------------------------
+
+export interface EscenarioProyeccion {
+  nombre: 'pesimista' | 'base' | 'optimista'
+  filas: FilaProyeccion[]
+}
+
+/** Tres variantes de la misma proyección: pesimista (10% menos ingresos, 10% más gastos, 2 puntos
+ * menos de crecimiento), base (los valores tal cual se cargaron) y optimista (lo inverso) — un CFO
+ * casi nunca presenta una proyección con un solo número. */
+export function proyectarFlujoCajaEscenarios(
+  saldoInicial: number,
+  ingresos: number,
+  gastosTotales: number,
+  meses: number,
+  tasaCrecimientoMensualPct = 0,
+): EscenarioProyeccion[] {
+  return [
+    {
+      nombre: 'pesimista',
+      filas: proyectarFlujoCaja(saldoInicial, ingresos * 0.9, gastosTotales * 1.1, meses, tasaCrecimientoMensualPct - 2),
+    },
+    { nombre: 'base', filas: proyectarFlujoCaja(saldoInicial, ingresos, gastosTotales, meses, tasaCrecimientoMensualPct) },
+    {
+      nombre: 'optimista',
+      filas: proyectarFlujoCaja(saldoInicial, ingresos * 1.1, gastosTotales * 0.95, meses, tasaCrecimientoMensualPct + 2),
+    },
+  ]
+}
+
+// ---------------------------------------------------------------------------
+// Recomendaciones automáticas (Premium)
+// ---------------------------------------------------------------------------
+//
+// La diferencia entre un reporte de contador y uno de CFO: no solo decir qué
+// pasó (eso ya lo hacen las alertas), sino qué hacer al respecto.
+
+export type PrioridadRecomendacion = 'alta' | 'media'
+
+export interface Recomendacion {
+  id: string
+  prioridad: PrioridadRecomendacion
+  texto: string
+}
+
+export function generarRecomendaciones(input: {
+  margenOperativo: number
+  runwayMeses: number
+  proyeccion: FilaProyeccion[]
+  deudas: Deuda[]
+  dso: number
+  dpo: number
+  hayDatosCobroPago: boolean
+}): Recomendacion[] {
+  const recomendaciones: Recomendacion[] = []
+  const { margenOperativo, runwayMeses, proyeccion, deudas, dso, dpo, hayDatosCobroPago } = input
+
+  if (margenOperativo < 0) {
+    recomendaciones.push({
+      id: 'reducir-gastos',
+      prioridad: 'alta',
+      texto: 'Revisá tus gastos: hoy gastás más de lo que facturás. Priorizá recortar gastos variables antes que los fijos.',
+    })
+  }
+
+  if (runwayMeses < 3) {
+    recomendaciones.push({
+      id: 'asegurar-caja',
+      prioridad: 'alta',
+      texto: 'Con menos de 3 meses de runway, evitá comprometer nuevos gastos fijos y negociá plazos más largos con tus proveedores.',
+    })
+  }
+
+  const mesQuiebre = proyeccion.find((f) => f.saldo < 0)?.mes
+  if (mesQuiebre) {
+    recomendaciones.push({
+      id: 'anticipar-quiebre',
+      prioridad: 'alta',
+      texto: `Tu proyección muestra caja negativa en el mes ${mesQuiebre}: conseguí una línea de crédito o acelerá cobranzas antes de esa fecha.`,
+    })
+  }
+
+  if (hayDatosCobroPago && dso > 0 && dpo >= 0 && dso > dpo + 15) {
+    recomendaciones.push({
+      id: 'mejorar-cobranza',
+      prioridad: 'media',
+      texto: `Cobrás en promedio a los ${dso.toFixed(0)} días y pagás a los ${dpo.toFixed(0)}: estás financiando a tus clientes. Acortá los plazos de cobro o pedí anticipos.`,
+    })
+  }
+
+  if (deudas.some((d) => d.proximoVencimiento)) {
+    recomendaciones.push({
+      id: 'revisar-vencimientos',
+      prioridad: 'media',
+      texto: 'Tenés deudas con vencimiento próximo: confirmá que la caja proyectada las cubre antes de que llegue la fecha.',
+    })
+  }
+
+  if (recomendaciones.length === 0) {
+    recomendaciones.push({
+      id: 'todo-en-orden',
+      prioridad: 'media',
+      texto: 'Tus indicadores están en buen estado. Mantené el monitoreo mensual de margen, runway y cobranzas para sostenerlo.',
+    })
+  }
+
+  return recomendaciones
+}
