@@ -806,6 +806,7 @@ export function EmpresasPage({ esPremium }: Props) {
           <section className={`mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 ${esPremium ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}>
             <KpiCard
               label="Margen operativo"
+              info="Qué porcentaje de cada peso que factura tu negocio queda como ganancia, después de pagar todos los gastos."
               value={formatoPorcentaje(margenOperativo)}
               status={margenOperativo >= 15 ? 'good' : margenOperativo >= 0 ? 'warning' : 'critical'}
               statusLabel={
@@ -818,6 +819,7 @@ export function EmpresasPage({ esPremium }: Props) {
             />
             <KpiCard
               label="Runway de caja"
+              info="Cuántos meses te alcanza la plata que tenés en el banco para cubrir tus gastos fijos, si de golpe dejaras de facturar."
               value={runwayMeses === Infinity ? '∞' : `${runwayMeses.toFixed(1)} meses`}
               status={runwayMeses >= 6 ? 'good' : runwayMeses >= 3 ? 'warning' : 'critical'}
               statusLabel="Si el ingreso cayera a cero, así de lejos llega tu caja pagando solo tus gastos fijos"
@@ -825,6 +827,7 @@ export function EmpresasPage({ esPremium }: Props) {
             {esPremium && (
               <KpiCard
                 label="Runway extendido"
+                info="Lo mismo que el runway de caja, pero sumando lo que podrías conseguir vendiendo tu patrimonio (inversiones, vehículos, etc.) si hiciera falta."
                 value={runwayExtendido === Infinity ? '∞' : `${runwayExtendido.toFixed(1)} meses`}
                 status={runwayExtendido >= 6 ? 'good' : runwayExtendido >= 3 ? 'warning' : 'critical'}
                 statusLabel={
@@ -836,6 +839,7 @@ export function EmpresasPage({ esPremium }: Props) {
             )}
             <KpiCard
               label="Punto de equilibrio"
+              info="Cuánto tenés que facturar por mes como mínimo para no perder plata — ni ganar ni perder."
               value={puntoEquilibrio.alcanzable ? formatoMoneda(puntoEquilibrio.ingresosNecesarios) : 'No alcanzable'}
               status={
                 !puntoEquilibrio.alcanzable
@@ -854,6 +858,7 @@ export function EmpresasPage({ esPremium }: Props) {
             />
             <KpiCard
               label="Endeudamiento"
+              info="Cuántos meses de tu ingreso actual necesitarías, sin gastar en nada más, para pagar toda la deuda que tenés pendiente."
               value={deudaTotal <= 0 ? 'Sin deudas' : endeudamientoMeses === Infinity ? '∞' : `${endeudamientoMeses.toFixed(1)} meses de ingreso`}
               status={deudaTotal <= 0 || endeudamientoMeses <= 3 ? 'good' : endeudamientoMeses <= 6 ? 'warning' : 'critical'}
               statusLabel={

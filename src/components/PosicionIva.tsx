@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { IvaManualMes, PosicionIvaMes } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
+import { InfoTooltip } from './InfoTooltip'
 
 interface Props {
   posicion: PosicionIvaMes[]
@@ -108,10 +109,30 @@ export function PosicionIva({ posicion, onCambiarManual, onEliminarMes }: Props)
             <thead>
               <tr className="text-left text-xs" style={{ color: 'var(--text-muted)' }}>
                 <th className="pb-2 font-medium">Mes</th>
-                <th className="pb-2 text-right font-medium">Saldo a favor mes anterior</th>
-                <th className="pb-2 text-right font-medium">Débito fiscal</th>
-                <th className="pb-2 text-right font-medium">Crédito fiscal</th>
-                <th className="pb-2 text-right font-medium">Saldo técnico</th>
+                <th className="pb-2 text-right font-medium">
+                  <span className="flex items-center justify-end gap-1.5">
+                    Saldo a favor mes anterior
+                    <InfoTooltip texto="El crédito de IVA que te quedó del mes pasado, para descontar del que tenés que pagar este mes." />
+                  </span>
+                </th>
+                <th className="pb-2 text-right font-medium">
+                  <span className="flex items-center justify-end gap-1.5">
+                    Débito fiscal
+                    <InfoTooltip texto="El IVA que cobraste en tus ventas del mes." />
+                  </span>
+                </th>
+                <th className="pb-2 text-right font-medium">
+                  <span className="flex items-center justify-end gap-1.5">
+                    Crédito fiscal
+                    <InfoTooltip texto="El IVA que pagaste en tus compras del mes." />
+                  </span>
+                </th>
+                <th className="pb-2 text-right font-medium">
+                  <span className="flex items-center justify-end gap-1.5">
+                    Saldo técnico
+                    <InfoTooltip texto="Saldo a favor anterior más crédito fiscal, menos débito fiscal. Si da positivo, queda a favor para el próximo mes; si da negativo, hay que pagarlo." />
+                  </span>
+                </th>
                 <th className="pb-2 text-right font-medium">Resultado del mes</th>
                 <th className="pb-2"></th>
               </tr>

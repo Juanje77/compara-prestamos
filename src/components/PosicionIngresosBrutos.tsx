@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { IngresosBrutosManualMes, PosicionIngresosBrutosMes } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
+import { InfoTooltip } from './InfoTooltip'
 
 interface Props {
   posicion: PosicionIngresosBrutosMes[]
@@ -129,10 +130,25 @@ export function PosicionIngresosBrutos({ posicion, onCambiarManual, onEliminarMe
             <thead>
               <tr className="text-left text-xs" style={{ color: 'var(--text-muted)' }}>
                 <th className="pb-2 font-medium">Mes</th>
-                <th className="pb-2 text-right font-medium">Base imponible</th>
-                <th className="pb-2 text-right font-medium">Alícuota</th>
+                <th className="pb-2 text-right font-medium">
+                  <span className="flex items-center justify-end gap-1.5">
+                    Base imponible
+                    <InfoTooltip texto="Lo que facturaste en el mes, sin IVA — es el monto sobre el que se calcula el impuesto." />
+                  </span>
+                </th>
+                <th className="pb-2 text-right font-medium">
+                  <span className="flex items-center justify-end gap-1.5">
+                    Alícuota
+                    <InfoTooltip texto="El porcentaje que te cobra la provincia sobre tus ventas (en La Pampa, la general es 3%)." />
+                  </span>
+                </th>
                 <th className="pb-2 text-right font-medium">Impuesto determinado</th>
-                <th className="pb-2 text-right font-medium">Retenciones</th>
+                <th className="pb-2 text-right font-medium">
+                  <span className="flex items-center justify-end gap-1.5">
+                    Retenciones
+                    <InfoTooltip texto="Lo que ya te descontaron tus clientes por este impuesto — se resta de lo que tenés que pagar." />
+                  </span>
+                </th>
                 <th className="pb-2 text-right font-medium">Resultado del mes</th>
                 <th className="pb-2"></th>
               </tr>

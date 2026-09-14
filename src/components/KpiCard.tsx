@@ -1,3 +1,5 @@
+import { InfoTooltip } from './InfoTooltip'
+
 type Status = 'good' | 'warning' | 'critical'
 
 const STATUS_COLOR: Record<Status, string> = {
@@ -11,13 +13,15 @@ interface Props {
   value: string
   status: Status
   statusLabel: string
+  info?: string
 }
 
-export function KpiCard({ label, value, status, statusLabel }: Props) {
+export function KpiCard({ label, value, status, statusLabel, info }: Props) {
   return (
     <div className="rounded-lg border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
-      <p className="mb-1 text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
+      <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
         {label}
+        {info && <InfoTooltip texto={info} />}
       </p>
       <p className="tabular text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
         {value}

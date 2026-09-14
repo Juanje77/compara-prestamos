@@ -17,6 +17,7 @@ import {
 import { importarComprobantesArca } from '../lib/arcaImport'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
+import { InfoTooltip } from './InfoTooltip'
 
 interface Props {
   facturas: Factura[]
@@ -397,8 +398,9 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
               </p>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div>
-                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  <p className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
                     DSO — días de cobro
+                    <InfoTooltip texto="En promedio, cuántos días tarda tu negocio en cobrar lo que factura." />
                   </p>
                   <p className="tabular text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
                     {indicadoresCobroPago.dso.toFixed(0)} días
@@ -408,8 +410,9 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  <p className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
                     DPO — días de pago
+                    <InfoTooltip texto="En promedio, cuántos días tardás en pagarle a tus proveedores." />
                   </p>
                   <p className="tabular text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
                     {indicadoresCobroPago.dpo.toFixed(0)} días
@@ -419,8 +422,9 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  <p className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
                     Ciclo de conversión de efectivo
+                    <InfoTooltip texto="DSO menos DPO: cuántos días netos financiás vos a tus clientes (positivo) o te financiás con tus proveedores (negativo)." />
                   </p>
                   <p
                     className="tabular text-lg font-semibold"
