@@ -33,8 +33,7 @@ import {
   calcularDSOyDPO,
   calcularPosicionIngresosBrutosPorMes,
   calcularPosicionIvaPorMes,
-  calcularPromedioComprasMensual,
-  calcularPromedioVentasMensual,
+  calcularPromediosMensualesReales,
   calcularPuntoEquilibrio,
   calcularRanking,
   calcularRealEfectivoPorMes,
@@ -408,21 +407,20 @@ export function EmpresasPage({ esPremium }: Props) {
 
   // Híbrido (Premium): si hay comprobantes cargados en Comprobantes, los indicadores usan el
   // promedio real de tus ventas/compras mensuales (todos los meses cargados, no solo el mes en
-  // curso) en vez de la estimación manual de arriba. El desglose por categoría (para Composición
-  // de gastos y Punto de equilibrio) sigue siendo siempre manual, porque un comprobante importado
+  // curso) en vez de la estimación manual de arriba. Ventas y compras se promedian con el mismo
+  // denominador (ver calcularPromediosMensualesReales) para que el margen resultante coincida
+  // con el margen bruto real del período, en vez de inflarse cuando una de las dos está
+  // concentrada en menos meses que la otra. El desglose por categoría (para Composición de
+  // gastos y Punto de equilibrio) sigue siendo siempre manual, porque un comprobante importado
   // no viene categorizado como fijo/variable.
-  const promedioVentas = useMemo(
-    () => (esPremium ? calcularPromedioVentasMensual(facturas) : null),
+  const promediosReales = useMemo(
+    () => (esPremium ? calcularPromediosMensualesReales(facturas) : null),
     [esPremium, facturas],
   )
-  const promedioCompras = useMemo(
-    () => (esPremium ? calcularPromedioComprasMensual(facturas) : null),
-    [esPremium, facturas],
-  )
-  const usaIngresosReales = promedioVentas?.hayDatos ?? false
-  const usaGastosReales = promedioCompras?.hayDatos ?? false
-  const ingresosEfectivos = usaIngresosReales ? promedioVentas!.promedio : ingresos
-  const gastosEfectivos = usaGastosReales ? promedioCompras!.promedio : gastosTotales
+  const usaIngresosReales = promediosReales?.hayVentas ?? false
+  const usaGastosReales = promediosReales?.hayCompras ?? false
+  const ingresosEfectivos = usaIngresosReales ? promediosReales!.ventasPromedio : ingresos
+  const gastosEfectivos = usaGastosReales ? promediosReales!.comprasPromedio : gastosTotales
   const ingresosProyeccion = ingresosEfectivos
   const gastosProyeccion = gastosEfectivos
 

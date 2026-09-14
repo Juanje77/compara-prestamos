@@ -478,6 +478,42 @@ export function calcularPromedioComprasMensual(facturas: Factura[]): PromedioMen
   return calcularPromedioMensualPorTipo(facturas, 'recibida')
 }
 
+export interface PromediosMensualesReales {
+  ventasPromedio: number
+  comprasPromedio: number
+  hayVentas: boolean
+  hayCompras: boolean
+}
+
+/**
+ * Promedio mensual de ventas y compras para el margen operativo del Dashboard, usando el MISMO
+ * denominador (la cantidad de meses con algún comprobante, de venta o de compra) para ambos
+ * lados. Si se promediara cada lado por separado —como hace calcularPromedioVentasMensual /
+ * calcularPromedioComprasMensual, correcto para DSO/DPO— un negocio que cargó todas sus ventas
+ * en un solo mes y sus compras repartidas en varios meses termina con un margen inflado que no
+ * coincide con el margen bruto real del período.
+ */
+export function calcularPromediosMensualesReales(facturas: Factura[]): PromediosMensualesReales {
+  const ventasPorMes = new Map<string, number>()
+  const comprasPorMes = new Map<string, number>()
+  for (const f of facturas) {
+    for (const cuota of distribuirEnCuotas(f)) {
+      const mes = cuota.fecha.slice(0, 7)
+      const mapa = f.tipo === 'emitida' ? ventasPorMes : comprasPorMes
+      mapa.set(mes, (mapa.get(mes) ?? 0) + cuota.monto)
+    }
+  }
+  const meses = new Set([...ventasPorMes.keys(), ...comprasPorMes.keys()])
+  if (meses.size === 0) return { ventasPromedio: 0, comprasPromedio: 0, hayVentas: false, hayCompras: false }
+  const sumar = (m: Map<string, number>) => [...m.values()].reduce((s, v) => s + v, 0)
+  return {
+    ventasPromedio: sumar(ventasPorMes) / meses.size,
+    comprasPromedio: sumar(comprasPorMes) / meses.size,
+    hayVentas: ventasPorMes.size > 0,
+    hayCompras: comprasPorMes.size > 0,
+  }
+}
+
 
 export interface MargenBrutoTotal {
   ventasNetas: number
