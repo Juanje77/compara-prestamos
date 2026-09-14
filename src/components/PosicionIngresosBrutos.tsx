@@ -97,7 +97,7 @@ export function PosicionIngresosBrutos({ posicion, onCambiarManual, onEliminarMe
       <p className="mb-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
         Por mes: tu facturación neta de IVA (base imponible) multiplicada por la alícuota, menos las
         retenciones/percepciones que ya te hicieron los clientes. A diferencia del IVA, no arrastra saldo de
-        un mes a otro. La base imponible se completa sola con tus facturas emitidas de Salud financiera; la
+        un mes a otro. La base imponible se completa sola con tus facturas emitidas de Comprobantes; la
         alícuota y las retenciones son siempre editables a mano.
       </p>
 
@@ -120,7 +120,7 @@ export function PosicionIngresosBrutos({ posicion, onCambiarManual, onEliminarMe
 
       {posicion.length === 0 ? (
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-          Todavía no hay ningún mes cargado. Agregá uno arriba, o cargá una venta en Salud financiera para que
+          Todavía no hay ningún mes cargado. Agregá uno arriba, o cargá una venta en Comprobantes para que
           aparezca acá solo.
         </p>
       ) : (

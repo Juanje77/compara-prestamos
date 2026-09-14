@@ -117,7 +117,7 @@ export function FlujoDeCaja({
                 : usaIngresosReales
                   ? 'tus ventas cargadas'
                   : 'tus compras cargadas'}{' '}
-              en Salud financiera
+              en Comprobantes
             </p>
           )}
         </div>

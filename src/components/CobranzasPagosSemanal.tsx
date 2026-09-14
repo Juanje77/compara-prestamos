@@ -161,7 +161,7 @@ function FilaMovimiento({
           color: 'var(--text-primary)',
           textDecoration: m.cumplido ? 'line-through' : 'none',
         }}
-        title={deFactura ? 'Generado desde Salud financiera' : undefined}
+        title={deFactura ? 'Generado desde Comprobantes' : undefined}
       >
         {deFactura && '🧾 '}
         {m.concepto}
@@ -737,7 +737,7 @@ export function CobranzasPagosSemanal({ facturas = [], onCambiarFactura }: Props
         {facturas.length > 0 && (
           <>
             {' '}
-            Los ítems marcados con 🧾 vienen de tus facturas cargadas en "Salud financiera" — tildarlos acá
+            Los ítems marcados con 🧾 vienen de tus facturas cargadas en "Comprobantes" — tildarlos acá
             marca la factura como cobrada/pagada, y no se pueden borrar desde acá (se gestionan desde esa
             pestaña).
           </>

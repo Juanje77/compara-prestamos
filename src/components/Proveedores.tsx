@@ -77,7 +77,7 @@ export function Proveedores({ proveedores, onClasificar, onAgregarManual, onElim
 
       {proveedores.length === 0 ? (
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-          Todavía no hay proveedores: importá facturas recibidas en Salud financiera o agregá uno a mano arriba.
+          Todavía no hay proveedores: importá facturas recibidas en Comprobantes o agregá uno a mano arriba.
         </p>
       ) : (
         <div className="overflow-x-auto">

@@ -79,11 +79,11 @@ function mesActualISO(): string {
 
 const SECCIONES = [
   { key: 'dashboard', label: 'Dashboard' },
+  { key: 'facturas', label: 'Comprobantes' },
   { key: 'ingresosGastos', label: 'Ingresos y gastos' },
   { key: 'cobranzas', label: 'Cobranzas y pagos' },
-  { key: 'presupuesto', label: 'Presupuesto vs. Real' },
-  { key: 'facturas', label: 'Salud financiera' },
   { key: 'proveedores', label: 'Proveedores' },
+  { key: 'presupuesto', label: 'Presupuesto vs. Real' },
   { key: 'cheques', label: 'Cheques' },
   { key: 'iva', label: 'Posición de IVA' },
   { key: 'iibb', label: 'Ingresos Brutos' },
@@ -407,7 +407,7 @@ export function EmpresasPage({ esPremium }: Props) {
   const deudaTotal = calcularDeudaTotal(deudas)
   const cuotaDeudaTotal = calcularCuotaDeudaTotal(deudas)
 
-  // Híbrido (Premium): si hay comprobantes cargados este mes en Salud financiera, los indicadores
+  // Híbrido (Premium): si hay comprobantes cargados este mes en Comprobantes, los indicadores
   // usan esos números reales en vez de la estimación manual de arriba. El desglose por categoría
   // (para Composición de gastos y Punto de equilibrio) sigue siendo siempre manual, porque un
   // comprobante importado no viene categorizado como fijo/variable.
@@ -624,7 +624,7 @@ export function EmpresasPage({ esPremium }: Props) {
       {seccion === 'facturas' && (
         <PremiumLock
           activo={esPremium}
-          titulo="Salud financiera con tus comprobantes"
+          titulo="Comprobantes"
           descripcion="Importá tus facturas, notas de crédito y débito (desde ARCA o a mano) y mirá ventas y compras netas, margen bruto por mes, tus principales clientes/proveedores y qué tan sana es tu facturación."
           onQuieroPremium={abrirPlanes}
         >
@@ -677,7 +677,7 @@ export function EmpresasPage({ esPremium }: Props) {
         <PremiumLock
           activo={esPremium}
           titulo="Posición de IVA"
-          descripcion="Débito y crédito fiscal por mes, con el saldo técnico a favor arrastrado del mes anterior, a partir del IVA que cargues en cada comprobante de Salud financiera."
+          descripcion="Débito y crédito fiscal por mes, con el saldo técnico a favor arrastrado del mes anterior, a partir del IVA que cargues en cada comprobante (solapa Comprobantes)."
           onQuieroPremium={abrirPlanes}
         >
           <PosicionIva posicion={posicionIva} onCambiarManual={handleCambiarIvaManual} onEliminarMes={handleEliminarMesIva} />
@@ -746,7 +746,7 @@ export function EmpresasPage({ esPremium }: Props) {
             </h2>
             {(usaIngresosReales || usaGastosReales) && (
               <p className="-mt-2 mb-4 text-xs" style={{ color: 'var(--series-blue)' }}>
-                📊 Este mes ya cargaste comprobantes en Salud financiera: los indicadores de abajo usan{' '}
+                📊 Este mes ya cargaste ventas o compras en la solapa Comprobantes: los indicadores de abajo usan{' '}
                 {usaIngresosReales && usaGastosReales
                   ? 'esas ventas y compras reales'
                   : usaIngresosReales

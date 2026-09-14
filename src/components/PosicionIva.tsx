@@ -75,7 +75,7 @@ export function PosicionIva({ posicion, onCambiarManual, onEliminarMes }: Props)
       <p className="mb-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
         Débito fiscal (IVA de tus ventas) menos crédito fiscal (IVA de tus compras) por mes. Si el saldo
         técnico da a favor, se arrastra al mes siguiente como crédito; si da a pagar, no se arrastra nada. Se
-        completa solo con el IVA que cargues en cada comprobante de Salud financiera, pero cualquier valor se
+        completa solo con el IVA que cargues en cada comprobante (solapa Comprobantes), pero cualquier valor se
         puede pisar a mano (por ejemplo, si no cargaste el IVA comprobante por comprobante, o para corregir el
         saldo a favor con el que arrancaste a usar FinCorp).
       </p>
@@ -100,7 +100,7 @@ export function PosicionIva({ posicion, onCambiarManual, onEliminarMes }: Props)
       {posicion.length === 0 ? (
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
           Todavía no hay ningún mes cargado. Agregá uno arriba, o completá el campo IVA al cargar una factura
-          en Salud financiera para que aparezca acá solo.
+          en Comprobantes para que aparezca acá solo.
         </p>
       ) : (
         <div className="overflow-x-auto">

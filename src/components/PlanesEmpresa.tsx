@@ -37,7 +37,7 @@ const PLANES: PlanConfig[] = [
       'Presupuesto vs. Real, con desvío por categoría y comentarios automáticos',
       'Proyección de caja con tasa de crecimiento y escenarios optimista/pesimista',
       'Alertas automáticas y recomendaciones accionables sobre qué hacer',
-      'Salud financiera con tus comprobantes: ventas/compras netas, margen, IVA y ranking de clientes/proveedores',
+      'Comprobantes: ventas/compras netas, margen, IVA y ranking de clientes/proveedores',
       'Proveedores clasificados y gestión de cheques (cartera, cobrado, vendido) para tu balance contable',
       'Posición de IVA e Ingresos Brutos mes a mes, con alícuota y retenciones editables a mano',
       'DSO/DPO y antigüedad de cuentas por cobrar y pagar',

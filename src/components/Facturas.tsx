@@ -188,7 +188,7 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
       <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
         <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
-            Salud financiera con tus comprobantes
+            Comprobantes
           </h2>
           {facturas.length > 0 && (
             <button
