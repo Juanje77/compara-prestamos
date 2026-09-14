@@ -590,6 +590,74 @@ export function calcularPosicionIvaPorMes(
 }
 
 // ---------------------------------------------------------------------------
+// Posición de Ingresos Brutos - La Pampa (Premium)
+// ---------------------------------------------------------------------------
+//
+// A diferencia del IVA, Ingresos Brutos no tiene débito/crédito fiscal: es un
+// porcentaje fijo (alícuota) sobre lo facturado en el mes (neto de IVA), del
+// que se restan las retenciones/percepciones que ya te hicieron los clientes.
+// No arrastra saldo de un mes a otro (a diferencia de la Posición de IVA).
+
+export const ALICUOTA_IIBB_DEFAULT = 3
+
+export interface IngresosBrutosManualMes {
+  alicuotaPct?: number
+  retenciones?: number
+}
+
+export interface PosicionIngresosBrutosMes {
+  mes: string
+  baseImponible: number
+  alicuotaPct: number
+  alicuotaPctEsManual: boolean
+  impuestoDeterminado: number
+  retenciones: number
+  retencionesEsManual: boolean
+  saldoAPagar: number
+  saldoAFavor: number
+}
+
+/** Posición de Ingresos Brutos mes a mes: base imponible (ventas netas de IVA) × alícuota, menos
+ * las retenciones del mes — ambas editables a mano, sin arrastre de saldo entre meses. */
+export function calcularPosicionIngresosBrutosPorMes(
+  facturas: Factura[],
+  manual: Record<string, IngresosBrutosManualMes> = {},
+): PosicionIngresosBrutosMes[] {
+  const basePorMes = new Map<string, number>()
+  for (const f of facturas) {
+    if (f.tipo !== 'emitida') continue
+    const mes = f.fecha.slice(0, 7)
+    basePorMes.set(mes, (basePorMes.get(mes) ?? 0) + montoNetoConSigno(f))
+  }
+  for (const mes of Object.keys(manual)) {
+    if (!basePorMes.has(mes)) basePorMes.set(mes, 0)
+  }
+
+  return [...basePorMes.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([mes, baseImponible]) => {
+      const overrideMes = manual[mes] ?? {}
+      const alicuotaPctEsManual = overrideMes.alicuotaPct !== undefined
+      const alicuotaPct = alicuotaPctEsManual ? overrideMes.alicuotaPct! : ALICUOTA_IIBB_DEFAULT
+      const retencionesEsManual = overrideMes.retenciones !== undefined
+      const retenciones = retencionesEsManual ? overrideMes.retenciones! : 0
+      const impuestoDeterminado = baseImponible * (alicuotaPct / 100)
+      const saldo = impuestoDeterminado - retenciones
+      return {
+        mes,
+        baseImponible,
+        alicuotaPct,
+        alicuotaPctEsManual,
+        impuestoDeterminado,
+        retenciones,
+        retencionesEsManual,
+        saldoAPagar: Math.max(0, saldo),
+        saldoAFavor: Math.max(0, -saldo),
+      }
+    })
+}
+
+// ---------------------------------------------------------------------------
 // Alertas automáticas (Premium)
 // ---------------------------------------------------------------------------
 

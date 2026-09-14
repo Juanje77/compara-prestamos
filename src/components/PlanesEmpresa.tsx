@@ -39,7 +39,7 @@ const PLANES: PlanConfig[] = [
       'Alertas automáticas y recomendaciones accionables sobre qué hacer',
       'Salud financiera con tus comprobantes: ventas/compras netas, margen, IVA y ranking de clientes/proveedores',
       'Proveedores clasificados y gestión de cheques (cartera, cobrado, vendido) para tu balance contable',
-      'Posición de IVA mes a mes, editable a mano',
+      'Posición de IVA e Ingresos Brutos mes a mes, con alícuota y retenciones editables a mano',
       'DSO/DPO y antigüedad de cuentas por cobrar y pagar',
     ],
   },

@@ -15,6 +15,7 @@ import { buildWhatsAppLink } from '../components/WhatsAppContact'
 import { Proveedores } from '../components/Proveedores'
 import { Cheques } from '../components/Cheques'
 import { PosicionIva } from '../components/PosicionIva'
+import { PosicionIngresosBrutos } from '../components/PosicionIngresosBrutos'
 import { IngresosGastos } from '../components/IngresosGastos'
 import {
   CATEGORIAS_GASTO,
@@ -28,6 +29,7 @@ import {
   calcularMargenOperativo,
   calcularAgingCuentas,
   calcularDSOyDPO,
+  calcularPosicionIngresosBrutosPorMes,
   calcularPosicionIvaPorMes,
   calcularPromedioComprasMensual,
   calcularPromedioVentasMensual,
@@ -49,6 +51,7 @@ import {
   type CuentaBancaria,
   type Deuda as DeudaTipo,
   type EstadoCheque,
+  type IngresosBrutosManualMes,
   type IvaManualMes,
   type Factura,
   type MovimientoDiario,
@@ -78,6 +81,7 @@ const SECCIONES = [
   { key: 'proveedores', label: 'Proveedores' },
   { key: 'cheques', label: 'Cheques' },
   { key: 'iva', label: 'Posición de IVA' },
+  { key: 'iibb', label: 'Ingresos Brutos' },
 ] as const
 
 type Seccion = (typeof SECCIONES)[number]['key']
@@ -116,6 +120,9 @@ export function EmpresasPage({ esPremium }: Props) {
   const [ivaManualPorMes, setIvaManualPorMes] = useState<Record<string, IvaManualMes>>(
     () => cargarNegocioData()?.ivaManualPorMes ?? {},
   )
+  const [ingresosBrutosManualPorMes, setIngresosBrutosManualPorMes] = useState<Record<string, IngresosBrutosManualMes>>(
+    () => cargarNegocioData()?.ingresosBrutosManualPorMes ?? {},
+  )
   const [movimientosDiarios, setMovimientosDiarios] = useState<MovimientoDiario[]>(
     () => cargarNegocioData()?.movimientosDiarios ?? [],
   )
@@ -149,6 +156,7 @@ export function EmpresasPage({ esPremium }: Props) {
           setClasificaciones(d.clasificaciones ?? {})
           setCheques(d.cheques ?? [])
           setIvaManualPorMes(d.ivaManualPorMes ?? {})
+          setIngresosBrutosManualPorMes(d.ingresosBrutosManualPorMes ?? {})
           setMovimientosDiarios(d.movimientosDiarios ?? [])
           setTasaCrecimiento(d.tasaCrecimiento ?? 0)
           setNombreNegocio(d.nombreNegocio ?? '')
@@ -173,6 +181,7 @@ export function EmpresasPage({ esPremium }: Props) {
       clasificaciones,
       cheques,
       ivaManualPorMes,
+      ingresosBrutosManualPorMes,
       movimientosDiarios,
       tasaCrecimiento,
       nombreNegocio,
@@ -188,6 +197,7 @@ export function EmpresasPage({ esPremium }: Props) {
     clasificaciones,
     cheques,
     ivaManualPorMes,
+    ingresosBrutosManualPorMes,
     movimientosDiarios,
     tasaCrecimiento,
     nombreNegocio,
@@ -208,6 +218,7 @@ export function EmpresasPage({ esPremium }: Props) {
           clasificaciones,
           cheques,
           ivaManualPorMes,
+          ingresosBrutosManualPorMes,
           movimientosDiarios,
           tasaCrecimiento,
           nombreNegocio,
@@ -230,6 +241,7 @@ export function EmpresasPage({ esPremium }: Props) {
     clasificaciones,
     cheques,
     ivaManualPorMes,
+    ingresosBrutosManualPorMes,
     movimientosDiarios,
     tasaCrecimiento,
     nombreNegocio,
@@ -341,6 +353,13 @@ export function EmpresasPage({ esPremium }: Props) {
     }))
   }
 
+  function handleCambiarIngresosBrutosManual(mes: string, campo: keyof IngresosBrutosManualMes, valor: number | undefined) {
+    setIngresosBrutosManualPorMes((prev) => ({
+      ...prev,
+      [mes]: { ...(prev[mes] ?? {}), [campo]: valor },
+    }))
+  }
+
   const categorias: CategoriaGasto[] = CATEGORIAS_CONFIG.map((c) => ({
     key: c.key,
     label: c.label,
@@ -410,6 +429,10 @@ export function EmpresasPage({ esPremium }: Props) {
   const posicionIva = useMemo(
     () => calcularPosicionIvaPorMes(facturas, ivaManualPorMes),
     [facturas, ivaManualPorMes],
+  )
+  const posicionIngresosBrutos = useMemo(
+    () => calcularPosicionIngresosBrutosPorMes(facturas, ingresosBrutosManualPorMes),
+    [facturas, ingresosBrutosManualPorMes],
   )
   const alertas = useMemo(
     () => generarAlertas({ margenOperativo, runwayMeses, proyeccion, deudas, facturas }),
@@ -520,7 +543,8 @@ export function EmpresasPage({ esPremium }: Props) {
                 s.key === 'facturas' ||
                 s.key === 'proveedores' ||
                 s.key === 'cheques' ||
-                s.key === 'iva') &&
+                s.key === 'iva' ||
+                s.key === 'iibb') &&
               ' 🔒'}
           </button>
         ))}
@@ -617,6 +641,17 @@ export function EmpresasPage({ esPremium }: Props) {
           onQuieroPremium={abrirPlanes}
         >
           <PosicionIva posicion={posicionIva} onCambiarManual={handleCambiarIvaManual} />
+        </PremiumLock>
+      )}
+
+      {seccion === 'iibb' && (
+        <PremiumLock
+          activo={esPremium}
+          titulo="Posición de Ingresos Brutos"
+          descripcion="Base imponible por tus facturas emitidas, multiplicada por la alícuota, menos las retenciones del mes — ambas editables a mano."
+          onQuieroPremium={abrirPlanes}
+        >
+          <PosicionIngresosBrutos posicion={posicionIngresosBrutos} onCambiarManual={handleCambiarIngresosBrutosManual} />
         </PremiumLock>
       )}
 
