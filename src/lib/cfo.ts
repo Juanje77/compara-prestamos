@@ -73,10 +73,15 @@ export function calcularMargenOperativo(ingresos: number, gastosTotales: number)
   return ((ingresos - gastosTotales) / ingresos) * 100
 }
 
-/** Runway de caja: meses que el saldo actual alcanza para cubrir los gastos totales si el ingreso cayera a cero. */
-export function calcularRunwayMeses(saldoInicial: number, gastosTotales: number): number {
-  if (gastosTotales <= 0) return Infinity
-  return Math.max(0, saldoInicial / gastosTotales)
+/**
+ * Runway de caja: meses que el saldo actual alcanza para cubrir los gastos FIJOS si el ingreso
+ * cayera a cero. Se usan solo los gastos fijos (no los totales) porque los variables —insumos,
+ * mercadería— existen justamente porque hay ventas: si el ingreso cae a cero, esas compras
+ * también caen a cero junto con él, y contarlas infla artificialmente el "gasto a cubrir".
+ */
+export function calcularRunwayMeses(saldoInicial: number, gastosFijos: number): number {
+  if (gastosFijos <= 0) return Infinity
+  return Math.max(0, saldoInicial / gastosFijos)
 }
 
 /** Cobertura de deuda: cuántas veces el ingreso mensual cubre la cuota de deuda mensual total. */

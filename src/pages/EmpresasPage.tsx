@@ -418,7 +418,10 @@ export function EmpresasPage({ esPremium }: Props) {
   const gastosProyeccion = usaPromedioComprasReal ? promedioCompras!.promedio : gastosTotales
 
   const margenOperativo = calcularMargenOperativo(ingresosEfectivos, gastosEfectivos)
-  const runwayMeses = calcularRunwayMeses(saldoInicial, gastosEfectivos)
+  // Runway: cuántos meses cubre la caja pagando SOLO los gastos fijos si el ingreso cayera a
+  // cero — no los gastos totales, porque los variables (insumos, mercadería) dejarían de
+  // comprarse junto con la caída del ingreso que los genera.
+  const runwayMeses = calcularRunwayMeses(saldoInicial, gastosFijos)
   const endeudamientoMeses = calcularEndeudamientoMeses(deudaTotal, ingresosEfectivos)
   const puntoEquilibrio = useMemo(
     () => calcularPuntoEquilibrio(ingresosEfectivos, gastosFijos, gastosVariables),
@@ -785,7 +788,7 @@ export function EmpresasPage({ esPremium }: Props) {
               label="Runway de caja"
               value={runwayMeses === Infinity ? '∞' : `${runwayMeses.toFixed(1)} meses`}
               status={runwayMeses >= 6 ? 'good' : runwayMeses >= 3 ? 'warning' : 'critical'}
-              statusLabel="Si el ingreso cayera a cero, así de lejos llega tu caja"
+              statusLabel="Si el ingreso cayera a cero, así de lejos llega tu caja pagando solo tus gastos fijos"
             />
             <KpiCard
               label="Punto de equilibrio"
