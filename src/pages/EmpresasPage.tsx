@@ -360,6 +360,20 @@ export function EmpresasPage({ esPremium }: Props) {
     }))
   }
 
+  function handleEliminarMesIva(mes: string) {
+    setIvaManualPorMes((prev) => {
+      const { [mes]: _eliminado, ...resto } = prev
+      return resto
+    })
+  }
+
+  function handleEliminarMesIngresosBrutos(mes: string) {
+    setIngresosBrutosManualPorMes((prev) => {
+      const { [mes]: _eliminado, ...resto } = prev
+      return resto
+    })
+  }
+
   const categorias: CategoriaGasto[] = CATEGORIAS_CONFIG.map((c) => ({
     key: c.key,
     label: c.label,
@@ -640,7 +654,7 @@ export function EmpresasPage({ esPremium }: Props) {
           descripcion="Débito y crédito fiscal por mes, con el saldo técnico a favor arrastrado del mes anterior, a partir del IVA que cargues en cada comprobante de Salud financiera."
           onQuieroPremium={abrirPlanes}
         >
-          <PosicionIva posicion={posicionIva} onCambiarManual={handleCambiarIvaManual} />
+          <PosicionIva posicion={posicionIva} onCambiarManual={handleCambiarIvaManual} onEliminarMes={handleEliminarMesIva} />
         </PremiumLock>
       )}
 
@@ -651,7 +665,11 @@ export function EmpresasPage({ esPremium }: Props) {
           descripcion="Base imponible por tus facturas emitidas, multiplicada por la alícuota, menos las retenciones del mes — ambas editables a mano."
           onQuieroPremium={abrirPlanes}
         >
-          <PosicionIngresosBrutos posicion={posicionIngresosBrutos} onCambiarManual={handleCambiarIngresosBrutosManual} />
+          <PosicionIngresosBrutos
+            posicion={posicionIngresosBrutos}
+            onCambiarManual={handleCambiarIngresosBrutosManual}
+            onEliminarMes={handleEliminarMesIngresosBrutos}
+          />
         </PremiumLock>
       )}
 

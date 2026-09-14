@@ -5,6 +5,7 @@ import { formatoMoneda } from '../lib/finance'
 interface Props {
   posicion: PosicionIngresosBrutosMes[]
   onCambiarManual: (mes: string, campo: keyof IngresosBrutosManualMes, valor: number | undefined) => void
+  onEliminarMes: (mes: string) => void
 }
 
 function mesLegible(mes: string): string {
@@ -60,13 +61,18 @@ function CeldaEditable({
   )
 }
 
-export function PosicionIngresosBrutos({ posicion, onCambiarManual }: Props) {
+export function PosicionIngresosBrutos({ posicion, onCambiarManual, onEliminarMes }: Props) {
   const [mesNuevo, setMesNuevo] = useState(() => new Date().toISOString().slice(0, 7))
 
   function handleAgregarMes(e: React.FormEvent) {
     e.preventDefault()
     if (!mesNuevo || posicion.some((p) => p.mes === mesNuevo)) return
     onCambiarManual(mesNuevo, 'retenciones', 0)
+  }
+
+  function handleEliminarMes(mes: string) {
+    if (!window.confirm(`¿Eliminar ${mesLegible(mes)} de la Posición de Ingresos Brutos? Si tiene ventas cargadas ese mes, va a volver a aparecer con los valores automáticos.`)) return
+    onEliminarMes(mes)
   }
 
   return (
@@ -114,6 +120,7 @@ export function PosicionIngresosBrutos({ posicion, onCambiarManual }: Props) {
                 <th className="pb-2 text-right font-medium">Impuesto determinado</th>
                 <th className="pb-2 text-right font-medium">Retenciones</th>
                 <th className="pb-2 text-right font-medium">Resultado del mes</th>
+                <th className="pb-2"></th>
               </tr>
             </thead>
             <tbody>
@@ -155,6 +162,17 @@ export function PosicionIngresosBrutos({ posicion, onCambiarManual }: Props) {
                         A favor: {formatoMoneda(p.saldoAFavor)}
                       </span>
                     )}
+                  </td>
+                  <td className="py-2 text-right">
+                    <button
+                      onClick={() => handleEliminarMes(p.mes)}
+                      aria-label={`Eliminar ${mesLegible(p.mes)}`}
+                      title="Eliminar mes"
+                      className="shrink-0 text-xs"
+                      style={{ color: 'var(--text-muted)' }}
+                    >
+                      🗑
+                    </button>
                   </td>
                 </tr>
               ))}
