@@ -2,18 +2,21 @@ import { Link } from 'react-router-dom'
 import { buildWhatsAppLink } from '../components/WhatsAppContact'
 
 const FEATURES_BASICO = [
+  { icon: '📆', titulo: 'Ingresos y gastos diarios', texto: 'Cargá tus ventas con el medio de cobro (efectivo, transferencia, QR, débito, crédito) y tus gastos día a día.' },
   { icon: '🏦', titulo: 'Cuentas bancarias y deudas', texto: 'Cargá el saldo de cada cuenta y tus deudas pendientes, con un indicador de endeudamiento.' },
-  { icon: '📊', titulo: 'Indicadores clave', texto: 'Margen operativo, runway de caja, punto de equilibrio y endeudamiento, con semáforo.' },
+  { icon: '📊', titulo: 'Indicadores clave', texto: 'Margen operativo, runway de caja, punto de equilibrio y endeudamiento, con semáforo y explicación de cada uno.' },
   { icon: '💰', titulo: 'Flujo de caja proyectado', texto: 'Proyección de tu saldo mes a mes, con alerta si te vas a quedar sin caja.' },
   { icon: '📅', titulo: 'Cobranzas y pagos semanales', texto: 'Organizá qué cobrás y pagás cada una de las próximas 4 semanas, con progreso.' },
-  { icon: '📄', titulo: 'Excel y PDF', texto: 'Importá tus cuentas a cobrar desde Excel y descargá tu informe financiero en PDF.' },
+  { icon: '📄', titulo: 'Informe y Excel', texto: 'Importá tus cuentas a cobrar desde Excel y descargá un informe financiero con gráficos, listo para imprimir.' },
 ]
 
 const FEATURES_PREMIUM = [
-  { icon: '🎯', titulo: 'Presupuesto vs. Real', texto: 'Comparás lo presupuestado contra lo que realmente gastaste, con el desvío por categoría.' },
-  { icon: '📈', titulo: 'Proyección con crecimiento', texto: 'Sumá una tasa de crecimiento mensual esperada a la proyección de caja, no solo lineal.' },
-  { icon: '🔔', titulo: 'Alertas automáticas', texto: 'Avisos si tu caja se agota, una deuda está por vencer, o tu margen se pone negativo.' },
-  { icon: '🧾', titulo: 'Salud financiera con comprobantes', texto: 'Importá tus facturas desde ARCA y mirá ventas, compras, margen y tus principales clientes y proveedores.' },
+  { icon: '🧾', titulo: 'Comprobantes', texto: 'Importá tus facturas desde ARCA y mirá ventas, compras, margen y tus principales clientes y proveedores.' },
+  { icon: '🎯', titulo: 'Presupuesto vs. Real', texto: 'Comparás lo presupuestado contra lo que realmente gastaste, con el desvío por categoría y comentarios automáticos.' },
+  { icon: '📈', titulo: 'Proyección con escenarios', texto: 'Sumá una tasa de crecimiento mensual esperada, con escenarios optimista y pesimista, no solo lineal.' },
+  { icon: '🔔', titulo: 'Alertas y recomendaciones', texto: 'Avisos si tu caja se agota, una deuda está por vencer, o tu margen se pone negativo, con qué hacer al respecto.' },
+  { icon: '🧮', titulo: 'IVA e Ingresos Brutos', texto: 'Posición de IVA e Ingresos Brutos mes a mes, con alícuota y retenciones editables para que cuadre con lo declarado en ARCA.' },
+  { icon: '🏛️', titulo: 'Patrimonio y bienes', texto: 'Sumá tus bienes realizables (inversiones, inmuebles, vehículos) y mirá tu runway extendido ante un quiebre de caja.' },
 ]
 
 export function HomePage() {
@@ -30,8 +33,14 @@ export function HomePage() {
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-base" style={{ color: 'var(--text-secondary)' }}>
           Comparás préstamos de los principales bancos argentinos y gestionás las finanzas de tu empresa —
-          cuentas, deudas, flujo de caja y cobranzas — todo en un solo lugar, con asesoramiento de un
-          Contador Público.
+          cuentas, deudas, flujo de caja, cobranzas, IVA y mucho más — todo en un solo lugar, con
+          explicaciones simples de cada indicador.
+        </p>
+        <p
+          className="mx-auto mt-4 inline-block max-w-xl rounded-full px-4 py-2 text-sm font-semibold"
+          style={{ background: 'color-mix(in srgb, var(--status-good-text) 12%, transparent)', color: 'var(--status-good-text)' }}
+        >
+          🎁 Probá FinCorp para empresas 15 días gratis, sin tarjeta
         </p>
       </div>
 
@@ -69,14 +78,14 @@ export function HomePage() {
             entender la salud financiera de tu empresa, sin ser financista.
           </p>
           <p className="mt-2 text-xs font-medium" style={{ color: 'var(--series-blue)' }}>
-            Dos planes pagos — mirá qué incluye cada uno más abajo
+            15 días gratis y después elegís tu plan — mirá qué incluye cada uno más abajo
           </p>
           <Link
             to="/empresas"
             className="mt-4 inline-block rounded-full border px-5 py-2 text-sm font-semibold transition-opacity hover:opacity-90"
             style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
           >
-            Ver Para empresas →
+            Empezar prueba gratis →
           </Link>
         </div>
       </section>
@@ -154,7 +163,7 @@ export function HomePage() {
         </p>
       </section>
 
-      <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {FEATURES_PREMIUM.map((f) => (
           <div
             key={f.titulo}
@@ -174,19 +183,19 @@ export function HomePage() {
 
       <section className="mb-6">
         <p className="mb-2 text-center text-sm font-medium" style={{ color: 'var(--text-muted)' }}>
-          Presupuesto vs. Real, con desvío por categoría
+          Comprobantes: ventas, compras, margen e IVA
         </p>
         <div className="overflow-hidden rounded-xl border shadow-sm" style={{ borderColor: 'var(--border)' }}>
-          <img src="/landing-presupuesto-real.png" alt="Presupuesto vs Real en FinCorp Premium" className="w-full" />
+          <img src="/landing-comprobantes.png" alt="Comprobantes en FinCorp Premium: indicadores de cobro y pago, ventas y compras netas por mes" className="w-full" />
         </div>
       </section>
 
       <section className="mb-16">
         <p className="mb-2 text-center text-sm font-medium" style={{ color: 'var(--text-muted)' }}>
-          Salud financiera a partir de tus comprobantes (ARCA)
+          Presupuesto vs. Real, con desvío por categoría
         </p>
         <div className="overflow-hidden rounded-xl border shadow-sm" style={{ borderColor: 'var(--border)' }}>
-          <img src="/landing-salud-financiera.png" alt="Salud financiera con comprobantes en FinCorp Premium" className="w-full" />
+          <img src="/landing-presupuesto-real.png" alt="Presupuesto vs Real en FinCorp Premium" className="w-full" />
         </div>
       </section>
 
@@ -198,8 +207,8 @@ export function HomePage() {
           ¿Listo para ordenar las finanzas de tu negocio?
         </h2>
         <p className="mx-auto mt-2 max-w-xl text-sm" style={{ color: 'var(--text-secondary)' }}>
-          Escribime por WhatsApp y te cuento cuál de los planes de FinCorp para empresas se ajusta mejor a tu
-          negocio.
+          Empezá con 15 días gratis y acceso Premium completo, sin tarjeta. Si preferís hablar antes,
+          escribime por WhatsApp y te cuento cuál de los planes se ajusta mejor a tu negocio.
         </p>
         <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
           <Link
@@ -207,7 +216,7 @@ export function HomePage() {
             className="inline-block rounded-full px-6 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
             style={{ background: 'var(--series-blue)' }}
           >
-            Ver planes y empezar
+            Empezar prueba gratis de 15 días
           </Link>
           <a
             href={buildWhatsAppLink(mensajeWhatsApp)}
