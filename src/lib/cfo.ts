@@ -394,6 +394,34 @@ export function listarProveedores(facturas: Factura[], clasificaciones: Clasific
     .sort((a, b) => b.totalFacturado - a.totalFacturado)
 }
 
+export interface ClienteResumen {
+  cliente: string
+  totalFacturado: number
+  cantidad: number
+}
+
+/**
+ * Todos los clientes vistos en facturas emitidas, más los que se hayan agregado a mano sin
+ * tener todavía ninguna factura cargada. A diferencia de Proveedores, acá no se clasifica en
+ * categorías de gasto — eso solo tiene sentido del lado de lo que compra el negocio.
+ */
+export function listarClientes(facturas: Factura[], clientesManual: string[]): ClienteResumen[] {
+  const mapa = new Map<string, { total: number; cantidad: number }>()
+  for (const f of facturas) {
+    if (f.tipo !== 'emitida') continue
+    const actual = mapa.get(f.contraparte) ?? { total: 0, cantidad: 0 }
+    actual.total += montoConSigno(f)
+    actual.cantidad += 1
+    mapa.set(f.contraparte, actual)
+  }
+  for (const cliente of clientesManual) {
+    if (!mapa.has(cliente)) mapa.set(cliente, { total: 0, cantidad: 0 })
+  }
+  return [...mapa.entries()]
+    .map(([cliente, { total, cantidad }]) => ({ cliente, totalFacturado: total, cantidad }))
+    .sort((a, b) => b.totalFacturado - a.totalFacturado)
+}
+
 /** Suma, por categoría, las facturas recibidas de un mes cuyo proveedor ya está clasificado —
  * repartiendo en cuotas las compras que se pagan en varios meses (ver distribuirEnCuotas). */
 export function calcularRealAutomaticoPorMes(

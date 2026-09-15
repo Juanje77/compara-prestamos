@@ -12,6 +12,7 @@ export interface NegocioDataUsuario {
   realManualPorMes?: Record<string, Record<string, number>>
   facturas?: Factura[]
   clasificaciones?: ClasificacionesProveedores
+  clientesManual?: string[]
   cheques?: Cheque[]
   pagos?: Pago[]
   remitos?: RemitoPresupuesto[]

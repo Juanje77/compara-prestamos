@@ -13,6 +13,8 @@ export interface NegocioData {
   realManualPorMes: Record<string, Record<string, number>>
   facturas: Factura[]
   clasificaciones: ClasificacionesProveedores
+  /** Clientes agregados a mano en la solapa Clientes, sin factura todavía — ver listarClientes. */
+  clientesManual: string[]
   cheques: Cheque[]
   /** Pagos parciales imputados desde Cuentas corrientes — ver agruparCuentaCorriente. */
   pagos: Pago[]

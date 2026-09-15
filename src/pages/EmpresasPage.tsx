@@ -13,6 +13,7 @@ import { PremiumLock } from '../components/PremiumLock'
 import { PremiumUpgradeModal } from '../components/PremiumUpgradeModal'
 import { buildWhatsAppLink } from '../components/WhatsAppContact'
 import { Proveedores } from '../components/Proveedores'
+import { Clientes } from '../components/Clientes'
 import { Cheques } from '../components/Cheques'
 import { PosicionIva } from '../components/PosicionIva'
 import { PosicionIngresosBrutos } from '../components/PosicionIngresosBrutos'
@@ -49,6 +50,7 @@ import {
   generarAlertas,
   generarRecomendaciones,
   imputarPagoAFIFO,
+  listarClientes,
   listarProveedores,
   listarRemitosPendientes,
   proyectarFlujoCaja,
@@ -95,6 +97,7 @@ const SECCIONES = [
   { key: 'cuentasCorrientes', label: 'Cuentas corrientes' },
   { key: 'remitos', label: 'Remitos y presupuestos' },
   { key: 'proveedores', label: 'Proveedores' },
+  { key: 'clientes', label: 'Clientes' },
   { key: 'presupuesto', label: 'Presupuesto vs. Real' },
   { key: 'cheques', label: 'Cheques' },
   { key: 'iva', label: 'Posición de IVA' },
@@ -142,6 +145,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   const [clasificaciones, setClasificaciones] = useState<ClasificacionesProveedores>(
     () => cargarNegocioData()?.clasificaciones ?? {},
   )
+  const [clientesManual, setClientesManual] = useState<string[]>(() => cargarNegocioData()?.clientesManual ?? [])
   const [cheques, setCheques] = useState<Cheque[]>(() => cargarNegocioData()?.cheques ?? [])
   const [pagos, setPagos] = useState<Pago[]>(() => cargarNegocioData()?.pagos ?? [])
   const [remitos, setRemitos] = useState<RemitoPresupuesto[]>(() => cargarNegocioData()?.remitos ?? [])
@@ -184,6 +188,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           setRealManualPorMes(d.realManualPorMes ?? {})
           setFacturas(d.facturas ?? [])
           setClasificaciones(d.clasificaciones ?? {})
+          setClientesManual(d.clientesManual ?? [])
           setCheques(d.cheques ?? [])
           setPagos(d.pagos ?? [])
           setRemitos(d.remitos ?? [])
@@ -213,6 +218,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
       realManualPorMes,
       facturas,
       clasificaciones,
+      clientesManual,
       cheques,
       pagos,
       remitos,
@@ -233,6 +239,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     realManualPorMes,
     facturas,
     clasificaciones,
+    clientesManual,
     cheques,
     pagos,
     remitos,
@@ -258,6 +265,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           realManualPorMes,
           facturas,
           clasificaciones,
+          clientesManual,
           cheques,
           pagos,
           remitos,
@@ -285,6 +293,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     realManualPorMes,
     facturas,
     clasificaciones,
+    clientesManual,
     cheques,
     pagos,
     remitos,
@@ -382,6 +391,14 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
       const { [proveedor]: _eliminado, ...resto } = prev
       return resto
     })
+  }
+
+  function handleAgregarClienteManual(cliente: string) {
+    setClientesManual((prev) => (prev.includes(cliente) ? prev : [...prev, cliente]))
+  }
+
+  function handleEliminarClienteManual(cliente: string) {
+    setClientesManual((prev) => prev.filter((c) => c !== cliente))
   }
 
   /** Si una factura se marca cobrada/pagada con cheque desde cualquier lado (el tilde de
@@ -611,6 +628,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   )
   const desvios = useMemo(() => calcularDesvios(categorias, realEfectivo), [categorias, realEfectivo])
   const proveedores = useMemo(() => listarProveedores(facturas, clasificaciones), [facturas, clasificaciones])
+  const clientes = useMemo(() => listarClientes(facturas, clientesManual), [facturas, clientesManual])
   const coberturaDeuda = calcularCoberturaDeuda(ingresosEfectivos, cuotaDeudaTotal)
   const resumenMensual = useMemo(() => calcularTendenciaMensual(facturas), [facturas])
   const rankingClientes = useMemo(() => calcularRanking(facturas, 'emitida'), [facturas])
@@ -627,14 +645,8 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   )
   const remitosCobrar = useMemo(() => listarRemitosPendientes(remitos, anticipos, 'emitida'), [remitos, anticipos])
   const remitosPagar = useMemo(() => listarRemitosPendientes(remitos, anticipos, 'recibida'), [remitos, anticipos])
-  const contrapartesClientes = useMemo(
-    () => [...new Set(facturas.filter((f) => f.tipo === 'emitida').map((f) => f.contraparte))].sort(),
-    [facturas],
-  )
-  const contrapartesProveedores = useMemo(
-    () => [...new Set(facturas.filter((f) => f.tipo === 'recibida').map((f) => f.contraparte))].sort(),
-    [facturas],
-  )
+  const contrapartesClientes = useMemo(() => clientes.map((c) => c.cliente).sort(), [clientes])
+  const contrapartesProveedores = useMemo(() => proveedores.map((p) => p.proveedor).sort(), [proveedores])
   const posicionIva = useMemo(
     () => calcularPosicionIvaPorMes(facturas, ivaManualPorMes),
     [facturas, ivaManualPorMes],
@@ -753,6 +765,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
                 (s.key === 'presupuesto' ||
                   s.key === 'facturas' ||
                   s.key === 'proveedores' ||
+                  s.key === 'clientes' ||
                   s.key === 'iva' ||
                   s.key === 'iibb' ||
                   s.key === 'patrimonio') &&
@@ -866,6 +879,21 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
             onClasificar={handleClasificarProveedor}
             onAgregarManual={handleAgregarProveedorManual}
             onEliminarManual={handleEliminarProveedorManual}
+          />
+        </PremiumLock>
+      )}
+
+      {seccion === 'clientes' && (
+        <PremiumLock
+          activo={esPremium}
+          titulo="Clientes"
+          descripcion="Todos tus clientes, con la cantidad de comprobantes y el total facturado de cada uno."
+          onQuieroPremium={abrirPlanes}
+        >
+          <Clientes
+            clientes={clientes}
+            onAgregarManual={handleAgregarClienteManual}
+            onEliminarManual={handleEliminarClienteManual}
           />
         </PremiumLock>
       )}
