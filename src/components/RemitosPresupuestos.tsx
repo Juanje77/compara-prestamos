@@ -8,6 +8,11 @@ interface Props {
   remitosCobrar: RemitoConSaldo[]
   remitosPagar: RemitoConSaldo[]
   facturas: Factura[]
+  /** Clientes y proveedores ya cargados en Comprobantes, para sugerir mientras se escribe y usar
+   * siempre el mismo nombre exacto — así la cuenta corriente y la vinculación a factura los
+   * reconocen sin depender de tipeo. */
+  contrapartesClientes: string[]
+  contrapartesProveedores: string[]
   onAgregar: (remito: {
     tipo: TipoFactura
     tipoDocumento: TipoDocumentoAnticipo
@@ -213,6 +218,8 @@ export function RemitosPresupuestos({
   remitosCobrar,
   remitosPagar,
   facturas,
+  contrapartesClientes,
+  contrapartesProveedores,
   onAgregar,
   onRegistrarAnticipo,
   onVincularFactura,
@@ -276,12 +283,18 @@ export function RemitosPresupuestos({
           />
           <input
             type="text"
+            list="remitos-contrapartes"
             placeholder="Cliente / proveedor"
             value={contraparte}
             onChange={(e) => setContraparte(e.target.value)}
             className="min-w-[140px] flex-1 rounded-lg border px-3 py-1.5 text-sm"
             style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
           />
+          <datalist id="remitos-contrapartes">
+            {(tipo === 'emitida' ? contrapartesClientes : contrapartesProveedores).map((nombre) => (
+              <option key={nombre} value={nombre} />
+            ))}
+          </datalist>
           <InputMoneda
             placeholder="Monto total"
             value={monto}
@@ -304,6 +317,11 @@ export function RemitosPresupuestos({
             Agregar
           </button>
         </form>
+        <p className="mt-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+          Al tipear "Cliente / proveedor" te sugiere los que ya tenés cargados en Comprobantes — elegí uno de
+          la lista para que la cuenta corriente lo reconozca, o escribí uno nuevo si todavía no facturaste con
+          esta contraparte.
+        </p>
       </section>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

@@ -613,6 +613,14 @@ export function EmpresasPage({ esPremium }: Props) {
   const cuentaCorrientePagar = useMemo(() => agruparCuentaCorriente(facturas, pagos, 'recibida'), [facturas, pagos])
   const remitosCobrar = useMemo(() => listarRemitosPendientes(remitos, anticipos, 'emitida'), [remitos, anticipos])
   const remitosPagar = useMemo(() => listarRemitosPendientes(remitos, anticipos, 'recibida'), [remitos, anticipos])
+  const contrapartesClientes = useMemo(
+    () => [...new Set(facturas.filter((f) => f.tipo === 'emitida').map((f) => f.contraparte))].sort(),
+    [facturas],
+  )
+  const contrapartesProveedores = useMemo(
+    () => [...new Set(facturas.filter((f) => f.tipo === 'recibida').map((f) => f.contraparte))].sort(),
+    [facturas],
+  )
   const posicionIva = useMemo(
     () => calcularPosicionIvaPorMes(facturas, ivaManualPorMes),
     [facturas, ivaManualPorMes],
@@ -821,6 +829,8 @@ export function EmpresasPage({ esPremium }: Props) {
             remitosCobrar={remitosCobrar}
             remitosPagar={remitosPagar}
             facturas={facturas}
+            contrapartesClientes={contrapartesClientes}
+            contrapartesProveedores={contrapartesProveedores}
             onAgregar={handleAgregarRemito}
             onRegistrarAnticipo={handleRegistrarAnticipo}
             onVincularFactura={handleVincularRemitoAFactura}
