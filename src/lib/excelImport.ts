@@ -124,3 +124,71 @@ export async function importarProductosDesdeExcel(file: File): Promise<FilaProdu
 
   return resultado
 }
+
+export interface FilaExtractoBancario {
+  fecha: string
+  descripcion?: string
+  monto: number
+  saldoDeclarado?: number
+}
+
+const ALIAS_FECHA_EXTRACTO = ['fecha', 'fecha de la operacion', 'fecha operacion', 'fecha operación']
+const ALIAS_DESCRIPCION = ['descripcion', 'descripción', 'concepto', 'detalle', 'movimiento', 'leyenda']
+const ALIAS_MONTO_EXTRACTO = ['monto', 'importe']
+const ALIAS_DEBITO = ['debito', 'débito', 'egreso', 'salida']
+const ALIAS_CREDITO = ['credito', 'crédito', 'ingreso', 'entrada']
+const ALIAS_SALDO_EXTRACTO = ['saldo', 'saldo acumulado', 'saldo posterior', 'saldo parcial']
+
+/**
+ * Lee el extracto/movimientos de una cuenta bancaria para conciliar contra Tesorería. Acepta una
+ * columna "Monto" con signo, o "Débito"/"Crédito" por separado (como exportan la mayoría de los
+ * homebankings) — y una columna de "Saldo" opcional para poder comparar el saldo final.
+ */
+export async function importarExtractoBancario(file: File): Promise<FilaExtractoBancario[]> {
+  const { readSheet } = await import('read-excel-file/browser')
+  const filas = await readSheet(file)
+  if (filas.length < 2) return []
+
+  const encabezados = filas[0].map(normalizar)
+  const idxFecha = encabezados.findIndex((h) => ALIAS_FECHA_EXTRACTO.includes(h))
+  const idxDescripcion = encabezados.findIndex((h) => ALIAS_DESCRIPCION.includes(h))
+  const idxMonto = encabezados.findIndex((h) => ALIAS_MONTO_EXTRACTO.includes(h))
+  const idxDebito = encabezados.findIndex((h) => ALIAS_DEBITO.includes(h))
+  const idxCredito = encabezados.findIndex((h) => ALIAS_CREDITO.includes(h))
+  const idxSaldo = encabezados.findIndex((h) => ALIAS_SALDO_EXTRACTO.includes(h))
+
+  if (idxFecha === -1 || (idxMonto === -1 && idxDebito === -1 && idxCredito === -1)) {
+    throw new Error(
+      'No se encontró una columna de "Fecha" y una de "Monto" (o "Débito"/"Crédito") en el archivo. Verificá los encabezados de la primera fila.',
+    )
+  }
+
+  const resultado: FilaExtractoBancario[] = []
+
+  for (let i = 1; i < filas.length; i++) {
+    const fila = filas[i]
+    const fecha = aFechaISO(fila[idxFecha])
+    if (!fecha) continue
+
+    let monto: number | null = null
+    if (idxMonto !== -1 && typeof fila[idxMonto] === 'number') {
+      monto = fila[idxMonto] as number
+    } else {
+      const debito = idxDebito !== -1 && typeof fila[idxDebito] === 'number' ? (fila[idxDebito] as number) : 0
+      const credito = idxCredito !== -1 && typeof fila[idxCredito] === 'number' ? (fila[idxCredito] as number) : 0
+      if (debito !== 0 || credito !== 0) monto = credito - Math.abs(debito)
+    }
+    if (monto === null || monto === 0) continue
+
+    const saldoRaw = idxSaldo !== -1 ? fila[idxSaldo] : undefined
+
+    resultado.push({
+      fecha,
+      descripcion: idxDescripcion !== -1 && fila[idxDescripcion] ? String(fila[idxDescripcion]).trim() : undefined,
+      monto,
+      saldoDeclarado: typeof saldoRaw === 'number' ? saldoRaw : undefined,
+    })
+  }
+
+  return resultado
+}

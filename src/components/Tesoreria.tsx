@@ -1,16 +1,23 @@
 import { useState } from 'react'
-import type { CuentaBancaria, MovimientoTesoreria } from '../lib/cfo'
-import { calcularSaldoTotalBancos, resumenPorCuenta } from '../lib/cfo'
+import type { CuentaBancaria, MovimientoBancario, MovimientoTesoreria } from '../lib/cfo'
+import { MARGEN_DIAS_CONCILIACION, calcularResumenConciliacion, calcularSaldoTotalBancos, deltaDeMovimientoTesoreria, resumenPorCuenta } from '../lib/cfo'
+import { importarExtractoBancario } from '../lib/excelImport'
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
 
 interface Props {
   cuentas: CuentaBancaria[]
   movimientos: MovimientoTesoreria[]
+  movimientosBancarios: MovimientoBancario[]
   onAgregarCuenta: (nombre: string, saldoInicial: number) => void
   onAjustarSaldo: (cuentaId: string, monto: number, fecha: string, concepto: string | undefined) => void
   onEliminarMovimiento: (id: string) => void
   onEliminarCuenta: (id: string) => void
+  onImportarExtracto: (cuentaId: string, filas: Omit<MovimientoBancario, 'id' | 'cuentaId' | 'conciliado'>[]) => void
+  onConciliarManual: (bancarioId: string, movimientoId: string) => void
+  onDesconciliar: (bancarioId: string) => void
+  onCrearAjusteDesdeBancario: (bancarioId: string) => void
+  onEliminarMovimientoBancario: (id: string) => void
 }
 
 const ORIGEN_LABEL: Record<MovimientoTesoreria['origen'], string> = {
@@ -67,17 +74,30 @@ function FormularioAltaCuenta({ onAgregarCuenta }: { onAgregarCuenta: Props['onA
 function FilaCuenta({
   cuenta,
   movimientos,
+  movimientosBancarios,
   onAjustarSaldo,
   onEliminarMovimiento,
   onEliminarCuenta,
+  onImportarExtracto,
+  onConciliarManual,
+  onDesconciliar,
+  onCrearAjusteDesdeBancario,
+  onEliminarMovimientoBancario,
 }: {
   cuenta: CuentaBancaria
   movimientos: MovimientoTesoreria[]
+  movimientosBancarios: MovimientoBancario[]
   onAjustarSaldo: Props['onAjustarSaldo']
   onEliminarMovimiento: Props['onEliminarMovimiento']
   onEliminarCuenta: Props['onEliminarCuenta']
+  onImportarExtracto: Props['onImportarExtracto']
+  onConciliarManual: Props['onConciliarManual']
+  onDesconciliar: Props['onDesconciliar']
+  onCrearAjusteDesdeBancario: Props['onCrearAjusteDesdeBancario']
+  onEliminarMovimientoBancario: Props['onEliminarMovimientoBancario']
 }) {
   const [expandido, setExpandido] = useState(false)
+  const [conciliando, setConciliando] = useState(false)
   const [monto, setMonto] = useState(0)
   const [fecha, setFecha] = useState(hoyISO)
   const [concepto, setConcepto] = useState('')
@@ -106,6 +126,13 @@ function FilaCuenta({
             style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
           >
             {expandido ? 'Cerrar' : '± Ajustar'}
+          </button>
+          <button
+            onClick={() => setConciliando((v) => !v)}
+            className="shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold"
+            style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
+          >
+            {conciliando ? 'Cerrar' : '🏦 Conciliar'}
           </button>
           <button
             onClick={() => {
@@ -204,11 +231,306 @@ function FilaCuenta({
           )}
         </div>
       )}
+
+      {conciliando && (
+        <PanelConciliacion
+          cuenta={cuenta}
+          movimientos={movimientos}
+          movimientosBancarios={movimientosBancarios}
+          onImportarExtracto={onImportarExtracto}
+          onConciliarManual={onConciliarManual}
+          onDesconciliar={onDesconciliar}
+          onCrearAjusteDesdeBancario={onCrearAjusteDesdeBancario}
+          onEliminarMovimientoBancario={onEliminarMovimientoBancario}
+        />
+      )}
     </div>
   )
 }
 
-export function Tesoreria({ cuentas, movimientos, onAgregarCuenta, onAjustarSaldo, onEliminarMovimiento, onEliminarCuenta }: Props) {
+function FilaBancario({
+  bancario,
+  pendientesSistema,
+  onConciliarManual,
+  onCrearAjusteDesdeBancario,
+  onEliminarMovimientoBancario,
+}: {
+  bancario: MovimientoBancario
+  pendientesSistema: MovimientoTesoreria[]
+  onConciliarManual: Props['onConciliarManual']
+  onCrearAjusteDesdeBancario: Props['onCrearAjusteDesdeBancario']
+  onEliminarMovimientoBancario: Props['onEliminarMovimientoBancario']
+}) {
+  const [elegido, setElegido] = useState('')
+
+  return (
+    <li className="flex flex-wrap items-center gap-2 rounded border px-2 py-1 text-xs" style={{ borderColor: 'var(--gridline)' }}>
+      <span className="tabular shrink-0" style={{ color: 'var(--text-muted)' }}>
+        {new Date(`${bancario.fecha}T00:00:00`).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}
+      </span>
+      <span
+        className="tabular shrink-0 font-medium"
+        style={{ color: bancario.monto < 0 ? 'var(--status-critical)' : 'var(--status-good-text)' }}
+      >
+        {bancario.monto >= 0 ? '+' : ''}
+        {formatoMoneda(bancario.monto)}
+      </span>
+      {bancario.descripcion && (
+        <span className="min-w-[100px] flex-1 truncate" style={{ color: 'var(--text-secondary)' }}>
+          {bancario.descripcion}
+        </span>
+      )}
+      <select
+        value={elegido}
+        onChange={(e) => setElegido(e.target.value)}
+        className="min-w-[140px] shrink-0 rounded border px-1.5 py-0.5 text-xs"
+        style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+      >
+        <option value="">Vincular a…</option>
+        {pendientesSistema.map((m) => (
+          <option key={m.id} value={m.id}>
+            {new Date(`${m.fecha}T00:00:00`).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })} ·{' '}
+            {formatoMoneda(m.monto)} {m.concepto ?? ''}
+          </option>
+        ))}
+      </select>
+      <button
+        onClick={() => elegido && onConciliarManual(bancario.id, elegido)}
+        disabled={!elegido}
+        className="shrink-0 rounded border px-2 py-0.5 text-xs font-semibold disabled:opacity-40"
+        style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
+      >
+        Vincular
+      </button>
+      <button
+        onClick={() => onCrearAjusteDesdeBancario(bancario.id)}
+        className="shrink-0 rounded border px-2 py-0.5 text-xs font-semibold"
+        style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
+        title="No corresponde a nada cargado — crear un ajuste en Tesorería con este monto"
+      >
+        + Ajuste
+      </button>
+      <button
+        onClick={() => onEliminarMovimientoBancario(bancario.id)}
+        aria-label="Descartar fila del extracto"
+        className="shrink-0"
+        style={{ color: 'var(--text-muted)' }}
+      >
+        🗑
+      </button>
+    </li>
+  )
+}
+
+function ImportarExtractoButton({ onImportar }: { onImportar: (e: React.ChangeEvent<HTMLInputElement>) => void }) {
+  const [importando, setImportando] = useState(false)
+  async function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setImportando(true)
+    try {
+      await onImportar(e)
+    } finally {
+      setImportando(false)
+    }
+  }
+  return (
+    <label
+      className="cursor-pointer rounded-full border px-3 py-1.5 text-xs font-medium"
+      style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
+    >
+      {importando ? 'Importando…' : '📄 Importar extracto'}
+      <input type="file" accept=".xlsx,.xls" onChange={handleChange} className="hidden" disabled={importando} />
+    </label>
+  )
+}
+
+function PanelConciliacion({
+  cuenta,
+  movimientos,
+  movimientosBancarios,
+  onImportarExtracto,
+  onConciliarManual,
+  onDesconciliar,
+  onCrearAjusteDesdeBancario,
+  onEliminarMovimientoBancario,
+}: {
+  cuenta: CuentaBancaria
+  movimientos: MovimientoTesoreria[]
+  movimientosBancarios: MovimientoBancario[]
+  onImportarExtracto: Props['onImportarExtracto']
+  onConciliarManual: Props['onConciliarManual']
+  onDesconciliar: Props['onDesconciliar']
+  onCrearAjusteDesdeBancario: Props['onCrearAjusteDesdeBancario']
+  onEliminarMovimientoBancario: Props['onEliminarMovimientoBancario']
+}) {
+  const [error, setError] = useState<string | null>(null)
+  const resumen = calcularResumenConciliacion(cuenta, movimientosBancarios, movimientos)
+  const conciliados = movimientosBancarios.filter((b) => b.cuentaId === cuenta.id && b.conciliado)
+
+  async function handleImportar(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    const inputEl = e.target
+    if (!file) return
+    setError(null)
+    try {
+      const filas = await importarExtractoBancario(file)
+      if (filas.length === 0) {
+        setError('No se encontraron filas válidas en el archivo.')
+      } else {
+        onImportarExtracto(cuenta.id, filas)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo leer el archivo.')
+    } finally {
+      inputEl.value = ''
+    }
+  }
+
+  return (
+    <div className="mt-3 rounded-lg border p-3" style={{ borderColor: 'var(--gridline)', background: 'var(--surface-2)' }}>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+          Subí el extracto de esta cuenta (Excel) — se intenta emparejar solo contra lo cargado en Tesorería
+          con el mismo monto y hasta {MARGEN_DIAS_CONCILIACION} días de diferencia. Lo que no matchea, lo
+          resolvés a mano abajo.
+        </p>
+        <ImportarExtractoButton onImportar={handleImportar} />
+      </div>
+
+      {error && (
+        <p className="mb-3 rounded-lg border p-2 text-xs" style={{ borderColor: 'var(--status-critical)', color: 'var(--status-critical)' }}>
+          {error}
+        </p>
+      )}
+
+      <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <div className="rounded border p-2" style={{ borderColor: 'var(--border)' }}>
+          <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+            Saldo según Tesorería
+          </p>
+          <p className="tabular text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+            {formatoMoneda(resumen.saldoSistema)}
+          </p>
+        </div>
+        <div className="rounded border p-2" style={{ borderColor: 'var(--border)' }}>
+          <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+            Saldo según el extracto
+          </p>
+          <p className="tabular text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+            {resumen.saldoExtracto !== null ? formatoMoneda(resumen.saldoExtracto) : '—'}
+          </p>
+        </div>
+        <div className="rounded border p-2" style={{ borderColor: resumen.diferencia ? 'var(--status-critical)' : 'var(--border)' }}>
+          <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+            Diferencia
+          </p>
+          <p className="tabular text-sm font-semibold" style={{ color: resumen.diferencia ? 'var(--status-critical)' : 'var(--status-good-text)' }}>
+            {resumen.diferencia !== null ? formatoMoneda(resumen.diferencia) : '—'}
+          </p>
+        </div>
+      </div>
+
+      <p className="mb-1 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+        Pendientes de conciliar del extracto ({resumen.bancariosPendientes.length})
+      </p>
+      {resumen.bancariosPendientes.length === 0 ? (
+        <p className="mb-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+          {movimientosBancarios.some((b) => b.cuentaId === cuenta.id) ? 'Todo lo importado ya está conciliado.' : 'Todavía no importaste ningún extracto.'}
+        </p>
+      ) : (
+        <ul className="mb-3 space-y-1">
+          {resumen.bancariosPendientes.map((b) => (
+            <FilaBancario
+              key={b.id}
+              bancario={b}
+              pendientesSistema={resumen.movimientosPendientes}
+              onConciliarManual={onConciliarManual}
+              onCrearAjusteDesdeBancario={onCrearAjusteDesdeBancario}
+              onEliminarMovimientoBancario={onEliminarMovimientoBancario}
+            />
+          ))}
+        </ul>
+      )}
+
+      {resumen.movimientosPendientes.length > 0 && (
+        <>
+          <p className="mb-1 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+            Cargado en Tesorería y todavía no aparece en ningún extracto ({resumen.movimientosPendientes.length})
+          </p>
+          <ul className="mb-3 space-y-1">
+            {resumen.movimientosPendientes.map((m) => (
+              <li key={m.id} className="flex flex-wrap items-center gap-2 rounded border px-2 py-1 text-xs" style={{ borderColor: 'var(--gridline)' }}>
+                <span className="tabular shrink-0" style={{ color: 'var(--text-muted)' }}>
+                  {new Date(`${m.fecha}T00:00:00`).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}
+                </span>
+                <span
+                  className="tabular shrink-0 font-medium"
+                  style={{ color: deltaDeMovimientoTesoreria(m) < 0 ? 'var(--status-critical)' : 'var(--status-good-text)' }}
+                >
+                  {deltaDeMovimientoTesoreria(m) >= 0 ? '+' : ''}
+                  {formatoMoneda(deltaDeMovimientoTesoreria(m))}
+                </span>
+                {m.concepto && (
+                  <span className="flex-1 truncate" style={{ color: 'var(--text-secondary)' }}>
+                    {m.concepto}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      {conciliados.length > 0 && (
+        <>
+          <p className="mb-1 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+            Conciliados ({conciliados.length})
+          </p>
+          <ul className="space-y-1">
+            {conciliados.map((b) => (
+              <li key={b.id} className="flex flex-wrap items-center gap-2 rounded border px-2 py-1 text-xs" style={{ borderColor: 'var(--gridline)' }}>
+                <span style={{ color: 'var(--status-good-text)' }}>✓</span>
+                <span className="tabular shrink-0" style={{ color: 'var(--text-muted)' }}>
+                  {new Date(`${b.fecha}T00:00:00`).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}
+                </span>
+                <span className="tabular shrink-0 font-medium" style={{ color: 'var(--text-primary)' }}>
+                  {formatoMoneda(b.monto)}
+                </span>
+                {b.descripcion && (
+                  <span className="flex-1 truncate" style={{ color: 'var(--text-secondary)' }}>
+                    {b.descripcion}
+                  </span>
+                )}
+                <button
+                  onClick={() => onDesconciliar(b.id)}
+                  className="ml-auto shrink-0 text-xs"
+                  style={{ color: 'var(--text-muted)' }}
+                  title="Deshacer esta conciliación"
+                >
+                  Desvincular
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
+  )
+}
+
+export function Tesoreria({
+  cuentas,
+  movimientos,
+  movimientosBancarios,
+  onAgregarCuenta,
+  onAjustarSaldo,
+  onEliminarMovimiento,
+  onEliminarCuenta,
+  onImportarExtracto,
+  onConciliarManual,
+  onDesconciliar,
+  onCrearAjusteDesdeBancario,
+  onEliminarMovimientoBancario,
+}: Props) {
   const resumen = resumenPorCuenta(cuentas, movimientos)
   const saldoTotal = calcularSaldoTotalBancos(cuentas)
 
@@ -256,9 +578,15 @@ export function Tesoreria({ cuentas, movimientos, onAgregarCuenta, onAjustarSald
                 key={r.cuenta.id}
                 cuenta={r.cuenta}
                 movimientos={r.movimientos}
+                movimientosBancarios={movimientosBancarios}
                 onAjustarSaldo={onAjustarSaldo}
                 onEliminarMovimiento={onEliminarMovimiento}
                 onEliminarCuenta={onEliminarCuenta}
+                onImportarExtracto={onImportarExtracto}
+                onConciliarManual={onConciliarManual}
+                onDesconciliar={onDesconciliar}
+                onCrearAjusteDesdeBancario={onCrearAjusteDesdeBancario}
+                onEliminarMovimientoBancario={onEliminarMovimientoBancario}
               />
             ))}
           </div>

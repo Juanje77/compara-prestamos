@@ -38,7 +38,7 @@ export interface MovimientoTesoreria {
 
 /** Un ajuste guarda el monto ya con signo (positivo suma, negativo resta); ingreso/egreso son
  * siempre positivos y el signo lo pone el tipo. */
-function deltaDeMovimientoTesoreria(m: MovimientoTesoreria): number {
+export function deltaDeMovimientoTesoreria(m: MovimientoTesoreria): number {
   if (m.tipo === 'ingreso') return m.monto
   if (m.tipo === 'egreso') return -m.monto
   return m.monto
@@ -70,6 +70,96 @@ export function resumenPorCuenta(cuentas: CuentaBancaria[], movimientos: Movimie
       movimientos: propios,
     }
   })
+}
+
+// ---------------------------------------------------------------------------
+// Conciliación bancaria (Full): cruzar el extracto del banco contra Tesorería
+// ---------------------------------------------------------------------------
+//
+// Importar un extracto no agrega movimientos nuevos a ciegas (a diferencia de los otros
+// importadores) — cada fila del banco se guarda aparte como MovimientoBancario y se intenta
+// emparejar contra un MovimientoTesoreria ya cargado de la misma cuenta, mismo monto y una fecha
+// cercana (el banco acredita/debita unos días después de la fecha real). Lo que no matchea queda
+// pendiente para revisar a mano.
+
+/** Margen de días entre la fecha real de un movimiento y la fecha en que aparece en el extracto,
+ * para considerarlo la misma operación al conciliar automáticamente. */
+export const MARGEN_DIAS_CONCILIACION = 3
+
+export interface MovimientoBancario {
+  id: string
+  cuentaId: string
+  fecha: string
+  descripcion?: string
+  /** Con signo: positivo un ingreso, negativo un egreso — mismo criterio que un ajuste. */
+  monto: number
+  /** Saldo que informa el extracto después de este movimiento, si la fila lo trae. */
+  saldoDeclarado?: number
+  conciliado: boolean
+  /** Con qué MovimientoTesoreria se emparejó, una vez conciliado. */
+  movimientoTesoreriaId?: string
+}
+
+/** Busca, para cada fila del banco todavía sin conciliar, un único MovimientoTesoreria de la
+ * misma cuenta con el mismo monto (con signo) dentro del margen de días — si hay más de un
+ * candidato posible se deja para revisar a mano, no se adivina cuál es. */
+export function buscarCoincidenciasAutomaticas(
+  bancarios: MovimientoBancario[],
+  movimientos: MovimientoTesoreria[],
+  cuentaId: string,
+  margenDias: number = MARGEN_DIAS_CONCILIACION,
+): { bancarioId: string; movimientoId: string }[] {
+  const pendientesBancarios = bancarios.filter((b) => b.cuentaId === cuentaId && !b.conciliado)
+  const movimientosDeLaCuenta = movimientos.filter((m) => m.cuentaId === cuentaId)
+  const yaVinculados = new Set(bancarios.filter((b) => b.movimientoTesoreriaId).map((b) => b.movimientoTesoreriaId))
+  const usadosEnEstaPasada = new Set<string>()
+  const resultado: { bancarioId: string; movimientoId: string }[] = []
+
+  for (const bancario of pendientesBancarios) {
+    const fechaBancario = new Date(`${bancario.fecha}T00:00:00`).getTime()
+    const candidatos = movimientosDeLaCuenta.filter((m) => {
+      if (usadosEnEstaPasada.has(m.id) || yaVinculados.has(m.id)) return false
+      if (Math.round(deltaDeMovimientoTesoreria(m) * 100) !== Math.round(bancario.monto * 100)) return false
+      const diasDeDiferencia = Math.abs(new Date(`${m.fecha}T00:00:00`).getTime() - fechaBancario) / 86400000
+      return diasDeDiferencia <= margenDias
+    })
+    if (candidatos.length === 1) {
+      resultado.push({ bancarioId: bancario.id, movimientoId: candidatos[0].id })
+      usadosEnEstaPasada.add(candidatos[0].id)
+    }
+  }
+  return resultado
+}
+
+export interface ResumenConciliacion {
+  saldoSistema: number
+  /** Último saldo que informó el extracto importado, si alguna fila lo traía. */
+  saldoExtracto: number | null
+  diferencia: number | null
+  bancariosPendientes: MovimientoBancario[]
+  movimientosPendientes: MovimientoTesoreria[]
+}
+
+/** Estado de la conciliación de una cuenta: cuánto falta para que el saldo del sistema coincida
+ * con el del banco, y qué movimientos quedan sin cruzar de cada lado. */
+export function calcularResumenConciliacion(
+  cuenta: CuentaBancaria,
+  bancarios: MovimientoBancario[],
+  movimientos: MovimientoTesoreria[],
+): ResumenConciliacion {
+  const bancariosDeLaCuenta = bancarios.filter((b) => b.cuentaId === cuenta.id).sort((a, b) => a.fecha.localeCompare(b.fecha))
+  const movimientosDeLaCuenta = movimientos.filter((m) => m.cuentaId === cuenta.id)
+  const idsVinculados = new Set(bancariosDeLaCuenta.filter((b) => b.movimientoTesoreriaId).map((b) => b.movimientoTesoreriaId))
+  const ultimoConSaldo = [...bancariosDeLaCuenta].reverse().find((b) => b.saldoDeclarado !== undefined)
+  const saldoExtracto = ultimoConSaldo?.saldoDeclarado ?? null
+
+  return {
+    saldoSistema: cuenta.saldo,
+    saldoExtracto,
+    diferencia: saldoExtracto !== null ? cuenta.saldo - saldoExtracto : null,
+    bancariosPendientes: bancariosDeLaCuenta.filter((b) => !b.conciliado),
+    movimientosPendientes: movimientosDeLaCuenta.filter((m) => !idsVinculados.has(m.id)),
+  }
 }
 
 // ---------------------------------------------------------------------------

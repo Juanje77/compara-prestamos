@@ -1,4 +1,4 @@
-import type { Anticipo, Bien, Cheque, ClasificacionesProveedores, CuentaBancaria, Deuda, Factura, IngresosBrutosManualMes, IvaManualMes, MovimientoDiario, MovimientoStock, MovimientoTesoreria, Pago, Producto, RemitoPresupuesto } from './cfo'
+import type { Anticipo, Bien, Cheque, ClasificacionesProveedores, CuentaBancaria, Deuda, Factura, IngresosBrutosManualMes, IvaManualMes, MovimientoBancario, MovimientoDiario, MovimientoStock, MovimientoTesoreria, Pago, Producto, RemitoPresupuesto } from './cfo'
 
 export interface NegocioData {
   ingresos: number
@@ -28,6 +28,9 @@ export interface NegocioData {
   movimientosStock: MovimientoStock[]
   /** Movimientos de caja/cuenta bancaria (Tesorería) — ver aplicarMovimientoTesoreria. */
   movimientosTesoreria: MovimientoTesoreria[]
+  /** Filas importadas de extractos bancarios, para conciliar contra Tesorería — ver
+   * calcularResumenConciliacion. */
+  movimientosBancarios: MovimientoBancario[]
   /** Ediciones manuales de la Posición de IVA por mes — ver calcularPosicionIvaPorMes. */
   ivaManualPorMes: Record<string, IvaManualMes>
   /** Ediciones manuales de la Posición de Ingresos Brutos por mes — ver calcularPosicionIngresosBrutosPorMes. */

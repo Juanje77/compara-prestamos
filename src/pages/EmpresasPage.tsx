@@ -29,6 +29,7 @@ import {
   agruparCuentaCorriente,
   aplicarMovimientoStock,
   aplicarMovimientoTesoreria,
+  buscarCoincidenciasAutomaticas,
   calcularValorInventario,
   calcularCoberturaDeuda,
   calcularCuotaDeudaTotal,
@@ -77,6 +78,7 @@ import {
   type IvaManualMes,
   type Factura,
   type MedioPago,
+  type MovimientoBancario,
   type MovimientoDiario,
   type MovimientoStock,
   type MovimientoTesoreria,
@@ -176,6 +178,9 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   const [movimientosTesoreria, setMovimientosTesoreria] = useState<MovimientoTesoreria[]>(
     () => cargarNegocioData()?.movimientosTesoreria ?? [],
   )
+  const [movimientosBancarios, setMovimientosBancarios] = useState<MovimientoBancario[]>(
+    () => cargarNegocioData()?.movimientosBancarios ?? [],
+  )
   const [ivaManualPorMes, setIvaManualPorMes] = useState<Record<string, IvaManualMes>>(
     () => cargarNegocioData()?.ivaManualPorMes ?? {},
   )
@@ -222,6 +227,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           setProductos(d.productos ?? [])
           setMovimientosStock(d.movimientosStock ?? [])
           setMovimientosTesoreria(d.movimientosTesoreria ?? [])
+          setMovimientosBancarios(d.movimientosBancarios ?? [])
           setIvaManualPorMes(d.ivaManualPorMes ?? {})
           setIngresosBrutosManualPorMes(d.ingresosBrutosManualPorMes ?? {})
           setMovimientosDiarios(d.movimientosDiarios ?? [])
@@ -255,6 +261,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
       productos,
       movimientosStock,
       movimientosTesoreria,
+      movimientosBancarios,
       ivaManualPorMes,
       ingresosBrutosManualPorMes,
       movimientosDiarios,
@@ -279,6 +286,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     productos,
     movimientosStock,
     movimientosTesoreria,
+    movimientosBancarios,
     ivaManualPorMes,
     ingresosBrutosManualPorMes,
     movimientosDiarios,
@@ -308,6 +316,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           productos,
           movimientosStock,
           movimientosTesoreria,
+          movimientosBancarios,
           ivaManualPorMes,
           ingresosBrutosManualPorMes,
           movimientosDiarios,
@@ -339,6 +348,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     productos,
     movimientosStock,
     movimientosTesoreria,
+    movimientosBancarios,
     ivaManualPorMes,
     ingresosBrutosManualPorMes,
     movimientosDiarios,
@@ -398,6 +408,60 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     if (!movimiento) return
     setCuentas((prev) => revertirMovimientoTesoreria(prev, movimiento))
     setMovimientosTesoreria((prev) => prev.filter((m) => m.id !== id))
+  }
+
+  /** Carga las filas de un extracto bancario como pendientes de conciliar, y de una vuelve intenta
+   * emparejar automáticamente contra lo que ya está cargado en Tesorería (mismo monto, fecha
+   * cercana). No agrega nada a la cuenta todavía — eso solo pasa si el usuario crea un ajuste desde
+   * una fila que no matcheó con nada. */
+  function handleImportarExtracto(cuentaId: string, filas: Omit<MovimientoBancario, 'id' | 'cuentaId' | 'conciliado'>[]) {
+    const nuevasFilas: MovimientoBancario[] = filas.map((f) => ({ ...f, id: generarId(), cuentaId, conciliado: false }))
+    const bancariosActualizados = [...movimientosBancarios, ...nuevasFilas]
+    const coincidencias = buscarCoincidenciasAutomaticas(bancariosActualizados, movimientosTesoreria, cuentaId)
+    const porBancarioId = new Map(coincidencias.map((c) => [c.bancarioId, c.movimientoId]))
+    setMovimientosBancarios(
+      bancariosActualizados.map((b) =>
+        porBancarioId.has(b.id) ? { ...b, conciliado: true, movimientoTesoreriaId: porBancarioId.get(b.id) } : b,
+      ),
+    )
+  }
+
+  function handleConciliarManual(bancarioId: string, movimientoId: string) {
+    setMovimientosBancarios((prev) =>
+      prev.map((b) => (b.id === bancarioId ? { ...b, conciliado: true, movimientoTesoreriaId: movimientoId } : b)),
+    )
+  }
+
+  function handleDesconciliar(bancarioId: string) {
+    setMovimientosBancarios((prev) =>
+      prev.map((b) => (b.id === bancarioId ? { ...b, conciliado: false, movimientoTesoreriaId: undefined } : b)),
+    )
+  }
+
+  /** Una fila del banco que no tiene nada cargado del lado del sistema (un gasto, un interés) pasa
+   * directo a ser un ajuste real de Tesorería, y la fila queda conciliada contra ese ajuste. */
+  function handleCrearAjusteDesdeBancario(bancarioId: string) {
+    if (!esFull) return
+    const bancario = movimientosBancarios.find((b) => b.id === bancarioId)
+    if (!bancario) return
+    const movimiento: MovimientoTesoreria = {
+      id: generarId(),
+      cuentaId: bancario.cuentaId,
+      tipo: 'ajuste',
+      monto: bancario.monto,
+      fecha: bancario.fecha,
+      concepto: bancario.descripcion,
+      origen: 'manual',
+    }
+    setCuentas((prev) => aplicarMovimientoTesoreria(prev, movimiento))
+    setMovimientosTesoreria((prev) => [...prev, movimiento])
+    setMovimientosBancarios((prev) =>
+      prev.map((b) => (b.id === bancarioId ? { ...b, conciliado: true, movimientoTesoreriaId: movimiento.id } : b)),
+    )
+  }
+
+  function handleEliminarMovimientoBancario(id: string) {
+    setMovimientosBancarios((prev) => prev.filter((b) => b.id !== id))
   }
 
   function handleAgregarDeuda(concepto: string, montoAdeudado: number, cuotaMensual: number, proximoVencimiento?: string) {
@@ -1184,10 +1248,16 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           <Tesoreria
             cuentas={cuentas}
             movimientos={movimientosTesoreria}
+            movimientosBancarios={movimientosBancarios}
             onAgregarCuenta={handleAgregarCuenta}
             onAjustarSaldo={handleAjustarSaldoCuenta}
             onEliminarMovimiento={handleEliminarMovimientoTesoreria}
             onEliminarCuenta={handleEliminarCuenta}
+            onImportarExtracto={handleImportarExtracto}
+            onConciliarManual={handleConciliarManual}
+            onDesconciliar={handleDesconciliar}
+            onCrearAjusteDesdeBancario={handleCrearAjusteDesdeBancario}
+            onEliminarMovimientoBancario={handleEliminarMovimientoBancario}
           />
         </PremiumLock>
       )}
