@@ -1,4 +1,4 @@
-import type { Bien, Cheque, ClasificacionesProveedores, CuentaBancaria, Deuda, Factura, IngresosBrutosManualMes, IvaManualMes, MovimientoDiario } from './cfo'
+import type { Bien, Cheque, ClasificacionesProveedores, CuentaBancaria, Deuda, Factura, IngresosBrutosManualMes, IvaManualMes, MovimientoDiario, Pago } from './cfo'
 
 export interface NegocioData {
   ingresos: number
@@ -14,6 +14,8 @@ export interface NegocioData {
   facturas: Factura[]
   clasificaciones: ClasificacionesProveedores
   cheques: Cheque[]
+  /** Pagos parciales imputados desde Cuentas corrientes — ver agruparCuentaCorriente. */
+  pagos: Pago[]
   /** Ediciones manuales de la Posición de IVA por mes — ver calcularPosicionIvaPorMes. */
   ivaManualPorMes: Record<string, IvaManualMes>
   /** Ediciones manuales de la Posición de Ingresos Brutos por mes — ver calcularPosicionIngresosBrutosPorMes. */

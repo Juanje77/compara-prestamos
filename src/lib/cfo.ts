@@ -303,6 +303,33 @@ export function montoNetoConSigno(f: Factura): number {
   return montoConSigno(f) - ivaConSigno(f)
 }
 
+/** Un pago (parcial o total) imputado contra una factura puntual — ver Cuentas corrientes. Varias
+ * facturas de un mismo cliente/proveedor pueden ir cobrándose/pagándose de a partes con varios
+ * registros de este tipo, en vez de depender del "cumplido" todo-o-nada de la factura. */
+export interface Pago {
+  id: string
+  facturaId: string
+  monto: number
+  fecha: string
+  medioPago?: MedioPago
+}
+
+/** Cuánto se pagó/cobró hasta ahora de una factura puntual, sumando todos sus pagos parciales. */
+export function calcularMontoPagado(facturaId: string, pagos: Pago[]): number {
+  return pagos.filter((p) => p.facturaId === facturaId).reduce((s, p) => s + p.monto, 0)
+}
+
+/** Saldo pendiente de una factura (nunca negativo: un excedente pagado de más no "adeuda" nada). */
+export function calcularSaldoFactura(f: Factura, pagos: Pago[]): number {
+  return Math.max(0, f.monto - calcularMontoPagado(f.id, pagos))
+}
+
+/** Saldo pendiente con el mismo signo que montoConSigno — las notas de crédito no se cobran/pagan
+ * de a partes, así que ahí se ignoran los pagos y se usa el monto completo como siempre. */
+function saldoPendienteConSigno(f: Factura, pagos: Pago[]): number {
+  return f.tipoComprobante === 'nota_credito' ? montoConSigno(f) : calcularSaldoFactura(f, pagos)
+}
+
 export interface CuotaFactura {
   fecha: string
   monto: number
@@ -952,10 +979,15 @@ export interface IndicadoresCobroPago {
   hayDatos: boolean
 }
 
-/** DSO/DPO estándar: (saldo pendiente / ventas o compras promedio mensual) × 30 días. */
-export function calcularDSOyDPO(facturas: Factura[]): IndicadoresCobroPago {
-  const cuentasPorCobrar = facturas.filter((f) => f.tipo === 'emitida' && !f.cumplido).reduce((s, f) => s + montoConSigno(f), 0)
-  const cuentasPorPagar = facturas.filter((f) => f.tipo === 'recibida' && !f.cumplido).reduce((s, f) => s + montoConSigno(f), 0)
+/** DSO/DPO estándar: (saldo pendiente / ventas o compras promedio mensual) × 30 días. El saldo
+ * pendiente ya descuenta los pagos parciales imputados desde Cuentas corrientes. */
+export function calcularDSOyDPO(facturas: Factura[], pagos: Pago[] = []): IndicadoresCobroPago {
+  const cuentasPorCobrar = facturas
+    .filter((f) => f.tipo === 'emitida' && !f.cumplido)
+    .reduce((s, f) => s + saldoPendienteConSigno(f, pagos), 0)
+  const cuentasPorPagar = facturas
+    .filter((f) => f.tipo === 'recibida' && !f.cumplido)
+    .reduce((s, f) => s + saldoPendienteConSigno(f, pagos), 0)
   const promedioVentas = calcularPromedioVentasMensual(facturas)
   const promedioCompras = calcularPromedioComprasMensual(facturas)
   const dso = promedioVentas.hayDatos && promedioVentas.promedio > 0 ? Math.max(0, (cuentasPorCobrar / promedioVentas.promedio) * 30) : 0
@@ -989,28 +1021,119 @@ const TRAMOS_AGING = [
   { etiqueta: 'Más de 90 días vencido', min: 91, max: Infinity },
 ]
 
-function calcularAgingPorTipo(facturas: Factura[], tipo: TipoFactura, hoyISO: string): TramoAging[] {
+function calcularAgingPorTipo(facturas: Factura[], pagos: Pago[], tipo: TipoFactura, hoyISO: string): TramoAging[] {
   const hoy = new Date(`${hoyISO}T00:00:00`).getTime()
   const tramos = TRAMOS_AGING.map((t) => ({ etiqueta: t.etiqueta, monto: 0, cantidad: 0 }))
   for (const f of facturas) {
     if (f.tipo !== tipo || f.cumplido) continue
+    const saldo = saldoPendienteConSigno(f, pagos)
+    if (saldo === 0) continue // ya se terminó de pagar de a partes, aunque no se haya tildado cumplido
     const vencimiento = new Date(`${f.fechaEstimadaCobroPago ?? f.fecha}T00:00:00`).getTime()
     const diasVencido = Math.floor((hoy - vencimiento) / (1000 * 60 * 60 * 24))
     const idx = TRAMOS_AGING.findIndex((t) => diasVencido >= t.min && diasVencido <= t.max)
     const tramo = tramos[idx === -1 ? 0 : idx]
-    tramo.monto += montoConSigno(f)
+    tramo.monto += saldo
     tramo.cantidad += 1
   }
   return tramos
 }
 
 /** Facturas pendientes (no cumplidas) agrupadas por antigüedad de vencimiento, tanto para lo que
- * falta cobrar (emitidas) como para lo que falta pagar (recibidas). */
-export function calcularAgingCuentas(facturas: Factura[], hoyISO = new Date().toISOString().slice(0, 10)): AgingCuentas {
+ * falta cobrar (emitidas) como para lo que falta pagar (recibidas). Usa el saldo pendiente, no el
+ * monto completo, si ya se imputaron pagos parciales desde Cuentas corrientes. */
+export function calcularAgingCuentas(
+  facturas: Factura[],
+  pagos: Pago[] = [],
+  hoyISO = new Date().toISOString().slice(0, 10),
+): AgingCuentas {
   return {
-    cobrar: calcularAgingPorTipo(facturas, 'emitida', hoyISO),
-    pagar: calcularAgingPorTipo(facturas, 'recibida', hoyISO),
+    cobrar: calcularAgingPorTipo(facturas, pagos, 'emitida', hoyISO),
+    pagar: calcularAgingPorTipo(facturas, pagos, 'recibida', hoyISO),
   }
+}
+
+// ---------------------------------------------------------------------------
+// Cuentas corrientes (Premium): saldo por cliente/proveedor e imputación de pagos parciales
+// ---------------------------------------------------------------------------
+
+export interface FacturaConSaldo extends Factura {
+  montoPagado: number
+  saldo: number
+}
+
+export interface CuentaCorrienteContraparte {
+  contraparte: string
+  totalFacturado: number
+  totalPagado: number
+  saldo: number
+  /** Solo las facturas todavía con saldo, ordenadas de la más vieja a la más nueva (para FIFO). */
+  facturas: FacturaConSaldo[]
+}
+
+/** Agrupa por cliente (emitidas) o proveedor (recibidas) las facturas no cumplidas que todavía
+ * tienen saldo, para armar la cuenta corriente de cada uno. Las notas de crédito/débito no entran
+ * (no se pagan de a partes) y las facturas ya saldadas del todo por pagos parciales tampoco,
+ * aunque no se hayan tildado "cumplida" a mano todavía. */
+export function agruparCuentaCorriente(facturas: Factura[], pagos: Pago[], tipo: TipoFactura): CuentaCorrienteContraparte[] {
+  const porContraparte = new Map<string, Factura[]>()
+  for (const f of facturas) {
+    if (f.tipo !== tipo || f.tipoComprobante !== 'factura' || f.cumplido) continue
+    const lista = porContraparte.get(f.contraparte) ?? []
+    lista.push(f)
+    porContraparte.set(f.contraparte, lista)
+  }
+  const resultado: CuentaCorrienteContraparte[] = []
+  for (const [contraparte, lista] of porContraparte) {
+    const facturasConSaldo: FacturaConSaldo[] = lista
+      .map((f) => {
+        const montoPagado = calcularMontoPagado(f.id, pagos)
+        return { ...f, montoPagado, saldo: Math.max(0, f.monto - montoPagado) }
+      })
+      .filter((f) => f.saldo > 0)
+      .sort((a, b) => a.fecha.localeCompare(b.fecha))
+    if (facturasConSaldo.length === 0) continue
+    resultado.push({
+      contraparte,
+      totalFacturado: facturasConSaldo.reduce((s, f) => s + f.monto, 0),
+      totalPagado: facturasConSaldo.reduce((s, f) => s + f.montoPagado, 0),
+      saldo: facturasConSaldo.reduce((s, f) => s + f.saldo, 0),
+      facturas: facturasConSaldo,
+    })
+  }
+  return resultado.sort((a, b) => b.saldo - a.saldo)
+}
+
+export interface ResultadoImputacion {
+  pagos: Pago[]
+  /** Ids de las facturas que quedaron totalmente saldadas con esta imputación. */
+  facturaIdsCubiertas: string[]
+}
+
+/**
+ * Reparte un pago genérico a cuenta entre las facturas pendientes de un cliente/proveedor, de la
+ * más vieja a la más nueva (FIFO) — así un pago parcial grande se va imputando solo sin tener que
+ * elegir factura por factura. Si el monto supera el saldo total pendiente, el excedente no se
+ * aplica a ninguna factura (no se inventa un saldo a favor sin una factura que lo respalde).
+ */
+export function imputarPagoAFIFO(
+  facturasPendientes: FacturaConSaldo[],
+  monto: number,
+  fecha: string,
+  medioPago: MedioPago | undefined,
+  generarId: () => string,
+): ResultadoImputacion {
+  const pagos: Pago[] = []
+  const facturaIdsCubiertas: string[] = []
+  let restante = monto
+  for (const f of facturasPendientes) {
+    if (restante <= 0) break
+    const aplicar = Math.min(restante, f.saldo)
+    if (aplicar <= 0) continue
+    pagos.push({ id: generarId(), facturaId: f.id, monto: aplicar, fecha, medioPago })
+    if (aplicar >= f.saldo) facturaIdsCubiertas.push(f.id)
+    restante -= aplicar
+  }
+  return { pagos, facturaIdsCubiertas }
 }
 
 // ---------------------------------------------------------------------------

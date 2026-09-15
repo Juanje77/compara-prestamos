@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import type { Factura, TendenciaMensual, TipoComprobante, TipoFactura } from '../lib/cfo'
+import type { Factura, Pago, TendenciaMensual, TipoComprobante, TipoFactura } from '../lib/cfo'
 import {
   MEDIOS_PAGO_LABEL,
   calcularAgingCuentas,
@@ -21,6 +21,7 @@ import { InfoTooltip } from './InfoTooltip'
 
 interface Props {
   facturas: Factura[]
+  pagos?: Pago[]
   onAgregar: (factura: Omit<Factura, 'id'>) => void
   onImportarVarias: (facturas: Omit<Factura, 'id'>[]) => void
   onCambiar: (id: string, cambios: Partial<Pick<Factura, 'fechaEstimadaCobroPago' | 'cumplido' | 'medioPago'>>) => void
@@ -86,7 +87,7 @@ function EvolucionTooltip({ active, payload }: { active?: boolean; payload?: { p
   )
 }
 
-export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onEliminar, onVaciar, onDescargarInforme }: Props) {
+export function Facturas({ facturas, pagos = [], onAgregar, onImportarVarias, onCambiar, onEliminar, onVaciar, onDescargarInforme }: Props) {
   const [tipo, setTipo] = useState<TipoFactura>('emitida')
   const [tipoComprobante, setTipoComprobante] = useState<TipoComprobante>('factura')
   const [contraparte, setContraparte] = useState('')
@@ -104,8 +105,8 @@ export function Facturas({ facturas, onAgregar, onImportarVarias, onCambiar, onE
   const rankingClientes = useMemo(() => calcularRanking(facturas, 'emitida'), [facturas])
   const rankingProveedores = useMemo(() => calcularRanking(facturas, 'recibida'), [facturas])
   const margenTotal = useMemo(() => calcularMargenBrutoTotal(facturas), [facturas])
-  const indicadoresCobroPago = useMemo(() => calcularDSOyDPO(facturas), [facturas])
-  const aging = useMemo(() => calcularAgingCuentas(facturas), [facturas])
+  const indicadoresCobroPago = useMemo(() => calcularDSOyDPO(facturas, pagos), [facturas, pagos])
+  const aging = useMemo(() => calcularAgingCuentas(facturas, pagos), [facturas, pagos])
   const ivaTotales = useMemo(() => {
     let netoVentas = 0
     let ivaVentas = 0

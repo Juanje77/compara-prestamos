@@ -19,8 +19,10 @@ import { PosicionIngresosBrutos } from '../components/PosicionIngresosBrutos'
 import { IngresosGastos } from '../components/IngresosGastos'
 import { InputMoneda } from '../components/InputMoneda'
 import { Patrimonio } from '../components/Patrimonio'
+import { CuentasCorrientes } from '../components/CuentasCorrientes'
 import {
   CATEGORIAS_GASTO,
+  agruparCuentaCorriente,
   calcularCoberturaDeuda,
   calcularCuotaDeudaTotal,
   calcularDeudaTotal,
@@ -44,6 +46,7 @@ import {
   calcularValorTotalBienes,
   generarAlertas,
   generarRecomendaciones,
+  imputarPagoAFIFO,
   listarProveedores,
   proyectarFlujoCaja,
   proyectarFlujoCajaEscenarios,
@@ -57,7 +60,10 @@ import {
   type IngresosBrutosManualMes,
   type IvaManualMes,
   type Factura,
+  type MedioPago,
   type MovimientoDiario,
+  type Pago,
+  type TipoFactura,
 } from '../lib/cfo'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
 import { abrirInformeFinanciero, abrirInformeSaludFinanciera } from '../lib/htmlReport'
@@ -80,6 +86,7 @@ const SECCIONES = [
   { key: 'facturas', label: 'Comprobantes' },
   { key: 'ingresosGastos', label: 'Ingresos y gastos' },
   { key: 'cobranzas', label: 'Cobranzas y pagos' },
+  { key: 'cuentasCorrientes', label: 'Cuentas corrientes' },
   { key: 'proveedores', label: 'Proveedores' },
   { key: 'presupuesto', label: 'Presupuesto vs. Real' },
   { key: 'cheques', label: 'Cheques' },
@@ -122,6 +129,7 @@ export function EmpresasPage({ esPremium }: Props) {
     () => cargarNegocioData()?.clasificaciones ?? {},
   )
   const [cheques, setCheques] = useState<Cheque[]>(() => cargarNegocioData()?.cheques ?? [])
+  const [pagos, setPagos] = useState<Pago[]>(() => cargarNegocioData()?.pagos ?? [])
   const [ivaManualPorMes, setIvaManualPorMes] = useState<Record<string, IvaManualMes>>(
     () => cargarNegocioData()?.ivaManualPorMes ?? {},
   )
@@ -161,6 +169,7 @@ export function EmpresasPage({ esPremium }: Props) {
           setFacturas(d.facturas ?? [])
           setClasificaciones(d.clasificaciones ?? {})
           setCheques(d.cheques ?? [])
+          setPagos(d.pagos ?? [])
           setIvaManualPorMes(d.ivaManualPorMes ?? {})
           setIngresosBrutosManualPorMes(d.ingresosBrutosManualPorMes ?? {})
           setMovimientosDiarios(d.movimientosDiarios ?? [])
@@ -187,6 +196,7 @@ export function EmpresasPage({ esPremium }: Props) {
       facturas,
       clasificaciones,
       cheques,
+      pagos,
       ivaManualPorMes,
       ingresosBrutosManualPorMes,
       movimientosDiarios,
@@ -204,6 +214,7 @@ export function EmpresasPage({ esPremium }: Props) {
     facturas,
     clasificaciones,
     cheques,
+    pagos,
     ivaManualPorMes,
     ingresosBrutosManualPorMes,
     movimientosDiarios,
@@ -226,6 +237,7 @@ export function EmpresasPage({ esPremium }: Props) {
           facturas,
           clasificaciones,
           cheques,
+          pagos,
           ivaManualPorMes,
           ingresosBrutosManualPorMes,
           movimientosDiarios,
@@ -250,6 +262,7 @@ export function EmpresasPage({ esPremium }: Props) {
     facturas,
     clasificaciones,
     cheques,
+    pagos,
     ivaManualPorMes,
     ingresosBrutosManualPorMes,
     movimientosDiarios,
@@ -369,6 +382,44 @@ export function EmpresasPage({ esPremium }: Props) {
     setCheques((prev) => prev.filter((c) => c.id !== id))
   }
 
+  function handleAplicarPagoCuenta(
+    contraparte: string,
+    tipo: TipoFactura,
+    monto: number,
+    fecha: string,
+    medioPago: MedioPago | undefined,
+  ) {
+    const grupo = (tipo === 'emitida' ? cuentaCorrienteCobrar : cuentaCorrientePagar).find(
+      (g) => g.contraparte === contraparte,
+    )
+    if (!grupo || monto <= 0) return
+    const { pagos: nuevosPagos, facturaIdsCubiertas } = imputarPagoAFIFO(grupo.facturas, monto, fecha, medioPago, generarId)
+    if (nuevosPagos.length === 0) return
+    setPagos((prev) => [...prev, ...nuevosPagos])
+    if (facturaIdsCubiertas.length > 0) {
+      const cubiertas = new Set(facturaIdsCubiertas)
+      setFacturas((prev) =>
+        prev.map((f) => (cubiertas.has(f.id) ? { ...f, cumplido: true, medioPago: medioPago ?? f.medioPago } : f)),
+      )
+    }
+  }
+
+  function handleEliminarPago(id: string) {
+    const pago = pagos.find((p) => p.id === id)
+    if (!pago) return
+    setPagos((prev) => prev.filter((p) => p.id !== id))
+    // Si la factura se había marcado cumplida gracias a este pago, la reabrimos.
+    setFacturas((prev) =>
+      prev.map((f) => {
+        if (f.id !== pago.facturaId || !f.cumplido) return f
+        const totalRestante = pagos
+          .filter((p) => p.id !== id && p.facturaId === f.id)
+          .reduce((s, p) => s + p.monto, 0)
+        return totalRestante < f.monto ? { ...f, cumplido: false } : f
+      }),
+    )
+  }
+
   function handleAgregarMovimientoDiario(movimiento: Omit<MovimientoDiario, 'id'>) {
     setMovimientosDiarios((prev) => [...prev, { ...movimiento, id: generarId() }])
   }
@@ -464,7 +515,9 @@ export function EmpresasPage({ esPremium }: Props) {
   const rankingClientes = useMemo(() => calcularRanking(facturas, 'emitida'), [facturas])
   const rankingProveedores = useMemo(() => calcularRanking(facturas, 'recibida'), [facturas])
   const margenTotal = useMemo(() => calcularMargenBrutoTotal(facturas), [facturas])
-  const aging = useMemo(() => calcularAgingCuentas(facturas), [facturas])
+  const aging = useMemo(() => calcularAgingCuentas(facturas, pagos), [facturas, pagos])
+  const cuentaCorrienteCobrar = useMemo(() => agruparCuentaCorriente(facturas, pagos, 'emitida'), [facturas, pagos])
+  const cuentaCorrientePagar = useMemo(() => agruparCuentaCorriente(facturas, pagos, 'recibida'), [facturas, pagos])
   const posicionIva = useMemo(
     () => calcularPosicionIvaPorMes(facturas, ivaManualPorMes),
     [facturas, ivaManualPorMes],
@@ -477,7 +530,7 @@ export function EmpresasPage({ esPremium }: Props) {
     () => generarAlertas({ margenOperativo, runwayMeses, proyeccion, deudas, facturas }),
     [margenOperativo, runwayMeses, proyeccion, deudas, facturas],
   )
-  const indicadoresCobroPago = useMemo(() => calcularDSOyDPO(facturas), [facturas])
+  const indicadoresCobroPago = useMemo(() => calcularDSOyDPO(facturas, pagos), [facturas, pagos])
   const recomendaciones = useMemo(
     () =>
       esPremium
@@ -582,6 +635,7 @@ export function EmpresasPage({ esPremium }: Props) {
                 s.key === 'facturas' ||
                 s.key === 'proveedores' ||
                 s.key === 'cheques' ||
+                s.key === 'cuentasCorrientes' ||
                 s.key === 'iva' ||
                 s.key === 'iibb' ||
                 s.key === 'patrimonio') &&
@@ -632,12 +686,30 @@ export function EmpresasPage({ esPremium }: Props) {
         >
           <Facturas
             facturas={facturas}
+            pagos={pagos}
             onAgregar={handleAgregarFactura}
             onImportarVarias={handleImportarFacturas}
             onCambiar={handleCambiarFactura}
             onEliminar={handleEliminarFactura}
             onVaciar={handleVaciarFacturas}
             onDescargarInforme={handleDescargarInformeSalud}
+          />
+        </PremiumLock>
+      )}
+
+      {seccion === 'cuentasCorrientes' && (
+        <PremiumLock
+          activo={esPremium}
+          titulo="Cuentas corrientes"
+          descripcion="Mirá el saldo pendiente de cada cliente y proveedor, e imputá pagos parciales a cuenta sin tener que marcar cada factura entera como cobrada o pagada."
+          onQuieroPremium={abrirPlanes}
+        >
+          <CuentasCorrientes
+            cuentasCobrar={cuentaCorrienteCobrar}
+            cuentasPagar={cuentaCorrientePagar}
+            pagos={pagos}
+            onAplicarPago={handleAplicarPagoCuenta}
+            onEliminarPago={handleEliminarPago}
           />
         </PremiumLock>
       )}
