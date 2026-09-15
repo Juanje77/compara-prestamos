@@ -22,9 +22,11 @@ import { InputMoneda } from '../components/InputMoneda'
 import { Patrimonio } from '../components/Patrimonio'
 import { CuentasCorrientes } from '../components/CuentasCorrientes'
 import { RemitosPresupuestos } from '../components/RemitosPresupuestos'
+import { Stock } from '../components/Stock'
 import {
   CATEGORIAS_GASTO,
   agruparCuentaCorriente,
+  aplicarMovimientoStock,
   calcularCoberturaDeuda,
   calcularCuotaDeudaTotal,
   calcularDeudaTotal,
@@ -49,12 +51,14 @@ import {
   calcularValorTotalBienes,
   generarAlertas,
   generarRecomendaciones,
+  generarMovimientosDeRemito,
   imputarPagoAFIFO,
   listarClientes,
   listarProveedores,
   listarRemitosPendientes,
   proyectarFlujoCaja,
   proyectarFlujoCajaEscenarios,
+  revertirMovimientoStock,
   vincularRemitoAFactura,
   type Anticipo,
   type Bien,
@@ -69,9 +73,12 @@ import {
   type Factura,
   type MedioPago,
   type MovimientoDiario,
+  type MovimientoStock,
   type Pago,
+  type Producto,
   type RemitoPresupuesto,
   type TipoFactura,
+  type TipoMovimientoStock,
 } from '../lib/cfo'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
 import { abrirInformeFinanciero, abrirInformeSaludFinanciera } from '../lib/htmlReport'
@@ -96,6 +103,7 @@ const SECCIONES = [
   { key: 'cobranzas', label: 'Cobranzas y pagos' },
   { key: 'cuentasCorrientes', label: 'Cuentas corrientes' },
   { key: 'remitos', label: 'Remitos y presupuestos' },
+  { key: 'stock', label: 'Stock' },
   { key: 'proveedores', label: 'Proveedores' },
   { key: 'clientes', label: 'Clientes' },
   { key: 'presupuesto', label: 'Presupuesto vs. Real' },
@@ -107,7 +115,7 @@ const SECCIONES = [
 
 /** Secciones exclusivas del plan Full (el sistema de gestión de uso diario) — el resto que
  * requiere pago sigue disponible desde el plan Medio. */
-const SECCIONES_FULL = new Set(['cuentasCorrientes', 'remitos', 'cheques'])
+const SECCIONES_FULL = new Set(['cuentasCorrientes', 'remitos', 'cheques', 'stock'])
 
 type Seccion = (typeof SECCIONES)[number]['key']
 
@@ -150,6 +158,10 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   const [pagos, setPagos] = useState<Pago[]>(() => cargarNegocioData()?.pagos ?? [])
   const [remitos, setRemitos] = useState<RemitoPresupuesto[]>(() => cargarNegocioData()?.remitos ?? [])
   const [anticipos, setAnticipos] = useState<Anticipo[]>(() => cargarNegocioData()?.anticipos ?? [])
+  const [productos, setProductos] = useState<Producto[]>(() => cargarNegocioData()?.productos ?? [])
+  const [movimientosStock, setMovimientosStock] = useState<MovimientoStock[]>(
+    () => cargarNegocioData()?.movimientosStock ?? [],
+  )
   const [ivaManualPorMes, setIvaManualPorMes] = useState<Record<string, IvaManualMes>>(
     () => cargarNegocioData()?.ivaManualPorMes ?? {},
   )
@@ -193,6 +205,8 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           setPagos(d.pagos ?? [])
           setRemitos(d.remitos ?? [])
           setAnticipos(d.anticipos ?? [])
+          setProductos(d.productos ?? [])
+          setMovimientosStock(d.movimientosStock ?? [])
           setIvaManualPorMes(d.ivaManualPorMes ?? {})
           setIngresosBrutosManualPorMes(d.ingresosBrutosManualPorMes ?? {})
           setMovimientosDiarios(d.movimientosDiarios ?? [])
@@ -223,6 +237,8 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
       pagos,
       remitos,
       anticipos,
+      productos,
+      movimientosStock,
       ivaManualPorMes,
       ingresosBrutosManualPorMes,
       movimientosDiarios,
@@ -244,6 +260,8 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     pagos,
     remitos,
     anticipos,
+    productos,
+    movimientosStock,
     ivaManualPorMes,
     ingresosBrutosManualPorMes,
     movimientosDiarios,
@@ -270,6 +288,8 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           pagos,
           remitos,
           anticipos,
+          productos,
+          movimientosStock,
           ivaManualPorMes,
           ingresosBrutosManualPorMes,
           movimientosDiarios,
@@ -298,6 +318,8 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     pagos,
     remitos,
     anticipos,
+    productos,
+    movimientosStock,
     ivaManualPorMes,
     ingresosBrutosManualPorMes,
     movimientosDiarios,
@@ -512,10 +534,21 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   }
 
   function handleAgregarRemito(remito: Omit<RemitoPresupuesto, 'id' | 'estado'>) {
-    setRemitos((prev) => [...prev, { ...remito, id: generarId(), estado: 'pendiente' }])
+    const nuevoRemito: RemitoPresupuesto = { ...remito, id: generarId(), estado: 'pendiente' }
+    setRemitos((prev) => [...prev, nuevoRemito])
+    const nuevosMovimientos = generarMovimientosDeRemito(nuevoRemito, generarId)
+    if (nuevosMovimientos.length > 0) {
+      setMovimientosStock((prev) => [...prev, ...nuevosMovimientos])
+      setProductos((prev) => nuevosMovimientos.reduce((acc, mov) => aplicarMovimientoStock(acc, mov), prev))
+    }
   }
 
   function handleEliminarRemito(id: string) {
+    const movimientosDelRemito = movimientosStock.filter((m) => m.remitoId === id)
+    if (movimientosDelRemito.length > 0) {
+      setProductos((prev) => movimientosDelRemito.reduce((acc, mov) => revertirMovimientoStock(acc, mov), prev))
+      setMovimientosStock((prev) => prev.filter((m) => m.remitoId !== id))
+    }
     setRemitos((prev) => prev.filter((r) => r.id !== id))
     setAnticipos((prev) => prev.filter((a) => a.remitoId !== id))
   }
@@ -536,6 +569,38 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     if (facturaCubierta) {
       setFacturas((prev) => prev.map((f) => (f.id === facturaId ? { ...f, cumplido: true } : f)))
     }
+  }
+
+  function handleAgregarProducto(producto: Omit<Producto, 'id'>) {
+    setProductos((prev) => [...prev, { ...producto, id: generarId() }])
+  }
+
+  function handleImportarProductos(nuevos: Omit<Producto, 'id'>[]) {
+    setProductos((prev) => [...prev, ...nuevos.map((p) => ({ ...p, id: generarId() }))])
+  }
+
+  function handleEliminarProducto(id: string) {
+    setProductos((prev) => prev.filter((p) => p.id !== id))
+  }
+
+  function handleRegistrarMovimientoStock(
+    productoId: string,
+    tipo: TipoMovimientoStock,
+    cantidad: number,
+    fecha: string,
+    motivo: string | undefined,
+    costoUnitario: number | undefined,
+  ) {
+    const movimiento: MovimientoStock = { id: generarId(), productoId, tipo, cantidad, fecha, motivo, costoUnitario }
+    setMovimientosStock((prev) => [...prev, movimiento])
+    setProductos((prev) => aplicarMovimientoStock(prev, movimiento))
+  }
+
+  function handleEliminarMovimientoStock(id: string) {
+    const movimiento = movimientosStock.find((m) => m.id === id)
+    if (!movimiento) return
+    setMovimientosStock((prev) => prev.filter((m) => m.id !== id))
+    setProductos((prev) => revertirMovimientoStock(prev, movimiento))
   }
 
   function handleAgregarMovimientoDiario(movimiento: Omit<MovimientoDiario, 'id'>) {
@@ -857,12 +922,33 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
             remitosCobrar={remitosCobrar}
             remitosPagar={remitosPagar}
             facturas={facturas}
+            productos={productos}
             contrapartesClientes={contrapartesClientes}
             contrapartesProveedores={contrapartesProveedores}
             onAgregar={handleAgregarRemito}
             onRegistrarAnticipo={handleRegistrarAnticipo}
             onVincularFactura={handleVincularRemitoAFactura}
             onEliminar={handleEliminarRemito}
+          />
+        </PremiumLock>
+      )}
+
+      {seccion === 'stock' && (
+        <PremiumLock
+          activo={esFull}
+          nivelRequerido="full"
+          titulo="Stock"
+          descripcion="Cargá tu catálogo de productos y llevá el control de entradas y salidas. Se conecta solo con los remitos que tengan líneas de producto."
+          onQuieroPremium={abrirPlanes}
+        >
+          <Stock
+            productos={productos}
+            movimientos={movimientosStock}
+            onAgregarProducto={handleAgregarProducto}
+            onImportarProductos={handleImportarProductos}
+            onRegistrarMovimiento={handleRegistrarMovimientoStock}
+            onEliminarMovimiento={handleEliminarMovimientoStock}
+            onEliminarProducto={handleEliminarProducto}
           />
         </PremiumLock>
       )}

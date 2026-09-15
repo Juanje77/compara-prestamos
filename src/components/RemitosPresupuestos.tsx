@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import type { Factura, MedioPago, RemitoConSaldo, TipoDocumentoAnticipo, TipoFactura } from '../lib/cfo'
-import { MEDIOS_PAGO_LABEL } from '../lib/cfo'
+import type { Factura, LineaProducto, MedioPago, Producto, RemitoConSaldo, TipoDocumentoAnticipo, TipoFactura } from '../lib/cfo'
+import { MEDIOS_PAGO_LABEL, calcularMontoDesdeLineas } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
 
@@ -8,6 +8,7 @@ interface Props {
   remitosCobrar: RemitoConSaldo[]
   remitosPagar: RemitoConSaldo[]
   facturas: Factura[]
+  productos: Producto[]
   /** Clientes y proveedores ya cargados en Comprobantes, para sugerir mientras se escribe y usar
    * siempre el mismo nombre exacto — así la cuenta corriente y la vinculación a factura los
    * reconocen sin depender de tipeo. */
@@ -20,6 +21,7 @@ interface Props {
     monto: number
     fecha: string
     numero?: string
+    lineas?: LineaProducto[]
   }) => void
   onRegistrarAnticipo: (remitoId: string, monto: number, fecha: string, medioPago: MedioPago | undefined) => void
   onVincularFactura: (remitoId: string, facturaId: string) => void
@@ -89,6 +91,7 @@ function TarjetaRemito({
       <p className="mt-0.5 text-xs" style={{ color: 'var(--text-muted)' }}>
         {new Date(`${remito.fecha}T00:00:00`).toLocaleDateString('es-AR')} · Total {formatoMoneda(remito.monto)} · Anticipado{' '}
         {formatoMoneda(remito.montoAnticipado)}
+        {remito.lineas && remito.lineas.length > 0 && ` · ${remito.lineas.length} producto(s)`}
       </p>
       <p className="tabular mt-1 text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
         {formatoMoneda(remito.saldo)} <span className="text-xs font-normal" style={{ color: 'var(--text-muted)' }}>saldo sin anticipar</span>
@@ -218,6 +221,7 @@ export function RemitosPresupuestos({
   remitosCobrar,
   remitosPagar,
   facturas,
+  productos,
   contrapartesClientes,
   contrapartesProveedores,
   onAgregar,
@@ -231,14 +235,54 @@ export function RemitosPresupuestos({
   const [numero, setNumero] = useState('')
   const [monto, setMonto] = useState(0)
   const [fecha, setFecha] = useState(hoyISO)
+  const [lineas, setLineas] = useState<LineaProducto[]>([])
+  const [productoElegido, setProductoElegido] = useState('')
+  const [cantidadLinea, setCantidadLinea] = useState(0)
+  const [precioLinea, setPrecioLinea] = useState(0)
+
+  const usaLineas = tipoDocumento === 'remito' && productos.length > 0
+  const montoDesdeLineas = lineas.length > 0 ? calcularMontoDesdeLineas(lineas) : null
+
+  function handleTipoDocumentoChange(nuevo: TipoDocumentoAnticipo) {
+    setTipoDocumento(nuevo)
+    if (nuevo !== 'remito') setLineas([])
+  }
+
+  function handleElegirProducto(id: string) {
+    setProductoElegido(id)
+    const producto = productos.find((p) => p.id === id)
+    if (producto) setPrecioLinea((tipo === 'emitida' ? producto.precioVenta : producto.costoUnitario) ?? 0)
+  }
+
+  function handleAgregarLinea() {
+    if (!productoElegido || cantidadLinea <= 0) return
+    setLineas((prev) => [...prev, { productoId: productoElegido, cantidad: cantidadLinea, precioUnitario: precioLinea }])
+    setProductoElegido('')
+    setCantidadLinea(0)
+    setPrecioLinea(0)
+  }
+
+  function handleEliminarLinea(index: number) {
+    setLineas((prev) => prev.filter((_, i) => i !== index))
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!contraparte.trim() || !monto || monto <= 0 || !fecha) return
-    onAgregar({ tipo, tipoDocumento, contraparte: contraparte.trim(), monto, fecha, numero: numero.trim() || undefined })
+    const montoFinal = montoDesdeLineas ?? monto
+    if (!contraparte.trim() || !montoFinal || montoFinal <= 0 || !fecha) return
+    onAgregar({
+      tipo,
+      tipoDocumento,
+      contraparte: contraparte.trim(),
+      monto: montoFinal,
+      fecha,
+      numero: numero.trim() || undefined,
+      lineas: lineas.length > 0 ? lineas : undefined,
+    })
     setContraparte('')
     setNumero('')
     setMonto(0)
+    setLineas([])
   }
 
   return (
@@ -266,7 +310,7 @@ export function RemitosPresupuestos({
           </select>
           <select
             value={tipoDocumento}
-            onChange={(e) => setTipoDocumento(e.target.value as TipoDocumentoAnticipo)}
+            onChange={(e) => handleTipoDocumentoChange(e.target.value as TipoDocumentoAnticipo)}
             className="shrink-0 rounded-lg border px-3 py-1.5 text-sm"
             style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
           >
@@ -295,13 +339,23 @@ export function RemitosPresupuestos({
               <option key={nombre} value={nombre} />
             ))}
           </datalist>
-          <InputMoneda
-            placeholder="Monto total"
-            value={monto}
-            onChange={setMonto}
-            className="tabular w-32 shrink-0 rounded-lg border px-3 py-1.5 text-sm"
-            style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
-          />
+          {montoDesdeLineas !== null ? (
+            <div
+              className="tabular flex w-32 shrink-0 items-center rounded-lg border px-3 py-1.5 text-sm font-semibold"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface-2)', color: 'var(--text-primary)' }}
+              title="Se calcula solo a partir de las líneas de producto"
+            >
+              {formatoMoneda(montoDesdeLineas)}
+            </div>
+          ) : (
+            <InputMoneda
+              placeholder="Monto total"
+              value={monto}
+              onChange={setMonto}
+              className="tabular w-32 shrink-0 rounded-lg border px-3 py-1.5 text-sm"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+            />
+          )}
           <input
             type="date"
             value={fecha}
@@ -322,6 +376,85 @@ export function RemitosPresupuestos({
           la lista para que la cuenta corriente lo reconozca, o escribí uno nuevo si todavía no facturaste con
           esta contraparte.
         </p>
+
+        {usaLineas && (
+          <div className="mt-4 border-t pt-4" style={{ borderColor: 'var(--gridline)' }}>
+            <p className="mb-2 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+              Líneas de producto <span style={{ color: 'var(--text-secondary)' }}>(opcional)</span> — si cargás
+              alguna, el remito {tipo === 'emitida' ? 'descuenta' : 'suma'} stock solo al guardarse.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <select
+                value={productoElegido}
+                onChange={(e) => handleElegirProducto(e.target.value)}
+                className="min-w-[160px] flex-1 rounded-lg border px-2 py-1.5 text-sm"
+                style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+              >
+                <option value="">Elegir producto…</option>
+                {productos.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nombre} (stock: {p.stockActual})
+                  </option>
+                ))}
+              </select>
+              <InputMoneda
+                placeholder="Cantidad"
+                value={cantidadLinea}
+                onChange={setCantidadLinea}
+                className="tabular w-24 shrink-0 rounded-lg border px-2 py-1.5 text-sm"
+                style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+              />
+              <InputMoneda
+                placeholder="Precio unitario"
+                value={precioLinea}
+                onChange={setPrecioLinea}
+                className="tabular w-32 shrink-0 rounded-lg border px-2 py-1.5 text-sm"
+                style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+              />
+              <button
+                type="button"
+                onClick={handleAgregarLinea}
+                className="shrink-0 rounded-lg border px-3 py-1.5 text-sm font-semibold transition-opacity hover:opacity-90"
+                style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
+              >
+                Agregar línea
+              </button>
+            </div>
+
+            {lineas.length > 0 && (
+              <ul className="mt-3 space-y-1 text-sm">
+                {lineas.map((l, i) => {
+                  const producto = productos.find((p) => p.id === l.productoId)
+                  return (
+                    <li
+                      key={`${l.productoId}-${i}`}
+                      className="flex items-center gap-2 rounded-lg border px-2 py-1"
+                      style={{ borderColor: 'var(--gridline)' }}
+                    >
+                      <span className="flex-1" style={{ color: 'var(--text-primary)' }}>
+                        {producto?.nombre ?? l.productoId}
+                      </span>
+                      <span className="tabular shrink-0" style={{ color: 'var(--text-secondary)' }}>
+                        {l.cantidad} × {formatoMoneda(l.precioUnitario)}
+                      </span>
+                      <span className="tabular shrink-0 font-semibold" style={{ color: 'var(--text-primary)' }}>
+                        {formatoMoneda(l.cantidad * l.precioUnitario)}
+                      </span>
+                      <button
+                        onClick={() => handleEliminarLinea(i)}
+                        aria-label="Quitar línea"
+                        className="shrink-0"
+                        style={{ color: 'var(--text-muted)' }}
+                      >
+                        🗑
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+        )}
       </section>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

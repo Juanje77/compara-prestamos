@@ -1,4 +1,4 @@
-import type { Anticipo, Bien, Cheque, ClasificacionesProveedores, CuentaBancaria, Deuda, Factura, IngresosBrutosManualMes, IvaManualMes, MovimientoDiario, Pago, RemitoPresupuesto } from './cfo'
+import type { Anticipo, Bien, Cheque, ClasificacionesProveedores, CuentaBancaria, Deuda, Factura, IngresosBrutosManualMes, IvaManualMes, MovimientoDiario, MovimientoStock, Pago, Producto, RemitoPresupuesto } from './cfo'
 
 export interface NegocioData {
   ingresos: number
@@ -22,6 +22,10 @@ export interface NegocioData {
   remitos: RemitoPresupuesto[]
   /** Anticipos cobrados/pagados contra un remito o presupuesto — ver calcularSaldoRemito. */
   anticipos: Anticipo[]
+  /** Catálogo de productos de Stock — ver calcularValorInventario. */
+  productos: Producto[]
+  /** Historial de movimientos de stock (entrada/salida/ajuste) — ver aplicarMovimientoStock. */
+  movimientosStock: MovimientoStock[]
   /** Ediciones manuales de la Posición de IVA por mes — ver calcularPosicionIvaPorMes. */
   ivaManualPorMes: Record<string, IvaManualMes>
   /** Ediciones manuales de la Posición de Ingresos Brutos por mes — ver calcularPosicionIngresosBrutosPorMes. */

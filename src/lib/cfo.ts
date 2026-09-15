@@ -1209,6 +1209,12 @@ export function imputarPagoAFIFO(
 
 export type TipoDocumentoAnticipo = 'remito' | 'presupuesto'
 
+export interface LineaProducto {
+  productoId: string
+  cantidad: number
+  precioUnitario: number
+}
+
 export interface RemitoPresupuesto {
   id: string
   /** "emitida" = a un cliente (vas a cobrar), "recibida" = de un proveedor (vas a pagar). */
@@ -1221,6 +1227,10 @@ export interface RemitoPresupuesto {
   /** "facturado" una vez vinculado a la factura real — ver vincularRemitoAFactura. */
   estado: 'pendiente' | 'facturado'
   facturaId?: string
+  /** Líneas de producto opcionales — solo tienen efecto en el stock si tipoDocumento es
+   * "remito" (un presupuesto todavía no movió nada). Si están cargadas, el monto del remito se
+   * calcula solo a partir de ellas (ver calcularMontoDesdeLineas). */
+  lineas?: LineaProducto[]
 }
 
 export interface Anticipo {
@@ -1289,6 +1299,107 @@ export function vincularRemitoAFactura(
   }))
   const totalPagado = calcularMontoPagado(factura.id, pagosExistentes) + pagos.reduce((s, p) => s + p.monto, 0)
   return { pagos, facturaCubierta: totalPagado >= factura.monto }
+}
+
+/** Suma cantidad × precio unitario de cada línea — el monto de un remito con líneas de producto
+ * se calcula siempre así, en vez de tipearlo a mano. */
+export function calcularMontoDesdeLineas(lineas: LineaProducto[]): number {
+  return lineas.reduce((s, l) => s + l.cantidad * l.precioUnitario, 0)
+}
+
+// ---------------------------------------------------------------------------
+// Stock (Full): catálogo de productos y sus movimientos de entrada/salida/ajuste
+// ---------------------------------------------------------------------------
+//
+// Vive separado de Facturas (que sigue siendo un monto único, sin líneas) — el punto natural
+// para descontar o sumar stock es el Remito, porque es el documento que efectivamente acompaña
+// la mercadería que se entrega o se recibe. Un Presupuesto no mueve nada todavía.
+
+export interface Producto {
+  id: string
+  codigo?: string
+  nombre: string
+  unidad?: string
+  /** Último costo de compra conocido (no es promedio ponderado, para mantenerlo simple). */
+  costoUnitario: number
+  precioVenta?: number
+  stockActual: number
+  /** Si se define, por debajo de este número el producto aparece como "bajo stock". */
+  stockMinimo?: number
+}
+
+export type TipoMovimientoStock = 'entrada' | 'salida' | 'ajuste'
+
+export interface MovimientoStock {
+  id: string
+  productoId: string
+  tipo: TipoMovimientoStock
+  /** Siempre positiva en "entrada"/"salida" (el signo lo da el tipo); en "ajuste" puede ser
+   * negativa, para poder corregir tanto de más como de menos. */
+  cantidad: number
+  fecha: string
+  motivo?: string
+  /** Solo en "entrada": si se carga, actualiza el costoUnitario del producto (último costo). */
+  costoUnitario?: number
+  /** Si este movimiento se generó solo al guardar un remito con líneas de producto. */
+  remitoId?: string
+}
+
+/** Cuánto suma o resta un movimiento al stock — entradas suman, salidas restan, y un ajuste ya
+ * viene con el signo que corresponda. */
+function deltaDeMovimiento(mov: MovimientoStock): number {
+  if (mov.tipo === 'entrada') return mov.cantidad
+  if (mov.tipo === 'salida') return -mov.cantidad
+  return mov.cantidad
+}
+
+/** Aplica un movimiento a la lista de productos (no muta el array recibido). */
+export function aplicarMovimientoStock(productos: Producto[], mov: MovimientoStock): Producto[] {
+  return productos.map((p) => {
+    if (p.id !== mov.productoId) return p
+    return {
+      ...p,
+      stockActual: p.stockActual + deltaDeMovimiento(mov),
+      costoUnitario: mov.tipo === 'entrada' && mov.costoUnitario !== undefined ? mov.costoUnitario : p.costoUnitario,
+    }
+  })
+}
+
+/** Deshace un movimiento (al eliminarlo) — no revierte el costoUnitario, para no complicar el
+ * historial de costos por una corrección puntual. */
+export function revertirMovimientoStock(productos: Producto[], mov: MovimientoStock): Producto[] {
+  return productos.map((p) => (p.id === mov.productoId ? { ...p, stockActual: p.stockActual - deltaDeMovimiento(mov) } : p))
+}
+
+/** Valor total del inventario a costo (stock × costo unitario de cada producto). */
+export function calcularValorInventario(productos: Producto[]): number {
+  return productos.reduce((s, p) => s + p.stockActual * p.costoUnitario, 0)
+}
+
+/** Productos con stock en o por debajo de su mínimo definido. */
+export function listarProductosBajoMinimo(productos: Producto[]): Producto[] {
+  return productos.filter((p) => p.stockMinimo !== undefined && p.stockActual <= p.stockMinimo)
+}
+
+/**
+ * Genera los movimientos de stock que corresponden a un remito con líneas de producto: si es
+ * "emitida" (a un cliente) sale mercadería, si es "recibida" (de un proveedor) entra. Un
+ * presupuesto, o un remito sin líneas, no generan nada.
+ */
+export function generarMovimientosDeRemito(remito: RemitoPresupuesto, generarId: () => string): MovimientoStock[] {
+  if (remito.tipoDocumento !== 'remito' || !remito.lineas || remito.lineas.length === 0) return []
+  const tipo: TipoMovimientoStock = remito.tipo === 'emitida' ? 'salida' : 'entrada'
+  const motivo = `Remito${remito.numero ? ` ${remito.numero}` : ''} — ${remito.contraparte}`
+  return remito.lineas.map((l) => ({
+    id: generarId(),
+    productoId: l.productoId,
+    tipo,
+    cantidad: l.cantidad,
+    fecha: remito.fecha,
+    motivo,
+    costoUnitario: tipo === 'entrada' ? l.precioUnitario : undefined,
+    remitoId: remito.id,
+  }))
 }
 
 // ---------------------------------------------------------------------------
