@@ -312,6 +312,9 @@ export interface Pago {
   monto: number
   fecha: string
   medioPago?: MedioPago
+  /** Si este pago se generó al vincular la factura a un cheque, el id de ese cheque — para poder
+   * borrarlo si se elimina el cheque. */
+  chequeId?: string
 }
 
 /** Cuánto se pagó/cobró hasta ahora de una factura puntual, sumando todos sus pagos parciales. */

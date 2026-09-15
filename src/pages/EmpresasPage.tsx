@@ -41,6 +41,7 @@ import {
   calcularRealEfectivoPorMes,
   calcularRunwayExtendido,
   calcularRunwayMeses,
+  calcularSaldoFactura,
   calcularSaldoTotalBancos,
   calcularTendenciaMensual,
   calcularValorTotalBienes,
@@ -322,6 +323,11 @@ export function EmpresasPage({ esPremium }: Props) {
     cambios: Partial<Pick<Factura, 'fechaEstimadaCobroPago' | 'cumplido' | 'medioPago'>>,
   ) {
     setFacturas((prev) => prev.map((f) => (f.id === id ? { ...f, ...cambios } : f)))
+    if (cambios.medioPago === 'cheque') {
+      const factura = facturas.find((f) => f.id === id)
+      const quedaCumplida = cambios.cumplido ?? factura?.cumplido
+      if (factura && quedaCumplida) crearChequeAutomatico({ ...factura, ...cambios })
+    }
   }
 
   function handleEliminarFactura(id: string) {
@@ -353,10 +359,45 @@ export function EmpresasPage({ esPremium }: Props) {
     })
   }
 
+  /** Si una factura se marca cobrada/pagada con cheque desde cualquier lado (el tilde de
+   * Comprobantes/Cobranzas, o un pago a cuenta en Cuentas corrientes) y todavía no tiene un
+   * cheque cargado que la cubra, le crea uno automáticamente en la solapa Cheques — banco y
+   * número quedan vacíos para completar a mano. */
+  function crearChequeAutomatico(factura: Factura) {
+    const yaTieneCheque = cheques.some((c) => c.facturasIds?.includes(factura.id))
+    if (yaTieneCheque) return
+    setCheques((prev) => [
+      ...prev,
+      {
+        id: generarId(),
+        tipo: factura.tipo === 'emitida' ? 'recibido' : 'emitido',
+        banco: '',
+        contraparte: factura.contraparte,
+        monto: factura.monto,
+        fechaEmision: factura.fecha,
+        fechaCobro: factura.fechaEstimadaCobroPago ?? factura.fecha,
+        estado: 'cartera',
+        facturasIds: [factura.id],
+      },
+    ])
+  }
+
   function handleAgregarCheque(cheque: Omit<Cheque, 'id'>) {
-    setCheques((prev) => [...prev, { ...cheque, id: generarId() }])
+    const id = generarId()
+    setCheques((prev) => [...prev, { ...cheque, id }])
     if (cheque.facturasIds && cheque.facturasIds.length > 0) {
       const idsFactura = new Set(cheque.facturasIds)
+      const nuevosPagos: Pago[] = facturas
+        .filter((f) => idsFactura.has(f.id))
+        .map((f) => ({
+          id: generarId(),
+          facturaId: f.id,
+          monto: calcularSaldoFactura(f, pagos),
+          fecha: cheque.fechaCobro,
+          medioPago: 'cheque',
+          chequeId: id,
+        }))
+      setPagos((prev) => [...prev, ...nuevosPagos])
       setFacturas((prev) =>
         prev.map((f) => (idsFactura.has(f.id) ? { ...f, cumplido: true, medioPago: 'cheque' } : f)),
       )
@@ -375,6 +416,7 @@ export function EmpresasPage({ esPremium }: Props) {
     const cheque = cheques.find((c) => c.id === id)
     if (cheque?.facturasIds && cheque.facturasIds.length > 0) {
       const idsFactura = new Set(cheque.facturasIds)
+      setPagos((prev) => prev.filter((p) => p.chequeId !== id))
       setFacturas((prev) =>
         prev.map((f) => (idsFactura.has(f.id) ? { ...f, cumplido: false, medioPago: undefined } : f)),
       )
@@ -401,6 +443,12 @@ export function EmpresasPage({ esPremium }: Props) {
       setFacturas((prev) =>
         prev.map((f) => (cubiertas.has(f.id) ? { ...f, cumplido: true, medioPago: medioPago ?? f.medioPago } : f)),
       )
+      if (medioPago === 'cheque') {
+        for (const facturaId of facturaIdsCubiertas) {
+          const factura = grupo.facturas.find((f) => f.id === facturaId)
+          if (factura) crearChequeAutomatico(factura)
+        }
+      }
     }
   }
 
