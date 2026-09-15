@@ -593,6 +593,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
 
   function handleEliminarProducto(id: string) {
     setProductos((prev) => prev.filter((p) => p.id !== id))
+    setMovimientosStock((prev) => prev.filter((m) => m.productoId !== id))
   }
 
   function handleRegistrarMovimientoStock(

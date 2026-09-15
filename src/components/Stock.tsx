@@ -201,16 +201,17 @@ function FilaProducto({
           >
             {expandido ? 'Cerrar' : '± Ajustar'}
           </button>
-          {producto.stockActual === 0 && movimientosDelProducto.length === 0 && (
-            <button
-              onClick={() => onEliminarProducto(producto.id)}
-              aria-label="Eliminar producto"
-              className="ml-2 text-xs"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              🗑
-            </button>
-          )}
+          <button
+            onClick={() => {
+              if (movimientosDelProducto.length > 0 && !window.confirm(`"${producto.nombre}" tiene movimientos cargados. ¿Eliminarlo igual? También se borra su historial.`)) return
+              onEliminarProducto(producto.id)
+            }}
+            aria-label="Eliminar producto"
+            className="ml-2 text-xs"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            🗑
+          </button>
         </td>
       </tr>
       {expandido && (
