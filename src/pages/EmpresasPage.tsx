@@ -20,6 +20,7 @@ import { PosicionIngresosBrutos } from '../components/PosicionIngresosBrutos'
 import { IngresosGastos } from '../components/IngresosGastos'
 import { InputMoneda } from '../components/InputMoneda'
 import { Patrimonio } from '../components/Patrimonio'
+import { Ayuda } from '../components/Ayuda'
 import { CuentasCorrientes } from '../components/CuentasCorrientes'
 import { RemitosPresupuestos } from '../components/RemitosPresupuestos'
 import { Stock } from '../components/Stock'
@@ -125,6 +126,7 @@ const SECCIONES = [
   { key: 'iva', label: 'Posición de IVA' },
   { key: 'iibb', label: 'Ingresos Brutos' },
   { key: 'patrimonio', label: 'Patrimonio' },
+  { key: 'ayuda', label: 'Ayuda' },
 ] as const
 
 /** Secciones exclusivas del plan Full (el sistema de gestión de uso diario) — el resto que
@@ -1365,6 +1367,8 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           <Patrimonio bienes={bienes} runwayExtendido={runwayExtendido} onAgregar={handleAgregarBien} onEliminar={handleEliminarBien} />
         </PremiumLock>
       )}
+
+      {seccion === 'ayuda' && <Ayuda esPremium={esPremium} esFull={esFull} />}
 
       {seccion === 'dashboard' && (
         <>
