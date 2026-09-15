@@ -3,6 +3,7 @@ import { Layout } from './components/Layout'
 import { HomePage } from './pages/HomePage'
 import { PrestamosPage } from './pages/PrestamosPage'
 import { AccesoEmpresas } from './pages/AccesoEmpresas'
+import { AdminPlanPage } from './pages/AdminPlanPage'
 import { AuthProvider } from './lib/AuthContext'
 
 function App() {
@@ -14,6 +15,7 @@ function App() {
             <Route index element={<HomePage />} />
             <Route path="prestamos" element={<PrestamosPage />} />
             <Route path="empresas" element={<AccesoEmpresas />} />
+            <Route path="admin-plan" element={<AdminPlanPage />} />
           </Route>
         </Routes>
       </BrowserRouter>
