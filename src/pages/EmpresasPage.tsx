@@ -102,13 +102,20 @@ const SECCIONES = [
   { key: 'patrimonio', label: 'Patrimonio' },
 ] as const
 
+/** Secciones exclusivas del plan Full (el sistema de gestión de uso diario) — el resto que
+ * requiere pago sigue disponible desde el plan Medio. */
+const SECCIONES_FULL = new Set(['cuentasCorrientes', 'remitos', 'cheques'])
+
 type Seccion = (typeof SECCIONES)[number]['key']
 
 interface Props {
   esPremium: boolean
+  /** Plan Full (arriba de Medio) — desbloquea Cuentas corrientes, Remitos/presupuestos y
+   * Cheques, el sistema de gestión de uso diario. */
+  esFull?: boolean
 }
 
-export function EmpresasPage({ esPremium }: Props) {
+export function EmpresasPage({ esPremium, esFull = false }: Props) {
   const { user } = useAuth()
   const [seccion, setSeccion] = useState<Seccion>('dashboard')
   const [mostrarPlanes, setMostrarPlanes] = useState(false)
@@ -382,6 +389,7 @@ export function EmpresasPage({ esPremium }: Props) {
    * cheque cargado que la cubra, le crea uno automáticamente en la solapa Cheques — banco y
    * número quedan vacíos para completar a mano. */
   function crearChequeAutomatico(factura: Factura) {
+    if (!esFull) return
     const yaTieneCheque = cheques.some((c) => c.facturasIds?.includes(factura.id))
     if (yaTieneCheque) return
     setCheques((prev) => [
@@ -739,17 +747,16 @@ export function EmpresasPage({ esPremium }: Props) {
             }
           >
             {s.label}
-            {!esPremium &&
-              (s.key === 'presupuesto' ||
-                s.key === 'facturas' ||
-                s.key === 'proveedores' ||
-                s.key === 'cheques' ||
-                s.key === 'cuentasCorrientes' ||
-                s.key === 'remitos' ||
-                s.key === 'iva' ||
-                s.key === 'iibb' ||
-                s.key === 'patrimonio') &&
-              ' 🔒'}
+            {SECCIONES_FULL.has(s.key)
+              ? !esFull && ' 🔒'
+              : !esPremium &&
+                (s.key === 'presupuesto' ||
+                  s.key === 'facturas' ||
+                  s.key === 'proveedores' ||
+                  s.key === 'iva' ||
+                  s.key === 'iibb' ||
+                  s.key === 'patrimonio') &&
+                ' 🔒'}
           </button>
         ))}
       </nav>
@@ -766,8 +773,8 @@ export function EmpresasPage({ esPremium }: Props) {
         <CobranzasPagosSemanal
           facturas={esPremium ? facturas : undefined}
           onCambiarFactura={esPremium ? handleCambiarFactura : undefined}
-          cheques={esPremium ? cheques : undefined}
-          onCambiarEstadoCheque={esPremium ? handleCambiarEstadoCheque : undefined}
+          cheques={esFull ? cheques : undefined}
+          onCambiarEstadoCheque={esFull ? handleCambiarEstadoCheque : undefined}
         />
       )}
 
@@ -809,7 +816,8 @@ export function EmpresasPage({ esPremium }: Props) {
 
       {seccion === 'cuentasCorrientes' && (
         <PremiumLock
-          activo={esPremium}
+          activo={esFull}
+          nivelRequerido="full"
           titulo="Cuentas corrientes"
           descripcion="Mirá el saldo pendiente de cada cliente y proveedor, e imputá pagos parciales a cuenta sin tener que marcar cada factura entera como cobrada o pagada."
           onQuieroPremium={abrirPlanes}
@@ -826,7 +834,8 @@ export function EmpresasPage({ esPremium }: Props) {
 
       {seccion === 'remitos' && (
         <PremiumLock
-          activo={esPremium}
+          activo={esFull}
+          nivelRequerido="full"
           titulo="Remitos y presupuestos"
           descripcion="Para trabajos largos: cargá el remito o presupuesto, cobrá un anticipo, y vinculalo a la factura real cuando termines el trabajo."
           onQuieroPremium={abrirPlanes}
@@ -863,7 +872,8 @@ export function EmpresasPage({ esPremium }: Props) {
 
       {seccion === 'cheques' && (
         <PremiumLock
-          activo={esPremium}
+          activo={esFull}
+          nivelRequerido="full"
           titulo="Cheques"
           descripcion="Gestioná los cheques de terceros que recibís y los propios que emitís, para ir armando junto con tus cuentas bancarias un balance contable a fin de año."
           onQuieroPremium={abrirPlanes}
@@ -929,7 +939,7 @@ export function EmpresasPage({ esPremium }: Props) {
               className="mb-6 flex w-full items-center gap-2 rounded-lg border p-3 text-left text-sm"
               style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--series-blue)' }}
             >
-              🔒 Con Premium recibís alertas automáticas sobre tu caja, deudas y facturas vencidas
+              🔒 Con el plan Medio recibís alertas automáticas sobre tu caja, deudas y facturas vencidas
             </button>
           )}
 

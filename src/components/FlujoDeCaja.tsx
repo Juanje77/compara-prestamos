@@ -155,7 +155,7 @@ export function FlujoDeCaja({
           </label>
         ) : (
           <button onClick={onQuierePremium} className="flex items-center gap-1.5" style={{ color: 'var(--series-blue)' }}>
-            🔒 Con Premium podés proyectar con una tasa de crecimiento mensual
+            🔒 Con el plan Medio podés proyectar con una tasa de crecimiento mensual
           </button>
         )}
       </div>

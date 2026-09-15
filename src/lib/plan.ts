@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
 import { app, firebaseHabilitado } from './firebase'
 
-export type PlanTier = 'basico' | 'premium'
+/** "premium" internamente sigue siendo el valor guardado para el nivel medio (mostrado al
+ * usuario como "Medio") — no se renombra para no romper el acceso de quienes ya están
+ * suscriptos con ese valor en Firestore. "full" es el nivel nuevo, arriba de todo. */
+export type PlanTier = 'basico' | 'premium' | 'full'
 export type EstadoPlan = 'activo' | 'pausado' | 'cancelado' | 'pendiente'
 
 export interface PlanUsuario {

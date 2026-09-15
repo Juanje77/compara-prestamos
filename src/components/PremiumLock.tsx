@@ -4,12 +4,17 @@ interface Props {
   activo: boolean
   titulo: string
   descripcion: string
+  /** Qué plan hace falta para desbloquear esta sección — "medio" (antes "Premium") para la
+   * mayoría, "full" para Cuentas corrientes, Remitos/presupuestos y Cheques. */
+  nivelRequerido?: 'medio' | 'full'
   onQuieroPremium: () => void
   children: ReactNode
 }
 
-export function PremiumLock({ activo, titulo, descripcion, onQuieroPremium, children }: Props) {
+export function PremiumLock({ activo, titulo, descripcion, nivelRequerido = 'medio', onQuieroPremium, children }: Props) {
   if (activo) return <>{children}</>
+
+  const nombrePlan = nivelRequerido === 'full' ? 'Full' : 'Medio'
 
   return (
     <div
@@ -17,7 +22,7 @@ export function PremiumLock({ activo, titulo, descripcion, onQuieroPremium, chil
       style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}
     >
       <p className="text-sm font-semibold tracking-wide" style={{ color: 'var(--series-blue)' }}>
-        🔒 Función Premium
+        🔒 Función {nombrePlan}
       </p>
       <h3 className="mt-1 text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
         {titulo}
@@ -30,7 +35,7 @@ export function PremiumLock({ activo, titulo, descripcion, onQuieroPremium, chil
         className="mt-5 rounded-full px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
         style={{ background: 'var(--series-blue)' }}
       >
-        Actualizar a Premium
+        Actualizar a {nombrePlan}
       </button>
     </div>
   )

@@ -10,13 +10,20 @@ const FEATURES_BASICO = [
   { icon: '📄', titulo: 'Informe y Excel', texto: 'Importá tus cuentas a cobrar desde Excel y descargá un informe financiero con gráficos, listo para imprimir.' },
 ]
 
-const FEATURES_PREMIUM = [
+const FEATURES_MEDIO = [
   { icon: '🧾', titulo: 'Comprobantes', texto: 'Importá tus facturas desde ARCA y mirá ventas, compras, margen y tus principales clientes y proveedores.' },
   { icon: '🎯', titulo: 'Presupuesto vs. Real', texto: 'Comparás lo presupuestado contra lo que realmente gastaste, con el desvío por categoría y comentarios automáticos.' },
   { icon: '📈', titulo: 'Proyección con escenarios', texto: 'Sumá una tasa de crecimiento mensual esperada, con escenarios optimista y pesimista, no solo lineal.' },
   { icon: '🔔', titulo: 'Alertas y recomendaciones', texto: 'Avisos si tu caja se agota, una deuda está por vencer, o tu margen se pone negativo, con qué hacer al respecto.' },
   { icon: '🧮', titulo: 'IVA e Ingresos Brutos', texto: 'Posición de IVA e Ingresos Brutos mes a mes, con alícuota y retenciones editables para que cuadre con lo declarado en ARCA.' },
   { icon: '🏛️', titulo: 'Patrimonio y bienes', texto: 'Sumá tus bienes realizables (inversiones, inmuebles, vehículos) y mirá tu runway extendido ante un quiebre de caja.' },
+]
+
+const FEATURES_FULL = [
+  { icon: '📒', titulo: 'Cuentas corrientes', texto: 'Saldo por cliente y proveedor, con pagos parciales que se van imputando solos a la factura más antigua.' },
+  { icon: '📦', titulo: 'Remitos y presupuestos', texto: 'Para trabajos largos: cargá el remito, cobrá un anticipo, y facturá todo junto al terminar.' },
+  { icon: '🏦', titulo: 'Gestión de cheques', texto: 'Vinculados a tus facturas y cuentas corrientes, para armar tu balance contable sin cargar todo dos veces.' },
+  { icon: '⚙️', titulo: 'Todo integrado', texto: 'Un sistema de uso diario: cada cheque o anticipo que cargás actualiza solo tus indicadores de CFO, sin pasos extra.' },
 ]
 
 export function HomePage() {
@@ -40,7 +47,7 @@ export function HomePage() {
           className="mx-auto mt-4 inline-block max-w-xl rounded-full px-4 py-2 text-sm font-semibold"
           style={{ background: 'color-mix(in srgb, var(--status-good-text) 12%, transparent)', color: 'var(--status-good-text)' }}
         >
-          🎁 Probá FinCorp para empresas 15 días gratis, sin tarjeta
+          🎁 Probá FinCorp para empresas 15 días gratis con acceso Full completo, sin tarjeta
         </p>
       </div>
 
@@ -142,14 +149,14 @@ export function HomePage() {
       </section>
 
       {/* ------------------------------------------------------------------ */}
-      {/* Plan Premium */}
+      {/* Plan Medio */}
       {/* ------------------------------------------------------------------ */}
       <section
         className="mb-6 rounded-2xl p-6 text-center sm:p-8"
         style={{ background: 'color-mix(in srgb, var(--series-blue) 6%, var(--surface-1))' }}
       >
         <p className="text-sm font-semibold tracking-wide" style={{ color: 'var(--series-blue)' }}>
-          Plan Premium
+          Plan Medio
         </p>
         <h2 className="mt-1 text-2xl font-semibold sm:text-3xl" style={{ color: 'var(--text-primary)' }}>
           <span className="tabular">$50.000</span>
@@ -164,7 +171,7 @@ export function HomePage() {
       </section>
 
       <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {FEATURES_PREMIUM.map((f) => (
+        {FEATURES_MEDIO.map((f) => (
           <div
             key={f.titulo}
             className="rounded-lg border p-4"
@@ -186,7 +193,7 @@ export function HomePage() {
           Comprobantes: ventas, compras, margen e IVA
         </p>
         <div className="overflow-hidden rounded-xl border shadow-sm" style={{ borderColor: 'var(--border)' }}>
-          <img src="/landing-comprobantes.png" alt="Comprobantes en FinCorp Premium: indicadores de cobro y pago, ventas y compras netas por mes" className="w-full" />
+          <img src="/landing-comprobantes.png" alt="Comprobantes en FinCorp Medio: indicadores de cobro y pago, ventas y compras netas por mes" className="w-full" />
         </div>
       </section>
 
@@ -195,8 +202,52 @@ export function HomePage() {
           Presupuesto vs. Real, con desvío por categoría
         </p>
         <div className="overflow-hidden rounded-xl border shadow-sm" style={{ borderColor: 'var(--border)' }}>
-          <img src="/landing-presupuesto-real.png" alt="Presupuesto vs Real en FinCorp Premium" className="w-full" />
+          <img src="/landing-presupuesto-real.png" alt="Presupuesto vs Real en FinCorp Medio" className="w-full" />
         </div>
+      </section>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Plan Full */}
+      {/* ------------------------------------------------------------------ */}
+      <section
+        className="mb-6 rounded-2xl p-6 text-center sm:p-8"
+        style={{
+          background: 'color-mix(in srgb, var(--series-blue) 10%, var(--surface-1))',
+          border: '1px solid var(--series-blue)',
+        }}
+      >
+        <p className="text-sm font-semibold tracking-wide" style={{ color: 'var(--series-blue)' }}>
+          ⭐ Plan Full
+        </p>
+        <h2 className="mt-1 text-2xl font-semibold sm:text-3xl" style={{ color: 'var(--text-primary)' }}>
+          <span className="tabular">$100.000</span>
+          <span className="text-base font-normal" style={{ color: 'var(--text-muted)' }}>
+            {' '}
+            /mes
+          </span>
+        </h2>
+        <p className="mx-auto mt-2 max-w-2xl text-sm" style={{ color: 'var(--text-secondary)' }}>
+          Todo lo del plan Medio, más un sistema de gestión para usar todos los días. Cuanto más lo usás,
+          mejor quedan tus indicadores de CFO — se arman solos con lo que vas cargando.
+        </p>
+      </section>
+
+      <section className="mb-16 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {FEATURES_FULL.map((f) => (
+          <div
+            key={f.titulo}
+            className="rounded-lg border p-4"
+            style={{ borderColor: 'var(--series-blue)', background: 'color-mix(in srgb, var(--series-blue) 4%, var(--surface-1))' }}
+          >
+            <p className="text-xl">{f.icon}</p>
+            <p className="mt-1 font-semibold" style={{ color: 'var(--text-primary)' }}>
+              {f.titulo}
+            </p>
+            <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
+              {f.texto}
+            </p>
+          </div>
+        ))}
       </section>
 
       <section
@@ -207,7 +258,7 @@ export function HomePage() {
           ¿Listo para ordenar las finanzas de tu negocio?
         </h2>
         <p className="mx-auto mt-2 max-w-xl text-sm" style={{ color: 'var(--text-secondary)' }}>
-          Empezá con 15 días gratis y acceso Premium completo, sin tarjeta. Si preferís hablar antes,
+          Empezá con 15 días gratis y acceso Full completo, sin tarjeta. Si preferís hablar antes,
           escribime por WhatsApp y te cuento cuál de los planes se ajusta mejor a tu negocio.
         </p>
         <div className="mt-4 flex flex-wrap items-center justify-center gap-3">

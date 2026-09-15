@@ -10,7 +10,7 @@ export function AccesoEmpresas() {
   const pruebaIniciada = useRef(false)
 
   // Un usuario que nunca tuvo ningún plan registrado arranca automáticamente una prueba gratis
-  // de 15 días con acceso Premium completo — sin que tenga que elegir nada. Se activa en el
+  // de 15 días con acceso Full completo — sin que tenga que elegir nada. Se activa en el
   // servidor (con permisos de administrador) para que no se pueda reiniciar la prueba a mano.
   useEffect(() => {
     if (!habilitado || !user?.uid || cargandoPlan) return
@@ -56,8 +56,8 @@ export function AccesoEmpresas() {
 
   if (!habilitado) {
     // Sin Firebase configurado (entorno de desarrollo, por ejemplo): dejamos pasar sin bloqueo,
-    // con todas las funciones Premium habilitadas para poder probarlas.
-    return <EmpresasPage esPremium />
+    // con todas las funciones (incluido Full) habilitadas para poder probarlas.
+    return <EmpresasPage esPremium esFull />
   }
 
   if (cargandoAuth || (user && cargandoPlan)) {
@@ -104,11 +104,14 @@ export function AccesoEmpresas() {
           className="mb-6 flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm"
           style={{ borderColor: 'var(--series-blue)', background: 'var(--surface-1)', color: 'var(--series-blue)' }}
         >
-          🎁 Estás en tu prueba gratis de FinCorp Premium — te quedan {diasRestantesPrueba(plan)}{' '}
+          🎁 Estás en tu prueba gratis de FinCorp Full — te quedan {diasRestantesPrueba(plan)}{' '}
           {diasRestantesPrueba(plan) === 1 ? 'día' : 'días'}.
         </div>
       )}
-      <EmpresasPage esPremium={plan.plan === 'premium'} />
+      <EmpresasPage
+        esPremium={plan.plan === 'premium' || plan.plan === 'full'}
+        esFull={plan.plan === 'full'}
+      />
     </>
   )
 }

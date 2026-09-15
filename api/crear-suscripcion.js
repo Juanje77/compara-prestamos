@@ -4,7 +4,8 @@ import { obtenerFirestoreAdmin } from './_firebaseAdmin.js'
 
 const PLANES = {
   basico: { reason: 'FinCorp para empresas - Plan Básico', monto: 20000 },
-  premium: { reason: 'FinCorp para empresas - Plan Premium', monto: 50000 },
+  premium: { reason: 'FinCorp para empresas - Plan Medio', monto: 50000 },
+  full: { reason: 'FinCorp para empresas - Plan Full', monto: 100000 },
 }
 
 export default async function handler(req, res) {

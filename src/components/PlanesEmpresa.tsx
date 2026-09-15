@@ -29,7 +29,7 @@ const PLANES: PlanConfig[] = [
   },
   {
     key: 'premium',
-    nombre: 'Premium',
+    nombre: 'Medio',
     precio: 50000,
     descripcion: 'Todo lo del plan Básico, más herramientas de CFO para anticiparte a los problemas financieros.',
     features: [
@@ -38,10 +38,24 @@ const PLANES: PlanConfig[] = [
       'Proyección de caja con tasa de crecimiento y escenarios optimista/pesimista',
       'Alertas automáticas y recomendaciones accionables sobre qué hacer',
       'Comprobantes: ventas/compras netas, margen, IVA y ranking de clientes/proveedores',
-      'Proveedores clasificados y gestión de cheques (cartera, cobrado, vendido) para tu balance contable',
+      'Proveedores clasificados para que Presupuesto vs. Real se complete solo',
       'Posición de IVA e Ingresos Brutos mes a mes, con alícuota y retenciones editables a mano',
       'DSO/DPO y antigüedad de cuentas por cobrar y pagar',
       'Patrimonio y bienes realizables, con el runway extendido ante un quiebre de caja',
+    ],
+  },
+  {
+    key: 'full',
+    nombre: 'Full',
+    precio: 100000,
+    descripcion:
+      'Todo lo del plan Medio, más un sistema de gestión para usar todos los días: cuentas corrientes, remitos/presupuestos y cheques. Cuanto más lo usás, mejor quedan tus indicadores de CFO.',
+    features: [
+      'Todo lo incluido en el plan Medio',
+      'Cuentas corrientes por cliente y proveedor, con pagos parciales imputados automáticamente (FIFO)',
+      'Remitos y presupuestos con anticipos, para trabajos largos que se facturan al terminar',
+      'Gestión de cheques vinculados a tus facturas y cuentas corrientes, para tu balance contable',
+      'Todo se integra solo: un cheque o un anticipo cargado hoy ya actualiza tus indicadores de CFO',
     ],
   },
 ]
@@ -108,7 +122,7 @@ export function PlanesEmpresa({ motivoVencimiento }: Props) {
         </h1>
         <p className="mx-auto mt-2 max-w-xl text-sm" style={{ color: 'var(--text-secondary)' }}>
           {motivoVencimiento === 'prueba'
-            ? 'Ya usaste tus 15 días de prueba gratis con acceso Premium completo. Elegí un plan para seguir usando FinCorp.'
+            ? 'Ya usaste tus 15 días de prueba gratis con acceso Full completo. Elegí un plan para seguir usando FinCorp.'
             : motivoVencimiento === 'suscripcion'
               ? 'Reactivala eligiendo un plan para volver a acceder al dashboard financiero de tu negocio.'
               : 'Para acceder al dashboard financiero de tu negocio necesitás una suscripción activa.'}
@@ -116,12 +130,15 @@ export function PlanesEmpresa({ motivoVencimiento }: Props) {
         </p>
       </div>
 
-      <div className="mx-auto mb-8 grid max-w-3xl grid-cols-1 gap-6 sm:grid-cols-2">
+      <div className="mx-auto mb-8 grid max-w-5xl grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {PLANES.map((p) => (
           <div
             key={p.key}
             className="flex flex-col rounded-xl border p-6"
-            style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}
+            style={{
+              borderColor: p.key === 'full' ? 'var(--series-blue)' : 'var(--border)',
+              background: p.key === 'full' ? 'color-mix(in srgb, var(--series-blue) 4%, var(--surface-1))' : 'var(--surface-1)',
+            }}
           >
             <h2 className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>
               {p.nombre}
