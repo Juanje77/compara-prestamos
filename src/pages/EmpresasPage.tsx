@@ -609,8 +609,14 @@ export function EmpresasPage({ esPremium }: Props) {
   const rankingProveedores = useMemo(() => calcularRanking(facturas, 'recibida'), [facturas])
   const margenTotal = useMemo(() => calcularMargenBrutoTotal(facturas), [facturas])
   const aging = useMemo(() => calcularAgingCuentas(facturas, pagos), [facturas, pagos])
-  const cuentaCorrienteCobrar = useMemo(() => agruparCuentaCorriente(facturas, pagos, 'emitida'), [facturas, pagos])
-  const cuentaCorrientePagar = useMemo(() => agruparCuentaCorriente(facturas, pagos, 'recibida'), [facturas, pagos])
+  const cuentaCorrienteCobrar = useMemo(
+    () => agruparCuentaCorriente(facturas, pagos, remitos, anticipos, 'emitida'),
+    [facturas, pagos, remitos, anticipos],
+  )
+  const cuentaCorrientePagar = useMemo(
+    () => agruparCuentaCorriente(facturas, pagos, remitos, anticipos, 'recibida'),
+    [facturas, pagos, remitos, anticipos],
+  )
   const remitosCobrar = useMemo(() => listarRemitosPendientes(remitos, anticipos, 'emitida'), [remitos, anticipos])
   const remitosPagar = useMemo(() => listarRemitosPendientes(remitos, anticipos, 'recibida'), [remitos, anticipos])
   const contrapartesClientes = useMemo(

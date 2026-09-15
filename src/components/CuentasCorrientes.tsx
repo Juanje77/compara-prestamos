@@ -1,6 +1,11 @@
 import { useState } from 'react'
-import type { CuentaCorrienteContraparte, MedioPago, Pago, TipoFactura } from '../lib/cfo'
+import type { CuentaCorrienteContraparte, MedioPago, Pago, TipoDocumentoAnticipo, TipoFactura } from '../lib/cfo'
 import { MEDIOS_PAGO_LABEL } from '../lib/cfo'
+
+const DOCUMENTO_LABEL: Record<TipoDocumentoAnticipo, string> = {
+  remito: 'Remito',
+  presupuesto: 'Presupuesto',
+}
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
 
@@ -55,8 +60,11 @@ function TarjetaContraparte({
         </p>
       </div>
       <p className="mt-0.5 text-xs" style={{ color: 'var(--text-muted)' }}>
-        Facturado {formatoMoneda(grupo.totalFacturado)} · Pagado {formatoMoneda(grupo.totalPagado)} ·{' '}
-        {grupo.facturas.length} factura{grupo.facturas.length === 1 ? '' : 's'} pendiente{grupo.facturas.length === 1 ? '' : 's'}
+        Facturado {formatoMoneda(grupo.totalFacturado)} · Pagado/anticipado {formatoMoneda(grupo.totalPagado)} ·{' '}
+        {grupo.facturas.length} factura{grupo.facturas.length === 1 ? '' : 's'} pendiente
+        {grupo.facturas.length === 1 ? '' : 's'}
+        {grupo.remitos.length > 0 &&
+          ` · ${grupo.remitos.length} remito/presupuesto${grupo.remitos.length === 1 ? '' : 's'} sin facturar`}
       </p>
 
       <form onSubmit={handleSubmit} className="mt-3 flex flex-wrap gap-2">
@@ -96,7 +104,8 @@ function TarjetaContraparte({
         </button>
       </form>
       <p className="mt-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
-        Se aplica primero a la factura pendiente más antigua.
+        Se aplica primero a la factura pendiente más antigua
+        {grupo.remitos.length > 0 && ' (no a los remitos/presupuestos, que se anticipan desde su propia solapa)'}.
       </p>
 
       <button
@@ -105,7 +114,8 @@ function TarjetaContraparte({
         style={{ color: 'var(--text-secondary)' }}
       >
         {expandido ? '▾' : '▸'} Ver detalle ({grupo.facturas.length} factura{grupo.facturas.length === 1 ? '' : 's'}
-        {pagosDeEstaCuenta.length > 0 ? `, ${pagosDeEstaCuenta.length} pago(s)` : ''})
+        {pagosDeEstaCuenta.length > 0 ? `, ${pagosDeEstaCuenta.length} pago(s)` : ''}
+        {grupo.remitos.length > 0 ? `, ${grupo.remitos.length} remito/presupuesto(s)` : ''})
       </button>
 
       {expandido && (
@@ -139,6 +149,38 @@ function TarjetaContraparte({
               </li>
             ))}
           </ul>
+          {grupo.remitos.length > 0 && (
+            <ul className="space-y-1 text-xs">
+              {grupo.remitos.map((r) => (
+                <li
+                  key={r.id}
+                  className="flex flex-wrap items-center gap-2 rounded border px-2 py-1"
+                  style={{ borderColor: 'var(--gridline)' }}
+                >
+                  <span
+                    className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
+                    style={{ background: 'var(--gridline)', color: 'var(--text-secondary)' }}
+                  >
+                    {DOCUMENTO_LABEL[r.tipoDocumento]}
+                  </span>
+                  <span className="tabular shrink-0" style={{ color: 'var(--text-muted)' }}>
+                    {new Date(`${r.fecha}T00:00:00`).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}
+                  </span>
+                  <span className="tabular flex-1" style={{ color: 'var(--text-secondary)' }}>
+                    {formatoMoneda(r.monto)} total
+                  </span>
+                  {r.montoAnticipado > 0 && (
+                    <span className="tabular shrink-0" style={{ color: 'var(--status-good-text)' }}>
+                      {formatoMoneda(r.montoAnticipado)} anticipado
+                    </span>
+                  )}
+                  <span className="tabular shrink-0 font-semibold" style={{ color: 'var(--text-primary)' }}>
+                    {formatoMoneda(r.saldo)} saldo
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
           {pagosDeEstaCuenta.length > 0 && (
             <ul className="space-y-1 text-xs">
               {pagosDeEstaCuenta.map((p) => (
@@ -242,10 +284,11 @@ export function CuentasCorrientes({ cuentasCobrar, cuentasPagar, pagos, onAplica
   return (
     <div className="space-y-6">
       <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-        Saldo pendiente por cliente y proveedor a partir de tus comprobantes cargados. Registrá un pago a
-        cuenta y se va imputando automáticamente a la factura pendiente más antigua de esa cuenta — así
-        podés ir cancelando una deuda grande de a partes, sin tener que marcar cada factura entera como
-        cobrada o pagada.
+        Saldo pendiente por cliente y proveedor, sumando tanto las facturas cargadas en Comprobantes como los
+        remitos y presupuestos todavía sin facturar (con lo que ya anticiparon). Registrá un pago a cuenta y
+        se va imputando automáticamente a la factura pendiente más antigua de esa cuenta — así podés ir
+        cancelando una deuda grande de a partes, sin tener que marcar cada factura entera como cobrada o
+        pagada. Los anticipos de remitos/presupuestos se cargan desde su propia solapa.
       </p>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Columna

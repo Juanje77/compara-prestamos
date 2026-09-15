@@ -1071,36 +1071,66 @@ export interface CuentaCorrienteContraparte {
   saldo: number
   /** Solo las facturas todavía con saldo, ordenadas de la más vieja a la más nueva (para FIFO). */
   facturas: FacturaConSaldo[]
+  /** Remitos/presupuestos todavía sin facturar de esta misma cuenta, con lo ya anticipado — ver
+   * RemitosPresupuestos. Se muestran acá para ver la exposición total con el cliente/proveedor,
+   * pero "Registrar pago" (FIFO) solo se aplica a las facturas: los anticipos de un remito se
+   * registran desde su propia solapa. */
+  remitos: RemitoConSaldo[]
 }
 
-/** Agrupa por cliente (emitidas) o proveedor (recibidas) las facturas no cumplidas que todavía
- * tienen saldo, para armar la cuenta corriente de cada uno. Las notas de crédito/débito no entran
- * (no se pagan de a partes) y las facturas ya saldadas del todo por pagos parciales tampoco,
- * aunque no se hayan tildado "cumplida" a mano todavía. */
-export function agruparCuentaCorriente(facturas: Factura[], pagos: Pago[], tipo: TipoFactura): CuentaCorrienteContraparte[] {
-  const porContraparte = new Map<string, Factura[]>()
+/** Agrupa por cliente (emitidas) o proveedor (recibidas) tanto las facturas no cumplidas con
+ * saldo como los remitos/presupuestos todavía sin facturar, para armar la cuenta corriente
+ * completa de cada uno. Las notas de crédito/débito no entran (no se pagan de a partes) y las
+ * facturas ya saldadas del todo por pagos parciales tampoco, aunque no se hayan tildado
+ * "cumplida" a mano todavía. */
+export function agruparCuentaCorriente(
+  facturas: Factura[],
+  pagos: Pago[],
+  remitos: RemitoPresupuesto[],
+  anticipos: Anticipo[],
+  tipo: TipoFactura,
+): CuentaCorrienteContraparte[] {
+  const facturasPorContraparte = new Map<string, Factura[]>()
   for (const f of facturas) {
     if (f.tipo !== tipo || f.tipoComprobante !== 'factura' || f.cumplido) continue
-    const lista = porContraparte.get(f.contraparte) ?? []
+    const lista = facturasPorContraparte.get(f.contraparte) ?? []
     lista.push(f)
-    porContraparte.set(f.contraparte, lista)
+    facturasPorContraparte.set(f.contraparte, lista)
   }
+  const remitosPorContraparte = new Map<string, RemitoPresupuesto[]>()
+  for (const r of remitos) {
+    if (r.tipo !== tipo || r.estado !== 'pendiente') continue
+    const lista = remitosPorContraparte.get(r.contraparte) ?? []
+    lista.push(r)
+    remitosPorContraparte.set(r.contraparte, lista)
+  }
+
+  const contrapartes = new Set([...facturasPorContraparte.keys(), ...remitosPorContraparte.keys()])
   const resultado: CuentaCorrienteContraparte[] = []
-  for (const [contraparte, lista] of porContraparte) {
-    const facturasConSaldo: FacturaConSaldo[] = lista
+  for (const contraparte of contrapartes) {
+    const facturasConSaldo: FacturaConSaldo[] = (facturasPorContraparte.get(contraparte) ?? [])
       .map((f) => {
         const montoPagado = calcularMontoPagado(f.id, pagos)
         return { ...f, montoPagado, saldo: Math.max(0, f.monto - montoPagado) }
       })
       .filter((f) => f.saldo > 0)
       .sort((a, b) => a.fecha.localeCompare(b.fecha))
-    if (facturasConSaldo.length === 0) continue
+    const remitosConSaldo: RemitoConSaldo[] = (remitosPorContraparte.get(contraparte) ?? [])
+      .map((r) => {
+        const montoAnticipado = calcularMontoAnticipado(r.id, anticipos)
+        return { ...r, montoAnticipado, saldo: Math.max(0, r.monto - montoAnticipado) }
+      })
+      .filter((r) => r.saldo > 0)
+      .sort((a, b) => a.fecha.localeCompare(b.fecha))
+    if (facturasConSaldo.length === 0 && remitosConSaldo.length === 0) continue
     resultado.push({
       contraparte,
-      totalFacturado: facturasConSaldo.reduce((s, f) => s + f.monto, 0),
-      totalPagado: facturasConSaldo.reduce((s, f) => s + f.montoPagado, 0),
-      saldo: facturasConSaldo.reduce((s, f) => s + f.saldo, 0),
+      totalFacturado: facturasConSaldo.reduce((s, f) => s + f.monto, 0) + remitosConSaldo.reduce((s, r) => s + r.monto, 0),
+      totalPagado:
+        facturasConSaldo.reduce((s, f) => s + f.montoPagado, 0) + remitosConSaldo.reduce((s, r) => s + r.montoAnticipado, 0),
+      saldo: facturasConSaldo.reduce((s, f) => s + f.saldo, 0) + remitosConSaldo.reduce((s, r) => s + r.saldo, 0),
       facturas: facturasConSaldo,
+      remitos: remitosConSaldo,
     })
   }
   return resultado.sort((a, b) => b.saldo - a.saldo)
