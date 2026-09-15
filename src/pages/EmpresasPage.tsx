@@ -342,6 +342,12 @@ export function EmpresasPage({ esPremium }: Props) {
 
   function handleAgregarCheque(cheque: Omit<Cheque, 'id'>) {
     setCheques((prev) => [...prev, { ...cheque, id: generarId() }])
+    if (cheque.facturasIds && cheque.facturasIds.length > 0) {
+      const idsFactura = new Set(cheque.facturasIds)
+      setFacturas((prev) =>
+        prev.map((f) => (idsFactura.has(f.id) ? { ...f, cumplido: true, medioPago: 'cheque' } : f)),
+      )
+    }
   }
 
   function handleCambiarEstadoCheque(id: string, estado: EstadoCheque) {
@@ -353,6 +359,13 @@ export function EmpresasPage({ esPremium }: Props) {
   }
 
   function handleEliminarCheque(id: string) {
+    const cheque = cheques.find((c) => c.id === id)
+    if (cheque?.facturasIds && cheque.facturasIds.length > 0) {
+      const idsFactura = new Set(cheque.facturasIds)
+      setFacturas((prev) =>
+        prev.map((f) => (idsFactura.has(f.id) ? { ...f, cumplido: false, medioPago: undefined } : f)),
+      )
+    }
     setCheques((prev) => prev.filter((c) => c.id !== id))
   }
 
@@ -589,6 +602,8 @@ export function EmpresasPage({ esPremium }: Props) {
         <CobranzasPagosSemanal
           facturas={esPremium ? facturas : undefined}
           onCambiarFactura={esPremium ? handleCambiarFactura : undefined}
+          cheques={esPremium ? cheques : undefined}
+          onCambiarEstadoCheque={esPremium ? handleCambiarEstadoCheque : undefined}
         />
       )}
 
@@ -652,6 +667,7 @@ export function EmpresasPage({ esPremium }: Props) {
         >
           <Cheques
             cheques={cheques}
+            facturas={facturas}
             onAgregar={handleAgregarCheque}
             onCambiarEstado={handleCambiarEstadoCheque}
             onCambiarComision={handleCambiarComisionCheque}

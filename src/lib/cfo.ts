@@ -825,6 +825,10 @@ export interface Cheque {
   /** Comisión/interés que cobró el banco por descontarlo antes de la fecha de cobro — solo
    * aplica con estado "vendido". */
   comisionDescuento?: number
+  /** Facturas de Comprobantes que este cheque abona (ventas si es recibido, compras si es
+   * emitido). Al vincularlas quedan marcadas como cumplidas con medioPago "cheque" y dejan de
+   * listarse por separado en Cobranzas y pagos — el cheque las representa a todas juntas ahí. */
+  facturasIds?: string[]
 }
 
 /** Cuánto entró realmente a la cuenta por este cheque: si se vendió (descontó), el monto menos la

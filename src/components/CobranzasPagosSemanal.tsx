@@ -18,12 +18,14 @@ import { formatoMoneda } from '../lib/finance'
 import { descargarPdfCobranzasSemanal } from '../lib/pdf'
 import { cargarDatosUsuario, guardarDatosUsuario } from '../lib/userSync'
 import { useAuth } from '../lib/AuthContext'
-import { MEDIOS_PAGO_LABEL, type Factura, type MedioPago } from '../lib/cfo'
+import { MEDIOS_PAGO_LABEL, type Cheque, type EstadoCheque, type Factura, type MedioPago } from '../lib/cfo'
 import { InputMoneda } from './InputMoneda'
 
 /** Los movimientos generados a partir de una factura llevan este prefijo en el id, para poder
  * distinguirlos de los cargados a mano (que no se pueden borrar ni editar desde acá). */
 const PREFIJO_FACTURA = 'factura:'
+/** Ídem para los movimientos generados a partir de un cheque (ver chequeAMovimiento). */
+const PREFIJO_CHEQUE = 'cheque:'
 
 function hoyISO(): string {
   return new Date().toISOString().slice(0, 10)
@@ -74,6 +76,20 @@ function facturaAMovimiento(f: Factura): Movimiento {
     fecha: f.fechaEstimadaCobroPago ?? f.fecha,
     cumplido: f.cumplido ?? false,
     medioPago: f.medioPago,
+  }
+}
+
+/** Un cheque "cobrado" (o "vendido", si es recibido) ya se hizo efectivo; uno rechazado sigue
+ * pendiente de resolución, así que se muestra igual que uno en cartera. */
+function chequeAMovimiento(c: Cheque): Movimiento {
+  return {
+    id: `${PREFIJO_CHEQUE}${c.id}`,
+    tipo: c.tipo === 'recibido' ? 'cobro' : 'pago',
+    concepto: `${c.contraparte} (cheque${c.numero ? ` ${c.numero}` : ''})`,
+    monto: c.monto,
+    fecha: c.fechaCobro,
+    cumplido: c.estado === 'cobrado' || c.estado === 'vendido',
+    medioPago: 'cheque',
   }
 }
 
@@ -135,6 +151,7 @@ function FilaMovimiento({
 }) {
   const etiqueta = etiquetaSemana(m.fecha, semanas)
   const deFactura = m.id.startsWith(PREFIJO_FACTURA)
+  const deCheque = m.id.startsWith(PREFIJO_CHEQUE)
   return (
     <li
       className="flex items-center gap-3 rounded-lg border px-3 py-2 text-sm"
@@ -161,9 +178,10 @@ function FilaMovimiento({
           color: 'var(--text-primary)',
           textDecoration: m.cumplido ? 'line-through' : 'none',
         }}
-        title={deFactura ? 'Generado desde Comprobantes' : undefined}
+        title={deFactura ? 'Generado desde Comprobantes' : deCheque ? 'Generado desde Cheques' : undefined}
       >
         {deFactura && '🧾 '}
+        {deCheque && '🏦 '}
         {m.concepto}
       </span>
       <span className="tabular shrink-0 text-xs" style={{ color: 'var(--text-muted)' }}>
@@ -175,7 +193,7 @@ function FilaMovimiento({
       >
         {etiqueta.texto}
       </span>
-      {m.cumplido && (
+      {m.cumplido && !deCheque && (
         <select
           value={m.medioPago ?? ''}
           onChange={(e) => onCambiarMedioPago(m.id, (e.target.value || undefined) as MedioPago | undefined)}
@@ -198,7 +216,7 @@ function FilaMovimiento({
       <span className="tabular shrink-0 font-medium" style={{ color: 'var(--text-primary)' }}>
         {formatoMoneda(m.monto)}
       </span>
-      {!deFactura && (
+      {!deFactura && !deCheque && (
         <button
           onClick={() => onEliminar(m.id)}
           aria-label="Eliminar"
@@ -453,22 +471,34 @@ function ColumnaMovimientos({
 interface Props {
   facturas?: Factura[]
   onCambiarFactura?: (id: string, cambios: Partial<Pick<Factura, 'cumplido' | 'medioPago'>>) => void
+  cheques?: Cheque[]
+  onCambiarEstadoCheque?: (id: string, estado: EstadoCheque) => void
 }
 
-export function CobranzasPagosSemanal({ facturas = [], onCambiarFactura }: Props) {
+export function CobranzasPagosSemanal({ facturas = [], onCambiarFactura, cheques = [], onCambiarEstadoCheque }: Props) {
   const { user } = useAuth()
   const hoy = useFechaActual()
   const [movimientos, setMovimientos] = useState<Movimiento[]>(() => obtenerMovimientos())
   const [errorImport, setErrorImport] = useState<string | null>(null)
   const [importandoTipo, setImportandoTipo] = useState<TipoMovimiento | null>(null)
 
-  const movimientosDeFacturas = useMemo(
-    () => facturas.filter((f) => f.tipoComprobante !== 'nota_credito').map(facturaAMovimiento),
-    [facturas],
+  // Las facturas que ya están abonadas por un cheque no se listan por separado acá — el cheque
+  // las representa a todas juntas con un solo movimiento (ver chequeAMovimiento).
+  const facturasCubiertasPorCheque = useMemo(
+    () => new Set(cheques.flatMap((c) => c.facturasIds ?? [])),
+    [cheques],
   )
+  const movimientosDeFacturas = useMemo(
+    () =>
+      facturas
+        .filter((f) => f.tipoComprobante !== 'nota_credito' && !facturasCubiertasPorCheque.has(f.id))
+        .map(facturaAMovimiento),
+    [facturas, facturasCubiertasPorCheque],
+  )
+  const movimientosDeCheques = useMemo(() => cheques.map(chequeAMovimiento), [cheques])
   const todosMovimientos = useMemo(
-    () => [...movimientos, ...movimientosDeFacturas],
-    [movimientos, movimientosDeFacturas],
+    () => [...movimientos, ...movimientosDeFacturas, ...movimientosDeCheques],
+    [movimientos, movimientosDeFacturas, movimientosDeCheques],
   )
 
   const [nubeLista, setNubeLista] = useState(false)
@@ -521,6 +551,12 @@ export function CobranzasPagosSemanal({ facturas = [], onCambiarFactura }: Props
       onCambiarFactura?.(facturaId, { cumplido: !actual?.cumplido })
       return
     }
+    if (id.startsWith(PREFIJO_CHEQUE)) {
+      const chequeId = id.slice(PREFIJO_CHEQUE.length)
+      const actual = movimientosDeCheques.find((m) => m.id === id)
+      onCambiarEstadoCheque?.(chequeId, actual?.cumplido ? 'cartera' : 'cobrado')
+      return
+    }
     alternarCumplido(id)
     refrescar()
   }
@@ -532,9 +568,13 @@ export function CobranzasPagosSemanal({ facturas = [], onCambiarFactura }: Props
 
   function handleMarcarVarios(ids: string[], cumplido: boolean) {
     const idsFactura = ids.filter((id) => id.startsWith(PREFIJO_FACTURA))
-    const idsManual = ids.filter((id) => !id.startsWith(PREFIJO_FACTURA))
+    const idsCheque = ids.filter((id) => id.startsWith(PREFIJO_CHEQUE))
+    const idsManual = ids.filter((id) => !id.startsWith(PREFIJO_FACTURA) && !id.startsWith(PREFIJO_CHEQUE))
     for (const id of idsFactura) {
       onCambiarFactura?.(id.slice(PREFIJO_FACTURA.length), { cumplido })
+    }
+    for (const id of idsCheque) {
+      onCambiarEstadoCheque?.(id.slice(PREFIJO_CHEQUE.length), cumplido ? 'cobrado' : 'cartera')
     }
     if (idsManual.length > 0) {
       marcarCumplidoVarios(idsManual, cumplido)
@@ -740,6 +780,14 @@ export function CobranzasPagosSemanal({ facturas = [], onCambiarFactura }: Props
             Los ítems marcados con 🧾 vienen de tus facturas cargadas en "Comprobantes" — tildarlos acá
             marca la factura como cobrada/pagada, y no se pueden borrar desde acá (se gestionan desde esa
             pestaña).
+          </>
+        )}
+        {cheques.length > 0 && (
+          <>
+            {' '}
+            Los ítems marcados con 🏦 vienen de tus cheques cargados en "Cheques" — tildarlos acá lo marca
+            como cobrado/pagado. Si un cheque tiene facturas asociadas, esas facturas no se listan por
+            separado (el cheque las representa a todas juntas).
           </>
         )}
       </p>

@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import type { Cheque, EstadoCheque, TipoCheque } from '../lib/cfo'
+import type { Cheque, EstadoCheque, Factura, TipoCheque } from '../lib/cfo'
 import { calcularTotalesCheques, estadosChequeDisponibles, etiquetaEstadoCheque, montoNetoCheque } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
 
 interface Props {
   cheques: Cheque[]
+  facturas: Factura[]
   onAgregar: (cheque: Omit<Cheque, 'id'>) => void
   onCambiarEstado: (id: string, estado: EstadoCheque) => void
   onCambiarComision: (id: string, comisionDescuento: number) => void
@@ -16,7 +17,7 @@ function hoyISO(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
-export function Cheques({ cheques, onAgregar, onCambiarEstado, onCambiarComision, onEliminar }: Props) {
+export function Cheques({ cheques, facturas, onAgregar, onCambiarEstado, onCambiarComision, onEliminar }: Props) {
   const [tipo, setTipo] = useState<TipoCheque>('recibido')
   const [numero, setNumero] = useState('')
   const [banco, setBanco] = useState('')
@@ -24,9 +25,35 @@ export function Cheques({ cheques, onAgregar, onCambiarEstado, onCambiarComision
   const [monto, setMonto] = useState(0)
   const [fechaEmision, setFechaEmision] = useState(hoyISO)
   const [fechaCobro, setFechaCobro] = useState(hoyISO)
+  const [facturasSeleccionadas, setFacturasSeleccionadas] = useState<Set<string>>(new Set())
 
   const totales = calcularTotalesCheques(cheques)
   const listado = [...cheques].sort((a, b) => a.fechaCobro.localeCompare(b.fechaCobro))
+
+  const facturasCubiertas = new Set(cheques.flatMap((c) => c.facturasIds ?? []))
+  const facturasElegibles = facturas.filter(
+    (f) =>
+      f.tipo === (tipo === 'recibido' ? 'emitida' : 'recibida') &&
+      f.tipoComprobante !== 'nota_credito' &&
+      !f.cumplido &&
+      !facturasCubiertas.has(f.id),
+  )
+
+  function cambiarTipo(nuevoTipo: TipoCheque) {
+    setTipo(nuevoTipo)
+    setFacturasSeleccionadas(new Set())
+  }
+
+  function alternarFactura(id: string) {
+    setFacturasSeleccionadas((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      const total = facturasElegibles.filter((f) => next.has(f.id)).reduce((s, f) => s + f.monto, 0)
+      if (next.size > 0) setMonto(total)
+      return next
+    })
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -40,11 +67,13 @@ export function Cheques({ cheques, onAgregar, onCambiarEstado, onCambiarComision
       fechaEmision,
       fechaCobro,
       estado: 'cartera',
+      facturasIds: facturasSeleccionadas.size > 0 ? [...facturasSeleccionadas] : undefined,
     })
     setNumero('')
     setBanco('')
     setContraparte('')
     setMonto(0)
+    setFacturasSeleccionadas(new Set())
   }
 
   return (
@@ -62,7 +91,7 @@ export function Cheques({ cheques, onAgregar, onCambiarEstado, onCambiarComision
         <form onSubmit={handleSubmit} className="flex flex-wrap gap-2">
           <select
             value={tipo}
-            onChange={(e) => setTipo(e.target.value as TipoCheque)}
+            onChange={(e) => cambiarTipo(e.target.value as TipoCheque)}
             className="shrink-0 rounded-lg border px-3 py-1.5 text-sm"
             style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
           >
@@ -128,6 +157,40 @@ export function Cheques({ cheques, onAgregar, onCambiarEstado, onCambiarComision
             Agregar
           </button>
         </form>
+
+        {facturasElegibles.length > 0 && (
+          <div className="mt-4 border-t pt-4" style={{ borderColor: 'var(--gridline)' }}>
+            <p className="mb-2 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+              {tipo === 'recibido' ? 'Facturas de venta que cobra este cheque' : 'Facturas de compra que paga este cheque'}{' '}
+              <span style={{ color: 'var(--text-secondary)' }}>(opcional)</span>
+            </p>
+            <ul className="max-h-40 space-y-1 overflow-y-auto">
+              {facturasElegibles.map((f) => (
+                <li key={f.id}>
+                  <label className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    <input
+                      type="checkbox"
+                      checked={facturasSeleccionadas.has(f.id)}
+                      onChange={() => alternarFactura(f.id)}
+                      className="h-3.5 w-3.5 shrink-0"
+                    />
+                    <span className="min-w-[100px] flex-1 truncate">{f.contraparte}</span>
+                    <span className="tabular shrink-0 text-xs" style={{ color: 'var(--text-muted)' }}>
+                      {new Date(`${f.fecha}T00:00:00`).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}
+                    </span>
+                    <span className="tabular shrink-0 font-medium">{formatoMoneda(f.monto)}</span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+            {facturasSeleccionadas.size > 0 && (
+              <p className="mt-2 text-xs" style={{ color: 'var(--series-blue)' }}>
+                {facturasSeleccionadas.size} factura(s) seleccionada(s) — el monto de arriba se completó con su total.
+                Al agregar el cheque quedan marcadas como {tipo === 'recibido' ? 'cobradas' : 'pagadas'}.
+              </p>
+            )}
+          </div>
+        )}
       </section>
 
       {cheques.length === 0 ? (
@@ -200,6 +263,15 @@ export function Cheques({ cheques, onAgregar, onCambiarEstado, onCambiarComision
                   </span>
                   <span className="min-w-[100px] flex-1 truncate" style={{ color: 'var(--text-primary)' }}>
                     {c.contraparte}
+                    {c.facturasIds && c.facturasIds.length > 0 && (
+                      <span
+                        className="ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+                        style={{ background: 'var(--gridline)', color: 'var(--text-muted)' }}
+                        title="Facturas que abona este cheque"
+                      >
+                        🧾 {c.facturasIds.length}
+                      </span>
+                    )}
                   </span>
                   <span className="tabular shrink-0 text-xs" style={{ color: 'var(--text-muted)' }}>
                     Cobro {new Date(`${c.fechaCobro}T00:00:00`).toLocaleDateString('es-AR')}
