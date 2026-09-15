@@ -89,6 +89,7 @@ import {
   type TipoMovimientoStock,
 } from '../lib/cfo'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
+import { exportarParaContador } from '../lib/contadorExport'
 import { abrirInformeFinanciero, abrirInformeSaludFinanciera } from '../lib/htmlReport'
 import { cargarNegocioData, guardarNegocioData } from '../lib/negocioData'
 import { cargarDatosUsuario, guardarDatosUsuario } from '../lib/userSync'
@@ -1066,6 +1067,19 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     })
   }
 
+  async function handleExportarContador() {
+    await exportarParaContador({
+      nombreNegocio,
+      facturas,
+      esFull,
+      cuentaCorrienteCobrar,
+      cuentaCorrientePagar,
+      cheques,
+      cuentas,
+      movimientosTesoreria,
+    })
+  }
+
   function abrirPlanes() {
     setMostrarPlanes(true)
   }
@@ -1169,6 +1183,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
             onCambiar={handleCambiarFactura}
             onEliminar={handleEliminarFactura}
             onVaciar={handleVaciarFacturas}
+            onExportarContador={handleExportarContador}
             onDescargarInforme={handleDescargarInformeSalud}
           />
         </PremiumLock>

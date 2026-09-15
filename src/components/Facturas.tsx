@@ -32,6 +32,7 @@ interface Props {
   ) => void
   onEliminar: (id: string) => void
   onVaciar: () => void
+  onExportarContador: () => Promise<void>
   onDescargarInforme: () => void
 }
 
@@ -92,7 +93,31 @@ function EvolucionTooltip({ active, payload }: { active?: boolean; payload?: { p
   )
 }
 
-export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarVarias, onCambiar, onEliminar, onVaciar, onDescargarInforme }: Props) {
+function BotonExportarContador({ onExportar }: { onExportar: Props['onExportarContador'] }) {
+  const [exportando, setExportando] = useState(false)
+
+  async function handleClick() {
+    setExportando(true)
+    try {
+      await onExportar()
+    } finally {
+      setExportando(false)
+    }
+  }
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={exportando}
+      className="shrink-0 rounded-full border px-4 py-1.5 text-xs font-medium disabled:opacity-60"
+      style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
+    >
+      {exportando ? 'Exportando…' : '📊 Exportar para el contador'}
+    </button>
+  )
+}
+
+export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarVarias, onCambiar, onEliminar, onVaciar, onExportarContador, onDescargarInforme }: Props) {
   const [tipo, setTipo] = useState<TipoFactura>('emitida')
   const [tipoComprobante, setTipoComprobante] = useState<TipoComprobante>('factura')
   const [contraparte, setContraparte] = useState('')
@@ -198,13 +223,16 @@ export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarV
             Comprobantes
           </h2>
           {facturas.length > 0 && (
-            <button
-              onClick={onDescargarInforme}
-              className="shrink-0 rounded-full border px-4 py-1.5 text-xs font-medium"
-              style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
-            >
-              📊 Descargar informe en PDF
-            </button>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <BotonExportarContador onExportar={onExportarContador} />
+              <button
+                onClick={onDescargarInforme}
+                className="shrink-0 rounded-full border px-4 py-1.5 text-xs font-medium"
+                style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
+              >
+                📊 Descargar informe en PDF
+              </button>
+            </div>
           )}
         </div>
         <p className="mb-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
