@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { CuentaCorrienteContraparte, MedioPago, Pago, TipoDocumentoAnticipo, TipoFactura } from '../lib/cfo'
+import type { CuentaBancaria, CuentaCorrienteContraparte, MedioPago, Pago, TipoDocumentoAnticipo, TipoFactura } from '../lib/cfo'
 import { MEDIOS_PAGO_LABEL } from '../lib/cfo'
 
 const DOCUMENTO_LABEL: Record<TipoDocumentoAnticipo, string> = {
@@ -13,7 +13,16 @@ interface Props {
   cuentasCobrar: CuentaCorrienteContraparte[]
   cuentasPagar: CuentaCorrienteContraparte[]
   pagos: Pago[]
-  onAplicarPago: (contraparte: string, tipo: TipoFactura, monto: number, fecha: string, medioPago: MedioPago | undefined) => void
+  /** Cuentas bancarias/caja (plan Full) para elegir por dónde entró/salió cada pago a cuenta. */
+  cuentasBancarias?: CuentaBancaria[]
+  onAplicarPago: (
+    contraparte: string,
+    tipo: TipoFactura,
+    monto: number,
+    fecha: string,
+    medioPago: MedioPago | undefined,
+    cuentaId?: string,
+  ) => void
   onEliminarPago: (id: string) => void
 }
 
@@ -25,18 +34,21 @@ function TarjetaContraparte({
   grupo,
   tipo,
   pagos,
+  cuentasBancarias,
   onAplicarPago,
   onEliminarPago,
 }: {
   grupo: CuentaCorrienteContraparte
   tipo: TipoFactura
   pagos: Pago[]
+  cuentasBancarias?: CuentaBancaria[]
   onAplicarPago: Props['onAplicarPago']
   onEliminarPago: Props['onEliminarPago']
 }) {
   const [monto, setMonto] = useState(0)
   const [fecha, setFecha] = useState(hoyISO)
   const [medioPago, setMedioPago] = useState<MedioPago | ''>('')
+  const [cuentaId, setCuentaId] = useState('')
   const [expandido, setExpandido] = useState(false)
 
   const idsFacturas = new Set(grupo.facturas.map((f) => f.id))
@@ -45,7 +57,7 @@ function TarjetaContraparte({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!monto || monto <= 0) return
-    onAplicarPago(grupo.contraparte, tipo, monto, fecha, medioPago || undefined)
+    onAplicarPago(grupo.contraparte, tipo, monto, fecha, medioPago || undefined, cuentaId || undefined)
     setMonto(0)
   }
 
@@ -95,6 +107,21 @@ function TarjetaContraparte({
             </option>
           ))}
         </select>
+        {medioPago && medioPago !== 'cheque' && cuentasBancarias && cuentasBancarias.length > 0 && (
+          <select
+            value={cuentaId}
+            onChange={(e) => setCuentaId(e.target.value)}
+            className="shrink-0 rounded-lg border px-2 py-1 text-sm"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+          >
+            <option value="">Cuenta…</option>
+            {cuentasBancarias.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nombre}
+              </option>
+            ))}
+          </select>
+        )}
         <button
           type="submit"
           className="shrink-0 rounded-lg px-3 py-1 text-sm font-semibold text-white transition-opacity hover:opacity-90"
@@ -215,6 +242,7 @@ function Columna({
   grupos,
   tipo,
   pagos,
+  cuentasBancarias,
   onAplicarPago,
   onEliminarPago,
 }: {
@@ -222,6 +250,7 @@ function Columna({
   grupos: CuentaCorrienteContraparte[]
   tipo: TipoFactura
   pagos: Pago[]
+  cuentasBancarias?: CuentaBancaria[]
   onAplicarPago: Props['onAplicarPago']
   onEliminarPago: Props['onEliminarPago']
 }) {
@@ -268,6 +297,7 @@ function Columna({
                   grupo={g}
                   tipo={tipo}
                   pagos={pagos}
+                  cuentasBancarias={cuentasBancarias}
                   onAplicarPago={onAplicarPago}
                   onEliminarPago={onEliminarPago}
                 />
@@ -280,7 +310,7 @@ function Columna({
   )
 }
 
-export function CuentasCorrientes({ cuentasCobrar, cuentasPagar, pagos, onAplicarPago, onEliminarPago }: Props) {
+export function CuentasCorrientes({ cuentasCobrar, cuentasPagar, pagos, cuentasBancarias, onAplicarPago, onEliminarPago }: Props) {
   return (
     <div className="space-y-6">
       <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
@@ -296,6 +326,7 @@ export function CuentasCorrientes({ cuentasCobrar, cuentasPagar, pagos, onAplica
           grupos={cuentasCobrar}
           tipo="emitida"
           pagos={pagos}
+          cuentasBancarias={cuentasBancarias}
           onAplicarPago={onAplicarPago}
           onEliminarPago={onEliminarPago}
         />
@@ -304,6 +335,7 @@ export function CuentasCorrientes({ cuentasCobrar, cuentasPagar, pagos, onAplica
           grupos={cuentasPagar}
           tipo="recibida"
           pagos={pagos}
+          cuentasBancarias={cuentasBancarias}
           onAplicarPago={onAplicarPago}
           onEliminarPago={onEliminarPago}
         />

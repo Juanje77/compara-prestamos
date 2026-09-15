@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import type { Factura, Pago, TendenciaMensual, TipoComprobante, TipoFactura } from '../lib/cfo'
+import type { CuentaBancaria, Factura, Pago, TendenciaMensual, TipoComprobante, TipoFactura } from '../lib/cfo'
 import {
   MEDIOS_PAGO_LABEL,
   calcularAgingCuentas,
@@ -22,9 +22,14 @@ import { InfoTooltip } from './InfoTooltip'
 interface Props {
   facturas: Factura[]
   pagos?: Pago[]
+  /** Solo se pasa con el plan Full — habilita elegir con qué cuenta se cobró/pagó cada factura. */
+  cuentas?: CuentaBancaria[]
   onAgregar: (factura: Omit<Factura, 'id'>) => void
   onImportarVarias: (facturas: Omit<Factura, 'id'>[]) => void
-  onCambiar: (id: string, cambios: Partial<Pick<Factura, 'fechaEstimadaCobroPago' | 'cumplido' | 'medioPago'>>) => void
+  onCambiar: (
+    id: string,
+    cambios: Partial<Pick<Factura, 'fechaEstimadaCobroPago' | 'cumplido' | 'medioPago'>> & { cuentaId?: string },
+  ) => void
   onEliminar: (id: string) => void
   onVaciar: () => void
   onDescargarInforme: () => void
@@ -87,7 +92,7 @@ function EvolucionTooltip({ active, payload }: { active?: boolean; payload?: { p
   )
 }
 
-export function Facturas({ facturas, pagos = [], onAgregar, onImportarVarias, onCambiar, onEliminar, onVaciar, onDescargarInforme }: Props) {
+export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarVarias, onCambiar, onEliminar, onVaciar, onDescargarInforme }: Props) {
   const [tipo, setTipo] = useState<TipoFactura>('emitida')
   const [tipoComprobante, setTipoComprobante] = useState<TipoComprobante>('factura')
   const [contraparte, setContraparte] = useState('')
@@ -759,6 +764,24 @@ export function Facturas({ facturas, pagos = [], onAgregar, onImportarVarias, on
                         {(Object.keys(MEDIOS_PAGO_LABEL) as MedioPago[]).map((medio) => (
                           <option key={medio} value={medio}>
                             {MEDIOS_PAGO_LABEL[medio]}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    {f.cumplido && f.medioPago && f.medioPago !== 'cheque' && cuentas && cuentas.length > 0 && (
+                      <select
+                        defaultValue=""
+                        onChange={(e) => {
+                          if (e.target.value) onCambiar(f.id, { cuentaId: e.target.value })
+                        }}
+                        title="En qué caja o cuenta entró/salió la plata"
+                        className="shrink-0 rounded border px-1.5 py-0.5 text-xs"
+                        style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+                      >
+                        <option value="">Cuenta…</option>
+                        {cuentas.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.nombre}
                           </option>
                         ))}
                       </select>

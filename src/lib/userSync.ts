@@ -1,5 +1,5 @@
 import { app, firebaseHabilitado } from './firebase'
-import type { Anticipo, Bien, Cheque, ClasificacionesProveedores, CuentaBancaria, Deuda, Factura, IngresosBrutosManualMes, IvaManualMes, MovimientoDiario, MovimientoStock, Pago, Producto, RemitoPresupuesto } from './cfo'
+import type { Anticipo, Bien, Cheque, ClasificacionesProveedores, CuentaBancaria, Deuda, Factura, IngresosBrutosManualMes, IvaManualMes, MovimientoDiario, MovimientoStock, MovimientoTesoreria, Pago, Producto, RemitoPresupuesto } from './cfo'
 import type { Movimiento } from './movimientosSemana'
 
 export interface NegocioDataUsuario {
@@ -19,6 +19,7 @@ export interface NegocioDataUsuario {
   anticipos?: Anticipo[]
   productos?: Producto[]
   movimientosStock?: MovimientoStock[]
+  movimientosTesoreria?: MovimientoTesoreria[]
   ivaManualPorMes?: Record<string, IvaManualMes>
   ingresosBrutosManualPorMes?: Record<string, IngresosBrutosManualMes>
   movimientosDiarios?: MovimientoDiario[]

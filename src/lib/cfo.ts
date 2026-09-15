@@ -11,6 +11,68 @@ export function calcularSaldoTotalBancos(cuentas: CuentaBancaria[]): number {
 }
 
 // ---------------------------------------------------------------------------
+// Tesorería (Full): a qué caja o cuenta bancaria entra/sale cada cobro y pago
+// ---------------------------------------------------------------------------
+//
+// A diferencia de un Pago (que salda una factura en la cuenta corriente, sin importar de dónde
+// salió la plata), un MovimientoTesoreria es la plata físicamente entrando o saliendo de una caja
+// o cuenta bancaria puntual. El saldo de cada CuentaBancaria deja de editarse a mano (salvo el
+// saldo inicial al crearla) y pasa a ser la suma de sus movimientos — mismo patrón que
+// stockActual/MovimientoStock.
+
+export type TipoMovimientoTesoreria = 'ingreso' | 'egreso' | 'ajuste'
+
+export interface MovimientoTesoreria {
+  id: string
+  cuentaId: string
+  tipo: TipoMovimientoTesoreria
+  monto: number
+  fecha: string
+  concepto?: string
+  /** De dónde vino este movimiento, para poder revertirlo si se modifica o borra el origen. Los
+   * movimientos "manual" (ajustes a mano) son los únicos que se pueden borrar directamente desde
+   * Tesorería. */
+  origen: 'factura' | 'anticipo' | 'cheque' | 'manual'
+  origenId?: string
+}
+
+/** Un ajuste guarda el monto ya con signo (positivo suma, negativo resta); ingreso/egreso son
+ * siempre positivos y el signo lo pone el tipo. */
+function deltaDeMovimientoTesoreria(m: MovimientoTesoreria): number {
+  if (m.tipo === 'ingreso') return m.monto
+  if (m.tipo === 'egreso') return -m.monto
+  return m.monto
+}
+
+export function aplicarMovimientoTesoreria(cuentas: CuentaBancaria[], m: MovimientoTesoreria): CuentaBancaria[] {
+  return cuentas.map((c) => (c.id === m.cuentaId ? { ...c, saldo: c.saldo + deltaDeMovimientoTesoreria(m) } : c))
+}
+
+export function revertirMovimientoTesoreria(cuentas: CuentaBancaria[], m: MovimientoTesoreria): CuentaBancaria[] {
+  return cuentas.map((c) => (c.id === m.cuentaId ? { ...c, saldo: c.saldo - deltaDeMovimientoTesoreria(m) } : c))
+}
+
+export interface ResumenCuentaTesoreria {
+  cuenta: CuentaBancaria
+  ingresos: number
+  egresos: number
+  movimientos: MovimientoTesoreria[]
+}
+
+/** Ingresos/egresos y movimientos propios de cada cuenta, para el detalle de Tesorería. */
+export function resumenPorCuenta(cuentas: CuentaBancaria[], movimientos: MovimientoTesoreria[]): ResumenCuentaTesoreria[] {
+  return cuentas.map((cuenta) => {
+    const propios = movimientos.filter((m) => m.cuentaId === cuenta.id).sort((a, b) => b.fecha.localeCompare(a.fecha))
+    return {
+      cuenta,
+      ingresos: propios.reduce((s, m) => s + Math.max(0, deltaDeMovimientoTesoreria(m)), 0),
+      egresos: propios.reduce((s, m) => s + Math.max(0, -deltaDeMovimientoTesoreria(m)), 0),
+      movimientos: propios,
+    }
+  })
+}
+
+// ---------------------------------------------------------------------------
 // Patrimonio / bienes realizables (Premium)
 // ---------------------------------------------------------------------------
 //
@@ -317,6 +379,8 @@ export interface Pago {
   /** Si este pago se generó al vincular la factura a un cheque, el id de ese cheque — para poder
    * borrarlo si se elimina el cheque. */
   chequeId?: string
+  /** Caja o cuenta bancaria por la que entró/salió la plata — ver MovimientoTesoreria. */
+  cuentaId?: string
 }
 
 /** Cuánto se pagó/cobró hasta ahora de una factura puntual, sumando todos sus pagos parciales. */
@@ -926,6 +990,10 @@ export interface Cheque {
    * emitido). Al vincularlas quedan marcadas como cumplidas con medioPago "cheque" y dejan de
    * listarse por separado en Cobranzas y pagos — el cheque las representa a todas juntas ahí. */
   facturasIds?: string[]
+  /** Caja o cuenta bancaria donde entra/sale la plata cuando el cheque se cobra o se paga (estado
+   * "cobrado" o "vendido") — ver MovimientoTesoreria. Se puede elegir antes o después del cambio
+   * de estado. */
+  cuentaId?: string
 }
 
 /** Cuánto entró realmente a la cuenta por este cheque: si se vendió (descontó), el monto menos la
@@ -1221,6 +1289,7 @@ export function imputarPagoAFIFO(
   fecha: string,
   medioPago: MedioPago | undefined,
   generarId: () => string,
+  cuentaId?: string,
 ): ResultadoImputacion {
   const pagos: Pago[] = []
   const facturaIdsCubiertas: string[] = []
@@ -1229,7 +1298,7 @@ export function imputarPagoAFIFO(
     if (restante <= 0) break
     const aplicar = Math.min(restante, f.saldo)
     if (aplicar <= 0) continue
-    pagos.push({ id: generarId(), facturaId: f.id, monto: aplicar, fecha, medioPago })
+    pagos.push({ id: generarId(), facturaId: f.id, monto: aplicar, fecha, medioPago, cuentaId })
     if (aplicar >= f.saldo) facturaIdsCubiertas.push(f.id)
     restante -= aplicar
   }
@@ -1279,6 +1348,8 @@ export interface Anticipo {
   fecha: string
   medioPago?: MedioPago
   chequeId?: string
+  /** Caja o cuenta bancaria donde entró/salió la plata del anticipo — ver MovimientoTesoreria. */
+  cuentaId?: string
 }
 
 export function calcularMontoAnticipado(remitoId: string, anticipos: Anticipo[]): number {
@@ -1335,6 +1406,9 @@ export function vincularRemitoAFactura(
     fecha: a.fecha,
     medioPago: a.medioPago,
     chequeId: a.chequeId,
+    // La plata del anticipo ya entró/salió de la cuenta cuando se registró — acá solo se copia el
+    // dato para que quede visible en qué cuenta se cobró/pagó, sin generar un movimiento nuevo.
+    cuentaId: a.cuentaId,
   }))
   const totalPagado = calcularMontoPagado(factura.id, pagosExistentes) + pagos.reduce((s, p) => s + p.monto, 0)
   return { pagos, facturaCubierta: totalPagado >= factura.monto }

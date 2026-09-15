@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Factura, LineaProducto, MedioPago, Producto, RemitoConSaldo, TipoDocumentoAnticipo, TipoFactura } from '../lib/cfo'
+import type { CuentaBancaria, Factura, LineaProducto, MedioPago, Producto, RemitoConSaldo, TipoDocumentoAnticipo, TipoFactura } from '../lib/cfo'
 import { MEDIOS_PAGO_LABEL, calcularMontoDesdeLineas } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
@@ -14,6 +14,8 @@ interface Props {
    * reconocen sin depender de tipeo. */
   contrapartesClientes: string[]
   contrapartesProveedores: string[]
+  /** Cuentas bancarias/caja (plan Full) para elegir por dónde entró/salió cada anticipo. */
+  cuentasBancarias?: CuentaBancaria[]
   onAgregar: (remito: {
     tipo: TipoFactura
     tipoDocumento: TipoDocumentoAnticipo
@@ -23,7 +25,13 @@ interface Props {
     numero?: string
     lineas?: LineaProducto[]
   }) => void
-  onRegistrarAnticipo: (remitoId: string, monto: number, fecha: string, medioPago: MedioPago | undefined) => void
+  onRegistrarAnticipo: (
+    remitoId: string,
+    monto: number,
+    fecha: string,
+    medioPago: MedioPago | undefined,
+    cuentaId?: string,
+  ) => void
   onVincularFactura: (remitoId: string, facturaId: string) => void
   onEliminar: (id: string) => void
 }
@@ -40,12 +48,14 @@ const DOCUMENTO_LABEL: Record<TipoDocumentoAnticipo, string> = {
 function TarjetaRemito({
   remito,
   facturasDisponibles,
+  cuentasBancarias,
   onRegistrarAnticipo,
   onVincularFactura,
   onEliminar,
 }: {
   remito: RemitoConSaldo
   facturasDisponibles: Factura[]
+  cuentasBancarias?: CuentaBancaria[]
   onRegistrarAnticipo: Props['onRegistrarAnticipo']
   onVincularFactura: Props['onVincularFactura']
   onEliminar: Props['onEliminar']
@@ -53,12 +63,13 @@ function TarjetaRemito({
   const [monto, setMonto] = useState(0)
   const [fecha, setFecha] = useState(hoyISO)
   const [medioPago, setMedioPago] = useState<MedioPago | ''>('')
+  const [cuentaId, setCuentaId] = useState('')
   const [facturaElegida, setFacturaElegida] = useState('')
 
   function handleSubmitAnticipo(e: React.FormEvent) {
     e.preventDefault()
     if (!monto || monto <= 0) return
-    onRegistrarAnticipo(remito.id, monto, fecha, medioPago || undefined)
+    onRegistrarAnticipo(remito.id, monto, fecha, medioPago || undefined, cuentaId || undefined)
     setMonto(0)
   }
 
@@ -125,6 +136,21 @@ function TarjetaRemito({
             </option>
           ))}
         </select>
+        {medioPago && medioPago !== 'cheque' && cuentasBancarias && cuentasBancarias.length > 0 && (
+          <select
+            value={cuentaId}
+            onChange={(e) => setCuentaId(e.target.value)}
+            className="shrink-0 rounded-lg border px-2 py-1 text-sm"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+          >
+            <option value="">Cuenta…</option>
+            {cuentasBancarias.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nombre}
+              </option>
+            ))}
+          </select>
+        )}
         <button
           type="submit"
           className="shrink-0 rounded-lg px-3 py-1 text-sm font-semibold text-white transition-opacity hover:opacity-90"
@@ -173,6 +199,7 @@ function Columna({
   titulo,
   remitos,
   facturas,
+  cuentasBancarias,
   onRegistrarAnticipo,
   onVincularFactura,
   onEliminar,
@@ -180,6 +207,7 @@ function Columna({
   titulo: string
   remitos: RemitoConSaldo[]
   facturas: Factura[]
+  cuentasBancarias?: CuentaBancaria[]
   onRegistrarAnticipo: Props['onRegistrarAnticipo']
   onVincularFactura: Props['onVincularFactura']
   onEliminar: Props['onEliminar']
@@ -207,6 +235,7 @@ function Columna({
             key={r.id}
             remito={r}
             facturasDisponibles={facturas.filter((f) => f.contraparte === r.contraparte && f.tipo === r.tipo && f.tipoComprobante === 'factura')}
+            cuentasBancarias={cuentasBancarias}
             onRegistrarAnticipo={onRegistrarAnticipo}
             onVincularFactura={onVincularFactura}
             onEliminar={onEliminar}
@@ -224,6 +253,7 @@ export function RemitosPresupuestos({
   productos,
   contrapartesClientes,
   contrapartesProveedores,
+  cuentasBancarias,
   onAgregar,
   onRegistrarAnticipo,
   onVincularFactura,
@@ -462,6 +492,7 @@ export function RemitosPresupuestos({
           titulo="De clientes (a cobrar)"
           remitos={remitosCobrar}
           facturas={facturas}
+          cuentasBancarias={cuentasBancarias}
           onRegistrarAnticipo={onRegistrarAnticipo}
           onVincularFactura={onVincularFactura}
           onEliminar={onEliminar}
@@ -470,6 +501,7 @@ export function RemitosPresupuestos({
           titulo="De proveedores (a pagar)"
           remitos={remitosPagar}
           facturas={facturas}
+          cuentasBancarias={cuentasBancarias}
           onRegistrarAnticipo={onRegistrarAnticipo}
           onVincularFactura={onVincularFactura}
           onEliminar={onEliminar}

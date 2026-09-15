@@ -23,10 +23,12 @@ import { Patrimonio } from '../components/Patrimonio'
 import { CuentasCorrientes } from '../components/CuentasCorrientes'
 import { RemitosPresupuestos } from '../components/RemitosPresupuestos'
 import { Stock } from '../components/Stock'
+import { Tesoreria } from '../components/Tesoreria'
 import {
   CATEGORIAS_GASTO,
   agruparCuentaCorriente,
   aplicarMovimientoStock,
+  aplicarMovimientoTesoreria,
   calcularValorInventario,
   calcularCoberturaDeuda,
   calcularCuotaDeudaTotal,
@@ -36,6 +38,7 @@ import {
   calcularGastosTotales,
   calcularMargenBrutoTotal,
   calcularMargenOperativo,
+  calcularMontoPagado,
   calcularAgingCuentas,
   calcularDSOyDPO,
   calcularPosicionIngresosBrutosPorMes,
@@ -60,6 +63,7 @@ import {
   proyectarFlujoCaja,
   proyectarFlujoCajaEscenarios,
   revertirMovimientoStock,
+  revertirMovimientoTesoreria,
   vincularRemitoAFactura,
   type Anticipo,
   type Bien,
@@ -75,6 +79,7 @@ import {
   type MedioPago,
   type MovimientoDiario,
   type MovimientoStock,
+  type MovimientoTesoreria,
   type Pago,
   type Producto,
   type RemitoPresupuesto,
@@ -97,6 +102,10 @@ function mesActualISO(): string {
   return new Date().toISOString().slice(0, 7)
 }
 
+function hoyISO(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
 const SECCIONES = [
   { key: 'dashboard', label: 'Dashboard' },
   { key: 'facturas', label: 'Comprobantes' },
@@ -105,6 +114,7 @@ const SECCIONES = [
   { key: 'cuentasCorrientes', label: 'Cuentas corrientes' },
   { key: 'remitos', label: 'Remitos y presupuestos' },
   { key: 'stock', label: 'Stock' },
+  { key: 'tesoreria', label: 'Tesorería' },
   { key: 'proveedores', label: 'Proveedores' },
   { key: 'clientes', label: 'Clientes' },
   { key: 'presupuesto', label: 'Presupuesto vs. Real' },
@@ -116,7 +126,7 @@ const SECCIONES = [
 
 /** Secciones exclusivas del plan Full (el sistema de gestión de uso diario) — el resto que
  * requiere pago sigue disponible desde el plan Medio. */
-const SECCIONES_FULL = new Set(['cuentasCorrientes', 'remitos', 'cheques', 'stock'])
+const SECCIONES_FULL = new Set(['cuentasCorrientes', 'remitos', 'cheques', 'stock', 'tesoreria'])
 
 type Seccion = (typeof SECCIONES)[number]['key']
 
@@ -163,6 +173,9 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   const [movimientosStock, setMovimientosStock] = useState<MovimientoStock[]>(
     () => cargarNegocioData()?.movimientosStock ?? [],
   )
+  const [movimientosTesoreria, setMovimientosTesoreria] = useState<MovimientoTesoreria[]>(
+    () => cargarNegocioData()?.movimientosTesoreria ?? [],
+  )
   const [ivaManualPorMes, setIvaManualPorMes] = useState<Record<string, IvaManualMes>>(
     () => cargarNegocioData()?.ivaManualPorMes ?? {},
   )
@@ -208,6 +221,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           setAnticipos(d.anticipos ?? [])
           setProductos(d.productos ?? [])
           setMovimientosStock(d.movimientosStock ?? [])
+          setMovimientosTesoreria(d.movimientosTesoreria ?? [])
           setIvaManualPorMes(d.ivaManualPorMes ?? {})
           setIngresosBrutosManualPorMes(d.ingresosBrutosManualPorMes ?? {})
           setMovimientosDiarios(d.movimientosDiarios ?? [])
@@ -240,6 +254,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
       anticipos,
       productos,
       movimientosStock,
+      movimientosTesoreria,
       ivaManualPorMes,
       ingresosBrutosManualPorMes,
       movimientosDiarios,
@@ -263,6 +278,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     anticipos,
     productos,
     movimientosStock,
+    movimientosTesoreria,
     ivaManualPorMes,
     ingresosBrutosManualPorMes,
     movimientosDiarios,
@@ -291,6 +307,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           anticipos,
           productos,
           movimientosStock,
+          movimientosTesoreria,
           ivaManualPorMes,
           ingresosBrutosManualPorMes,
           movimientosDiarios,
@@ -321,6 +338,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     anticipos,
     productos,
     movimientosStock,
+    movimientosTesoreria,
     ivaManualPorMes,
     ingresosBrutosManualPorMes,
     movimientosDiarios,
@@ -348,7 +366,38 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   }
 
   function handleEliminarCuenta(id: string) {
+    const movimientosDeLaCuenta = movimientosTesoreria.filter((m) => m.cuentaId === id)
+    if (movimientosDeLaCuenta.length > 0) {
+      setMovimientosTesoreria((prev) => prev.filter((m) => m.cuentaId !== id))
+    }
     setCuentas((prev) => prev.filter((c) => c.id !== id))
+  }
+
+  /** Ajuste manual del saldo de una cuenta en Tesorería (Full) — a diferencia de
+   * handleCambiarSaldoCuenta (que pisa el número directo, usado sin Tesorería), esto registra un
+   * movimiento con el monto ya con signo, para dejar rastro de por qué cambió el saldo. */
+  function handleAjustarSaldoCuenta(cuentaId: string, monto: number, fecha: string, concepto: string | undefined) {
+    if (!esFull || monto === 0) return
+    const movimiento: MovimientoTesoreria = {
+      id: generarId(),
+      cuentaId,
+      tipo: 'ajuste',
+      monto,
+      fecha,
+      concepto,
+      origen: 'manual',
+    }
+    setCuentas((prev) => aplicarMovimientoTesoreria(prev, movimiento))
+    setMovimientosTesoreria((prev) => [...prev, movimiento])
+  }
+
+  /** Solo se puede borrar un movimiento "manual" — los que vienen de una factura, un anticipo o un
+   * cheque se manejan (y revierten) desde su propia solapa. */
+  function handleEliminarMovimientoTesoreria(id: string) {
+    const movimiento = movimientosTesoreria.find((m) => m.id === id && m.origen === 'manual')
+    if (!movimiento) return
+    setCuentas((prev) => revertirMovimientoTesoreria(prev, movimiento))
+    setMovimientosTesoreria((prev) => prev.filter((m) => m.id !== id))
   }
 
   function handleAgregarDeuda(concepto: string, montoAdeudado: number, cuotaMensual: number, proximoVencimiento?: string) {
@@ -375,19 +424,60 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     setFacturas((prev) => [...prev, ...nuevas.map((f) => ({ ...f, id: generarId() }))])
   }
 
+  /** Revierte y quita el movimiento de tesorería que se haya generado directo desde el tilde de
+   * "cobrada/pagada" de una factura (no toca los que vienen de un Pago real de cuenta corriente,
+   * esos se manejan desde handleEliminarPago). */
+  function revertirMovimientoDirectoDeFactura(facturaId: string) {
+    const movimiento = movimientosTesoreria.find((m) => m.origen === 'factura' && m.origenId === facturaId)
+    if (!movimiento) return
+    setCuentas((prev) => revertirMovimientoTesoreria(prev, movimiento))
+    setMovimientosTesoreria((prev) => prev.filter((m) => m.id !== movimiento.id))
+  }
+
   function handleCambiarFactura(
     id: string,
-    cambios: Partial<Pick<Factura, 'fechaEstimadaCobroPago' | 'cumplido' | 'medioPago'>>,
+    cambios: Partial<Pick<Factura, 'fechaEstimadaCobroPago' | 'cumplido' | 'medioPago'>> & { cuentaId?: string },
   ) {
-    setFacturas((prev) => prev.map((f) => (f.id === id ? { ...f, ...cambios } : f)))
-    if (cambios.medioPago === 'cheque') {
-      const factura = facturas.find((f) => f.id === id)
-      const quedaCumplida = cambios.cumplido ?? factura?.cumplido
-      if (factura && quedaCumplida) crearChequeAutomatico({ ...factura, ...cambios })
+    const { cuentaId, ...cambiosFactura } = cambios
+    setFacturas((prev) => prev.map((f) => (f.id === id ? { ...f, ...cambiosFactura } : f)))
+    const factura = facturas.find((f) => f.id === id)
+    if (cambiosFactura.medioPago === 'cheque') {
+      const quedaCumplida = cambiosFactura.cumplido ?? factura?.cumplido
+      if (factura && quedaCumplida) crearChequeAutomatico({ ...factura, ...cambiosFactura })
+    }
+    if (cambiosFactura.cumplido === false) {
+      revertirMovimientoDirectoDeFactura(id)
+    }
+    // Solo si esta factura todavía no tiene un Pago real detrás (cuenta corriente o cheque) —
+    // evita duplicar el movimiento de caja si la plata ya se registró por otro lado.
+    if (cuentaId && esFull && factura && calcularMontoPagado(id, pagos) === 0) {
+      const facturaActualizada = { ...factura, ...cambiosFactura }
+      if (facturaActualizada.cumplido && facturaActualizada.medioPago !== 'cheque') {
+        const previo = movimientosTesoreria.find((m) => m.origen === 'factura' && m.origenId === id)
+        let cuentasBase = cuentas
+        let movimientosBase = movimientosTesoreria
+        if (previo) {
+          cuentasBase = revertirMovimientoTesoreria(cuentasBase, previo)
+          movimientosBase = movimientosBase.filter((m) => m.id !== previo.id)
+        }
+        const nuevo: MovimientoTesoreria = {
+          id: generarId(),
+          cuentaId,
+          tipo: facturaActualizada.tipo === 'emitida' ? 'ingreso' : 'egreso',
+          monto: calcularSaldoFactura(facturaActualizada, pagos),
+          fecha: facturaActualizada.fechaEstimadaCobroPago ?? facturaActualizada.fecha,
+          concepto: `${facturaActualizada.tipo === 'emitida' ? 'Cobro' : 'Pago'} factura — ${facturaActualizada.contraparte}`,
+          origen: 'factura',
+          origenId: id,
+        }
+        setCuentas(aplicarMovimientoTesoreria(cuentasBase, nuevo))
+        setMovimientosTesoreria([...movimientosBase, nuevo])
+      }
     }
   }
 
   function handleEliminarFactura(id: string) {
+    revertirMovimientoDirectoDeFactura(id)
     setFacturas((prev) => prev.filter((f) => f.id !== id))
   }
 
@@ -468,13 +558,48 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
         prev.map((f) => (idsFactura.has(f.id) ? { ...f, cumplido: true, medioPago: 'cheque' } : f)),
       )
     }
+    sincronizarTesoreriaCheque({ ...cheque, id })
+  }
+
+  /** La plata de un cheque recién entra/sale de una cuenta real cuando se cobra o se vende (no
+   * cuando solo está "en cartera") — este helper recalcula el movimiento de tesorería del cheque
+   * cada vez que cambia su estado, su cuenta o su comisión, revirtiendo el anterior si había uno. */
+  function sincronizarTesoreriaCheque(cheque: Cheque) {
+    if (!esFull) return
+    const anterior = movimientosTesoreria.find((m) => m.origen === 'cheque' && m.origenId === cheque.id)
+    let cuentasBase = cuentas
+    let movimientosBase = movimientosTesoreria
+    if (anterior) {
+      cuentasBase = revertirMovimientoTesoreria(cuentasBase, anterior)
+      movimientosBase = movimientosBase.filter((m) => m.id !== anterior.id)
+    }
+    const corresponde = (cheque.estado === 'cobrado' || cheque.estado === 'vendido') && cheque.cuentaId
+    if (corresponde) {
+      const monto = cheque.monto - (cheque.estado === 'vendido' ? (cheque.comisionDescuento ?? 0) : 0)
+      if (monto > 0) {
+        const nuevo: MovimientoTesoreria = {
+          id: generarId(),
+          cuentaId: cheque.cuentaId!,
+          tipo: cheque.tipo === 'recibido' ? 'ingreso' : 'egreso',
+          monto,
+          fecha: hoyISO(),
+          concepto: `Cheque ${cheque.tipo === 'recibido' ? 'cobrado de' : 'pagado a'} ${cheque.contraparte}`,
+          origen: 'cheque',
+          origenId: cheque.id,
+        }
+        cuentasBase = aplicarMovimientoTesoreria(cuentasBase, nuevo)
+        movimientosBase = [...movimientosBase, nuevo]
+      }
+    }
+    setCuentas(cuentasBase)
+    setMovimientosTesoreria(movimientosBase)
   }
 
   function handleCambiarEstadoCheque(id: string, estado: EstadoCheque) {
     setCheques((prev) => prev.map((c) => (c.id === id ? { ...c, estado } : c)))
+    const cheque = cheques.find((c) => c.id === id)
     if (estado === 'rechazado') {
       // Un cheque rebotado no saldó nada: revertimos las facturas que había cubierto.
-      const cheque = cheques.find((c) => c.id === id)
       if (cheque?.facturasIds && cheque.facturasIds.length > 0) {
         const idsFactura = new Set(cheque.facturasIds)
         setPagos((prev) => prev.filter((p) => p.chequeId !== id))
@@ -483,10 +608,19 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
         )
       }
     }
+    if (cheque) sincronizarTesoreriaCheque({ ...cheque, estado })
+  }
+
+  function handleCambiarCuentaCheque(id: string, cuentaId: string | undefined) {
+    setCheques((prev) => prev.map((c) => (c.id === id ? { ...c, cuentaId } : c)))
+    const cheque = cheques.find((c) => c.id === id)
+    if (cheque) sincronizarTesoreriaCheque({ ...cheque, cuentaId })
   }
 
   function handleCambiarComisionCheque(id: string, comisionDescuento: number) {
     setCheques((prev) => prev.map((c) => (c.id === id ? { ...c, comisionDescuento } : c)))
+    const cheque = cheques.find((c) => c.id === id)
+    if (cheque) sincronizarTesoreriaCheque({ ...cheque, comisionDescuento })
   }
 
   function handleEliminarCheque(id: string) {
@@ -498,6 +632,11 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
         prev.map((f) => (idsFactura.has(f.id) ? { ...f, cumplido: false, medioPago: undefined } : f)),
       )
     }
+    const movimiento = movimientosTesoreria.find((m) => m.origen === 'cheque' && m.origenId === id)
+    if (movimiento) {
+      setCuentas((prev) => revertirMovimientoTesoreria(prev, movimiento))
+      setMovimientosTesoreria((prev) => prev.filter((m) => m.id !== movimiento.id))
+    }
     setCheques((prev) => prev.filter((c) => c.id !== id))
   }
 
@@ -507,12 +646,20 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     monto: number,
     fecha: string,
     medioPago: MedioPago | undefined,
+    cuentaId?: string,
   ) {
     const grupo = (tipo === 'emitida' ? cuentaCorrienteCobrar : cuentaCorrientePagar).find(
       (g) => g.contraparte === contraparte,
     )
     if (!grupo || monto <= 0) return
-    const { pagos: nuevosPagos, facturaIdsCubiertas } = imputarPagoAFIFO(grupo.facturas, monto, fecha, medioPago, generarId)
+    const { pagos: nuevosPagos, facturaIdsCubiertas } = imputarPagoAFIFO(
+      grupo.facturas,
+      monto,
+      fecha,
+      medioPago,
+      generarId,
+      cuentaId,
+    )
     if (nuevosPagos.length === 0) return
     setPagos((prev) => [...prev, ...nuevosPagos])
     if (facturaIdsCubiertas.length > 0) {
@@ -526,6 +673,22 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           if (factura) crearChequeAutomatico(factura)
         }
       }
+    }
+    // El cheque genera su propio movimiento de tesorería recién cuando se cobra/vende — acá solo
+    // se registra la plata que efectivamente entró/salió por caja o transferencia.
+    if (cuentaId && esFull && medioPago !== 'cheque') {
+      const nuevosMovimientos: MovimientoTesoreria[] = nuevosPagos.map((p) => ({
+        id: generarId(),
+        cuentaId,
+        tipo: tipo === 'emitida' ? 'ingreso' : 'egreso',
+        monto: p.monto,
+        fecha: p.fecha,
+        concepto: `${tipo === 'emitida' ? 'Cobro' : 'Pago'} a cuenta — ${contraparte}`,
+        origen: 'factura',
+        origenId: p.id,
+      }))
+      setCuentas((prev) => nuevosMovimientos.reduce((acc, mov) => aplicarMovimientoTesoreria(acc, mov), prev))
+      setMovimientosTesoreria((prev) => [...prev, ...nuevosMovimientos])
     }
   }
 
@@ -543,6 +706,11 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
         return totalRestante < f.monto ? { ...f, cumplido: false } : f
       }),
     )
+    const movimiento = movimientosTesoreria.find((m) => m.origen === 'factura' && m.origenId === id)
+    if (movimiento) {
+      setCuentas((prev) => revertirMovimientoTesoreria(prev, movimiento))
+      setMovimientosTesoreria((prev) => prev.filter((m) => m.id !== movimiento.id))
+    }
   }
 
   function handleAgregarRemito(remito: Omit<RemitoPresupuesto, 'id' | 'estado'>) {
@@ -561,13 +729,48 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
       setProductos((prev) => movimientosDelRemito.reduce((acc, mov) => revertirMovimientoStock(acc, mov), prev))
       setMovimientosStock((prev) => prev.filter((m) => m.remitoId !== id))
     }
+    const anticiposDelRemito = anticipos.filter((a) => a.remitoId === id)
+    if (anticiposDelRemito.length > 0) {
+      const idsAnticipos = new Set(anticiposDelRemito.map((a) => a.id))
+      const movimientosDeAnticipos = movimientosTesoreria.filter(
+        (m) => m.origen === 'anticipo' && m.origenId && idsAnticipos.has(m.origenId),
+      )
+      if (movimientosDeAnticipos.length > 0) {
+        setCuentas((prev) => movimientosDeAnticipos.reduce((acc, mov) => revertirMovimientoTesoreria(acc, mov), prev))
+        setMovimientosTesoreria((prev) => prev.filter((m) => !(m.origen === 'anticipo' && m.origenId && idsAnticipos.has(m.origenId))))
+      }
+    }
     setRemitos((prev) => prev.filter((r) => r.id !== id))
     setAnticipos((prev) => prev.filter((a) => a.remitoId !== id))
   }
 
-  function handleRegistrarAnticipo(remitoId: string, monto: number, fecha: string, medioPago: MedioPago | undefined) {
+  function handleRegistrarAnticipo(
+    remitoId: string,
+    monto: number,
+    fecha: string,
+    medioPago: MedioPago | undefined,
+    cuentaId?: string,
+  ) {
     if (monto <= 0) return
-    setAnticipos((prev) => [...prev, { id: generarId(), remitoId, monto, fecha, medioPago }])
+    const anticipoId = generarId()
+    setAnticipos((prev) => [...prev, { id: anticipoId, remitoId, monto, fecha, medioPago, cuentaId }])
+    if (cuentaId && esFull) {
+      const remito = remitos.find((r) => r.id === remitoId)
+      if (remito) {
+        const movimiento: MovimientoTesoreria = {
+          id: generarId(),
+          cuentaId,
+          tipo: remito.tipo === 'emitida' ? 'ingreso' : 'egreso',
+          monto,
+          fecha,
+          concepto: `Anticipo — ${remito.contraparte}`,
+          origen: 'anticipo',
+          origenId: anticipoId,
+        }
+        setCuentas((prev) => aplicarMovimientoTesoreria(prev, movimiento))
+        setMovimientosTesoreria((prev) => [...prev, movimiento])
+      }
+    }
   }
 
   function handleVincularRemitoAFactura(remitoId: string, facturaId: string) {
@@ -896,6 +1099,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           <Facturas
             facturas={facturas}
             pagos={pagos}
+            cuentas={esFull ? cuentas : undefined}
             onAgregar={handleAgregarFactura}
             onImportarVarias={handleImportarFacturas}
             onCambiar={handleCambiarFactura}
@@ -918,6 +1122,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
             cuentasCobrar={cuentaCorrienteCobrar}
             cuentasPagar={cuentaCorrientePagar}
             pagos={pagos}
+            cuentasBancarias={cuentas}
             onAplicarPago={handleAplicarPagoCuenta}
             onEliminarPago={handleEliminarPago}
           />
@@ -939,6 +1144,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
             productos={productos}
             contrapartesClientes={contrapartesClientes}
             contrapartesProveedores={contrapartesProveedores}
+            cuentasBancarias={cuentas}
             onAgregar={handleAgregarRemito}
             onRegistrarAnticipo={handleRegistrarAnticipo}
             onVincularFactura={handleVincularRemitoAFactura}
@@ -963,6 +1169,25 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
             onRegistrarMovimiento={handleRegistrarMovimientoStock}
             onEliminarMovimiento={handleEliminarMovimientoStock}
             onEliminarProducto={handleEliminarProducto}
+          />
+        </PremiumLock>
+      )}
+
+      {seccion === 'tesoreria' && (
+        <PremiumLock
+          activo={esFull}
+          nivelRequerido="full"
+          titulo="Tesorería"
+          descripcion="El saldo de cada caja o cuenta bancaria se actualiza solo con lo que cobrás/pagás desde Comprobantes, Cuentas corrientes, Cheques y Remitos."
+          onQuieroPremium={abrirPlanes}
+        >
+          <Tesoreria
+            cuentas={cuentas}
+            movimientos={movimientosTesoreria}
+            onAgregarCuenta={handleAgregarCuenta}
+            onAjustarSaldo={handleAjustarSaldoCuenta}
+            onEliminarMovimiento={handleEliminarMovimientoTesoreria}
+            onEliminarCuenta={handleEliminarCuenta}
           />
         </PremiumLock>
       )}
@@ -1009,8 +1234,10 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           <Cheques
             cheques={cheques}
             facturas={facturas}
+            cuentas={cuentas}
             onAgregar={handleAgregarCheque}
             onCambiarEstado={handleCambiarEstadoCheque}
+            onCambiarCuenta={handleCambiarCuentaCheque}
             onCambiarComision={handleCambiarComisionCheque}
             onEliminar={handleEliminarCheque}
           />
@@ -1072,12 +1299,34 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           )}
 
           <section className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <CuentasBancarias
-              cuentas={cuentas}
-              onAgregar={handleAgregarCuenta}
-              onCambiarSaldo={handleCambiarSaldoCuenta}
-              onEliminar={handleEliminarCuenta}
-            />
+            {esFull ? (
+              <div className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+                <h2 className="mb-1 text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  Cuentas bancarias
+                </h2>
+                <p className="mb-3 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                  Con el plan Full el saldo de cada cuenta se actualiza solo con lo que cobrás/pagás desde
+                  Comprobantes, Cuentas corrientes, Cheques y Remitos — gestionalo desde Tesorería.
+                </p>
+                <p className="tabular text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  {formatoMoneda(calcularSaldoTotalBancos(cuentas))}
+                </p>
+                <button
+                  onClick={() => setSeccion('tesoreria')}
+                  className="mt-3 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-90"
+                  style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
+                >
+                  Ir a Tesorería →
+                </button>
+              </div>
+            ) : (
+              <CuentasBancarias
+                cuentas={cuentas}
+                onAgregar={handleAgregarCuenta}
+                onCambiarSaldo={handleCambiarSaldoCuenta}
+                onEliminar={handleEliminarCuenta}
+              />
+            )}
             <Deudas deudas={deudas} onAgregar={handleAgregarDeuda} onEliminar={handleEliminarDeuda} />
           </section>
 

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Cheque, EstadoCheque, Factura, TipoCheque } from '../lib/cfo'
+import type { Cheque, CuentaBancaria, EstadoCheque, Factura, TipoCheque } from '../lib/cfo'
 import { calcularTotalesCheques, estadosChequeDisponibles, etiquetaEstadoCheque, montoNetoCheque } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
@@ -7,8 +7,12 @@ import { InputMoneda } from './InputMoneda'
 interface Props {
   cheques: Cheque[]
   facturas: Factura[]
+  /** Cuentas bancarias/caja (plan Full) para elegir dónde entra/sale la plata cuando el cheque se
+   * cobra o se vende. */
+  cuentas?: CuentaBancaria[]
   onAgregar: (cheque: Omit<Cheque, 'id'>) => void
   onCambiarEstado: (id: string, estado: EstadoCheque) => void
+  onCambiarCuenta: (id: string, cuentaId: string | undefined) => void
   onCambiarComision: (id: string, comisionDescuento: number) => void
   onEliminar: (id: string) => void
 }
@@ -17,7 +21,7 @@ function hoyISO(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
-export function Cheques({ cheques, facturas, onAgregar, onCambiarEstado, onCambiarComision, onEliminar }: Props) {
+export function Cheques({ cheques, facturas, cuentas, onAgregar, onCambiarEstado, onCambiarCuenta, onCambiarComision, onEliminar }: Props) {
   const [tipo, setTipo] = useState<TipoCheque>('recibido')
   const [numero, setNumero] = useState('')
   const [banco, setBanco] = useState('')
@@ -316,6 +320,26 @@ export function Cheques({ cheques, facturas, onAgregar, onCambiarEstado, onCambi
                       </option>
                     ))}
                   </select>
+                  {(c.estado === 'cobrado' || c.estado === 'vendido') && cuentas && cuentas.length > 0 && (
+                    <select
+                      value={c.cuentaId ?? ''}
+                      onChange={(e) => onCambiarCuenta(c.id, e.target.value || undefined)}
+                      title="En qué caja o cuenta entró/salió la plata"
+                      className="shrink-0 rounded-lg border px-2 py-1 text-xs"
+                      style={{
+                        borderColor: c.cuentaId ? 'var(--border)' : 'var(--status-warning)',
+                        background: 'var(--surface-1)',
+                        color: 'var(--text-primary)',
+                      }}
+                    >
+                      <option value="">Cuenta…</option>
+                      {cuentas.map((cta) => (
+                        <option key={cta.id} value={cta.id}>
+                          {cta.nombre}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   {c.estado === 'vendido' && (
                     <label className="flex shrink-0 items-center gap-1 text-xs" style={{ color: 'var(--text-muted)' }}>
                       Comisión banco
