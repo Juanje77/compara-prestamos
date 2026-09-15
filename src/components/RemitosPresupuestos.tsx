@@ -1,0 +1,329 @@
+import { useState } from 'react'
+import type { Factura, MedioPago, RemitoConSaldo, TipoDocumentoAnticipo, TipoFactura } from '../lib/cfo'
+import { MEDIOS_PAGO_LABEL } from '../lib/cfo'
+import { formatoMoneda } from '../lib/finance'
+import { InputMoneda } from './InputMoneda'
+
+interface Props {
+  remitosCobrar: RemitoConSaldo[]
+  remitosPagar: RemitoConSaldo[]
+  facturas: Factura[]
+  onAgregar: (remito: {
+    tipo: TipoFactura
+    tipoDocumento: TipoDocumentoAnticipo
+    contraparte: string
+    monto: number
+    fecha: string
+    numero?: string
+  }) => void
+  onRegistrarAnticipo: (remitoId: string, monto: number, fecha: string, medioPago: MedioPago | undefined) => void
+  onVincularFactura: (remitoId: string, facturaId: string) => void
+  onEliminar: (id: string) => void
+}
+
+function hoyISO(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+const DOCUMENTO_LABEL: Record<TipoDocumentoAnticipo, string> = {
+  remito: 'Remito',
+  presupuesto: 'Presupuesto',
+}
+
+function TarjetaRemito({
+  remito,
+  facturasDisponibles,
+  onRegistrarAnticipo,
+  onVincularFactura,
+  onEliminar,
+}: {
+  remito: RemitoConSaldo
+  facturasDisponibles: Factura[]
+  onRegistrarAnticipo: Props['onRegistrarAnticipo']
+  onVincularFactura: Props['onVincularFactura']
+  onEliminar: Props['onEliminar']
+}) {
+  const [monto, setMonto] = useState(0)
+  const [fecha, setFecha] = useState(hoyISO)
+  const [medioPago, setMedioPago] = useState<MedioPago | ''>('')
+  const [facturaElegida, setFacturaElegida] = useState('')
+
+  function handleSubmitAnticipo(e: React.FormEvent) {
+    e.preventDefault()
+    if (!monto || monto <= 0) return
+    onRegistrarAnticipo(remito.id, monto, fecha, medioPago || undefined)
+    setMonto(0)
+  }
+
+  function handleVincular() {
+    if (!facturaElegida) return
+    onVincularFactura(remito.id, facturaElegida)
+  }
+
+  return (
+    <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="font-semibold" style={{ color: 'var(--text-primary)' }}>
+          <span
+            className="mr-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+            style={{ background: 'var(--gridline)', color: 'var(--text-secondary)' }}
+          >
+            {DOCUMENTO_LABEL[remito.tipoDocumento]}
+          </span>
+          {remito.contraparte}
+          {remito.numero && (
+            <span className="ml-1.5 text-xs font-normal" style={{ color: 'var(--text-muted)' }}>
+              ({remito.numero})
+            </span>
+          )}
+        </p>
+        <button onClick={() => onEliminar(remito.id)} aria-label="Eliminar" className="shrink-0 text-xs" style={{ color: 'var(--text-muted)' }}>
+          🗑
+        </button>
+      </div>
+      <p className="mt-0.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+        {new Date(`${remito.fecha}T00:00:00`).toLocaleDateString('es-AR')} · Total {formatoMoneda(remito.monto)} · Anticipado{' '}
+        {formatoMoneda(remito.montoAnticipado)}
+      </p>
+      <p className="tabular mt-1 text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+        {formatoMoneda(remito.saldo)} <span className="text-xs font-normal" style={{ color: 'var(--text-muted)' }}>saldo sin anticipar</span>
+      </p>
+
+      <form onSubmit={handleSubmitAnticipo} className="mt-3 flex flex-wrap gap-2">
+        <InputMoneda
+          placeholder="Monto del anticipo"
+          value={monto}
+          onChange={setMonto}
+          className="tabular w-32 shrink-0 rounded-lg border px-2 py-1 text-sm"
+          style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+        />
+        <input
+          type="date"
+          value={fecha}
+          onChange={(e) => setFecha(e.target.value)}
+          className="tabular w-36 shrink-0 rounded-lg border px-2 py-1 text-sm"
+          style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+        />
+        <select
+          value={medioPago}
+          onChange={(e) => setMedioPago(e.target.value as MedioPago | '')}
+          className="shrink-0 rounded-lg border px-2 py-1 text-sm"
+          style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+        >
+          <option value="">Medio…</option>
+          {(Object.keys(MEDIOS_PAGO_LABEL) as MedioPago[]).map((m) => (
+            <option key={m} value={m}>
+              {MEDIOS_PAGO_LABEL[m]}
+            </option>
+          ))}
+        </select>
+        <button
+          type="submit"
+          className="shrink-0 rounded-lg px-3 py-1 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          style={{ background: 'var(--series-blue)' }}
+        >
+          Registrar anticipo
+        </button>
+      </form>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3" style={{ borderColor: 'var(--gridline)' }}>
+        <select
+          value={facturaElegida}
+          onChange={(e) => setFacturaElegida(e.target.value)}
+          className="min-w-[180px] flex-1 rounded-lg border px-2 py-1 text-sm"
+          style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+        >
+          <option value="">
+            {facturasDisponibles.length === 0 ? 'Todavía no hay factura de este cliente/proveedor' : 'Vincular a la factura final…'}
+          </option>
+          {facturasDisponibles.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.numero ? `${f.numero} · ` : ''}
+              {formatoMoneda(f.monto)} ({new Date(`${f.fecha}T00:00:00`).toLocaleDateString('es-AR')})
+            </option>
+          ))}
+        </select>
+        <button
+          onClick={handleVincular}
+          disabled={!facturaElegida}
+          className="shrink-0 rounded-lg border px-3 py-1 text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-40"
+          style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
+        >
+          Vincular
+        </button>
+      </div>
+      {remito.montoAnticipado > 0 && (
+        <p className="mt-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+          Al vincular, los {formatoMoneda(remito.montoAnticipado)} ya anticipados pasan a ser pago de esa factura.
+        </p>
+      )}
+    </div>
+  )
+}
+
+function Columna({
+  titulo,
+  remitos,
+  facturas,
+  onRegistrarAnticipo,
+  onVincularFactura,
+  onEliminar,
+}: {
+  titulo: string
+  remitos: RemitoConSaldo[]
+  facturas: Factura[]
+  onRegistrarAnticipo: Props['onRegistrarAnticipo']
+  onVincularFactura: Props['onVincularFactura']
+  onEliminar: Props['onEliminar']
+}) {
+  if (remitos.length === 0) {
+    return (
+      <div className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+        <h3 className="mb-1 text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
+          {titulo}
+        </h3>
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+          No hay remitos ni presupuestos cargados.
+        </p>
+      </div>
+    )
+  }
+  return (
+    <div className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+      <h3 className="mb-3 text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
+        {titulo}
+      </h3>
+      <div className="max-h-[36rem] space-y-3 overflow-y-auto">
+        {remitos.map((r) => (
+          <TarjetaRemito
+            key={r.id}
+            remito={r}
+            facturasDisponibles={facturas.filter((f) => f.contraparte === r.contraparte && f.tipo === r.tipo && f.tipoComprobante === 'factura')}
+            onRegistrarAnticipo={onRegistrarAnticipo}
+            onVincularFactura={onVincularFactura}
+            onEliminar={onEliminar}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export function RemitosPresupuestos({
+  remitosCobrar,
+  remitosPagar,
+  facturas,
+  onAgregar,
+  onRegistrarAnticipo,
+  onVincularFactura,
+  onEliminar,
+}: Props) {
+  const [tipo, setTipo] = useState<TipoFactura>('emitida')
+  const [tipoDocumento, setTipoDocumento] = useState<TipoDocumentoAnticipo>('remito')
+  const [contraparte, setContraparte] = useState('')
+  const [numero, setNumero] = useState('')
+  const [monto, setMonto] = useState(0)
+  const [fecha, setFecha] = useState(hoyISO)
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!contraparte.trim() || !monto || monto <= 0 || !fecha) return
+    onAgregar({ tipo, tipoDocumento, contraparte: contraparte.trim(), monto, fecha, numero: numero.trim() || undefined })
+    setContraparte('')
+    setNumero('')
+    setMonto(0)
+  }
+
+  return (
+    <div className="space-y-6">
+      <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+        <h2 className="mb-1 text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
+          Remitos y presupuestos
+        </h2>
+        <p className="mb-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
+          Para trabajos largos donde primero entregás un remito o pasás un presupuesto, cobrás un anticipo, y
+          facturás todo junto al terminar. No suman a ventas/compras ni a IVA — son solo un seguimiento hasta
+          que los vinculás a la factura real, momento en el que el anticipo ya cobrado pasa a ser pago de esa
+          factura.
+        </p>
+
+        <form onSubmit={handleSubmit} className="flex flex-wrap gap-2">
+          <select
+            value={tipo}
+            onChange={(e) => setTipo(e.target.value as TipoFactura)}
+            className="shrink-0 rounded-lg border px-3 py-1.5 text-sm"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+          >
+            <option value="emitida">A un cliente (voy a cobrar)</option>
+            <option value="recibida">De un proveedor (voy a pagar)</option>
+          </select>
+          <select
+            value={tipoDocumento}
+            onChange={(e) => setTipoDocumento(e.target.value as TipoDocumentoAnticipo)}
+            className="shrink-0 rounded-lg border px-3 py-1.5 text-sm"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+          >
+            <option value="remito">Remito</option>
+            <option value="presupuesto">Presupuesto</option>
+          </select>
+          <input
+            type="text"
+            placeholder="Número (opcional)"
+            value={numero}
+            onChange={(e) => setNumero(e.target.value)}
+            className="w-32 shrink-0 rounded-lg border px-3 py-1.5 text-sm"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+          />
+          <input
+            type="text"
+            placeholder="Cliente / proveedor"
+            value={contraparte}
+            onChange={(e) => setContraparte(e.target.value)}
+            className="min-w-[140px] flex-1 rounded-lg border px-3 py-1.5 text-sm"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+          />
+          <InputMoneda
+            placeholder="Monto total"
+            value={monto}
+            onChange={setMonto}
+            className="tabular w-32 shrink-0 rounded-lg border px-3 py-1.5 text-sm"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+          />
+          <input
+            type="date"
+            value={fecha}
+            onChange={(e) => setFecha(e.target.value)}
+            className="tabular w-36 shrink-0 rounded-lg border px-3 py-1.5 text-sm"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+          />
+          <button
+            type="submit"
+            className="shrink-0 rounded-lg px-4 py-1.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+            style={{ background: 'var(--series-blue)' }}
+          >
+            Agregar
+          </button>
+        </form>
+      </section>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Columna
+          titulo="De clientes (a cobrar)"
+          remitos={remitosCobrar}
+          facturas={facturas}
+          onRegistrarAnticipo={onRegistrarAnticipo}
+          onVincularFactura={onVincularFactura}
+          onEliminar={onEliminar}
+        />
+        <Columna
+          titulo="De proveedores (a pagar)"
+          remitos={remitosPagar}
+          facturas={facturas}
+          onRegistrarAnticipo={onRegistrarAnticipo}
+          onVincularFactura={onVincularFactura}
+          onEliminar={onEliminar}
+        />
+      </div>
+    </div>
+  )
+}

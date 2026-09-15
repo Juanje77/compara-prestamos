@@ -20,6 +20,7 @@ import { IngresosGastos } from '../components/IngresosGastos'
 import { InputMoneda } from '../components/InputMoneda'
 import { Patrimonio } from '../components/Patrimonio'
 import { CuentasCorrientes } from '../components/CuentasCorrientes'
+import { RemitosPresupuestos } from '../components/RemitosPresupuestos'
 import {
   CATEGORIAS_GASTO,
   agruparCuentaCorriente,
@@ -49,8 +50,11 @@ import {
   generarRecomendaciones,
   imputarPagoAFIFO,
   listarProveedores,
+  listarRemitosPendientes,
   proyectarFlujoCaja,
   proyectarFlujoCajaEscenarios,
+  vincularRemitoAFactura,
+  type Anticipo,
   type Bien,
   type CategoriaGasto,
   type Cheque,
@@ -64,6 +68,7 @@ import {
   type MedioPago,
   type MovimientoDiario,
   type Pago,
+  type RemitoPresupuesto,
   type TipoFactura,
 } from '../lib/cfo'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
@@ -88,6 +93,7 @@ const SECCIONES = [
   { key: 'ingresosGastos', label: 'Ingresos y gastos' },
   { key: 'cobranzas', label: 'Cobranzas y pagos' },
   { key: 'cuentasCorrientes', label: 'Cuentas corrientes' },
+  { key: 'remitos', label: 'Remitos y presupuestos' },
   { key: 'proveedores', label: 'Proveedores' },
   { key: 'presupuesto', label: 'Presupuesto vs. Real' },
   { key: 'cheques', label: 'Cheques' },
@@ -131,6 +137,8 @@ export function EmpresasPage({ esPremium }: Props) {
   )
   const [cheques, setCheques] = useState<Cheque[]>(() => cargarNegocioData()?.cheques ?? [])
   const [pagos, setPagos] = useState<Pago[]>(() => cargarNegocioData()?.pagos ?? [])
+  const [remitos, setRemitos] = useState<RemitoPresupuesto[]>(() => cargarNegocioData()?.remitos ?? [])
+  const [anticipos, setAnticipos] = useState<Anticipo[]>(() => cargarNegocioData()?.anticipos ?? [])
   const [ivaManualPorMes, setIvaManualPorMes] = useState<Record<string, IvaManualMes>>(
     () => cargarNegocioData()?.ivaManualPorMes ?? {},
   )
@@ -171,6 +179,8 @@ export function EmpresasPage({ esPremium }: Props) {
           setClasificaciones(d.clasificaciones ?? {})
           setCheques(d.cheques ?? [])
           setPagos(d.pagos ?? [])
+          setRemitos(d.remitos ?? [])
+          setAnticipos(d.anticipos ?? [])
           setIvaManualPorMes(d.ivaManualPorMes ?? {})
           setIngresosBrutosManualPorMes(d.ingresosBrutosManualPorMes ?? {})
           setMovimientosDiarios(d.movimientosDiarios ?? [])
@@ -198,6 +208,8 @@ export function EmpresasPage({ esPremium }: Props) {
       clasificaciones,
       cheques,
       pagos,
+      remitos,
+      anticipos,
       ivaManualPorMes,
       ingresosBrutosManualPorMes,
       movimientosDiarios,
@@ -216,6 +228,8 @@ export function EmpresasPage({ esPremium }: Props) {
     clasificaciones,
     cheques,
     pagos,
+    remitos,
+    anticipos,
     ivaManualPorMes,
     ingresosBrutosManualPorMes,
     movimientosDiarios,
@@ -239,6 +253,8 @@ export function EmpresasPage({ esPremium }: Props) {
           clasificaciones,
           cheques,
           pagos,
+          remitos,
+          anticipos,
           ivaManualPorMes,
           ingresosBrutosManualPorMes,
           movimientosDiarios,
@@ -264,6 +280,8 @@ export function EmpresasPage({ esPremium }: Props) {
     clasificaciones,
     cheques,
     pagos,
+    remitos,
+    anticipos,
     ivaManualPorMes,
     ingresosBrutosManualPorMes,
     movimientosDiarios,
@@ -468,6 +486,33 @@ export function EmpresasPage({ esPremium }: Props) {
     )
   }
 
+  function handleAgregarRemito(remito: Omit<RemitoPresupuesto, 'id' | 'estado'>) {
+    setRemitos((prev) => [...prev, { ...remito, id: generarId(), estado: 'pendiente' }])
+  }
+
+  function handleEliminarRemito(id: string) {
+    setRemitos((prev) => prev.filter((r) => r.id !== id))
+    setAnticipos((prev) => prev.filter((a) => a.remitoId !== id))
+  }
+
+  function handleRegistrarAnticipo(remitoId: string, monto: number, fecha: string, medioPago: MedioPago | undefined) {
+    if (monto <= 0) return
+    setAnticipos((prev) => [...prev, { id: generarId(), remitoId, monto, fecha, medioPago }])
+  }
+
+  function handleVincularRemitoAFactura(remitoId: string, facturaId: string) {
+    const remito = remitos.find((r) => r.id === remitoId)
+    const factura = facturas.find((f) => f.id === facturaId)
+    if (!remito || !factura) return
+    const anticiposDelRemito = anticipos.filter((a) => a.remitoId === remitoId)
+    const { pagos: nuevosPagos, facturaCubierta } = vincularRemitoAFactura(anticiposDelRemito, factura, pagos, generarId)
+    setPagos((prev) => [...prev, ...nuevosPagos])
+    setRemitos((prev) => prev.map((r) => (r.id === remitoId ? { ...r, estado: 'facturado', facturaId } : r)))
+    if (facturaCubierta) {
+      setFacturas((prev) => prev.map((f) => (f.id === facturaId ? { ...f, cumplido: true } : f)))
+    }
+  }
+
   function handleAgregarMovimientoDiario(movimiento: Omit<MovimientoDiario, 'id'>) {
     setMovimientosDiarios((prev) => [...prev, { ...movimiento, id: generarId() }])
   }
@@ -566,6 +611,8 @@ export function EmpresasPage({ esPremium }: Props) {
   const aging = useMemo(() => calcularAgingCuentas(facturas, pagos), [facturas, pagos])
   const cuentaCorrienteCobrar = useMemo(() => agruparCuentaCorriente(facturas, pagos, 'emitida'), [facturas, pagos])
   const cuentaCorrientePagar = useMemo(() => agruparCuentaCorriente(facturas, pagos, 'recibida'), [facturas, pagos])
+  const remitosCobrar = useMemo(() => listarRemitosPendientes(remitos, anticipos, 'emitida'), [remitos, anticipos])
+  const remitosPagar = useMemo(() => listarRemitosPendientes(remitos, anticipos, 'recibida'), [remitos, anticipos])
   const posicionIva = useMemo(
     () => calcularPosicionIvaPorMes(facturas, ivaManualPorMes),
     [facturas, ivaManualPorMes],
@@ -684,6 +731,7 @@ export function EmpresasPage({ esPremium }: Props) {
                 s.key === 'proveedores' ||
                 s.key === 'cheques' ||
                 s.key === 'cuentasCorrientes' ||
+                s.key === 'remitos' ||
                 s.key === 'iva' ||
                 s.key === 'iibb' ||
                 s.key === 'patrimonio') &&
@@ -758,6 +806,25 @@ export function EmpresasPage({ esPremium }: Props) {
             pagos={pagos}
             onAplicarPago={handleAplicarPagoCuenta}
             onEliminarPago={handleEliminarPago}
+          />
+        </PremiumLock>
+      )}
+
+      {seccion === 'remitos' && (
+        <PremiumLock
+          activo={esPremium}
+          titulo="Remitos y presupuestos"
+          descripcion="Para trabajos largos: cargá el remito o presupuesto, cobrá un anticipo, y vinculalo a la factura real cuando termines el trabajo."
+          onQuieroPremium={abrirPlanes}
+        >
+          <RemitosPresupuestos
+            remitosCobrar={remitosCobrar}
+            remitosPagar={remitosPagar}
+            facturas={facturas}
+            onAgregar={handleAgregarRemito}
+            onRegistrarAnticipo={handleRegistrarAnticipo}
+            onVincularFactura={handleVincularRemitoAFactura}
+            onEliminar={handleEliminarRemito}
           />
         </PremiumLock>
       )}

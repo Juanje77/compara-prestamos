@@ -1140,6 +1140,100 @@ export function imputarPagoAFIFO(
 }
 
 // ---------------------------------------------------------------------------
+// Remitos y presupuestos (Premium): anticipos antes de facturar un trabajo largo
+// ---------------------------------------------------------------------------
+//
+// Para una empresa industrial que primero entrega un remito (o pasa un presupuesto), cobra un
+// anticipo, y recién factura todo junto al terminar el trabajo. Un remito/presupuesto NO es un
+// comprobante fiscal — no suma a ventas/compras netas, IVA ni margen bruto — es solo un
+// seguimiento del compromiso hasta que se emite la factura real, momento en el que se vincula
+// para que los anticipos ya cobrados pasen a ser pagos de esa factura (y no se cobren dos veces).
+
+export type TipoDocumentoAnticipo = 'remito' | 'presupuesto'
+
+export interface RemitoPresupuesto {
+  id: string
+  /** "emitida" = a un cliente (vas a cobrar), "recibida" = de un proveedor (vas a pagar). */
+  tipo: TipoFactura
+  tipoDocumento: TipoDocumentoAnticipo
+  contraparte: string
+  monto: number
+  fecha: string
+  numero?: string
+  /** "facturado" una vez vinculado a la factura real — ver vincularRemitoAFactura. */
+  estado: 'pendiente' | 'facturado'
+  facturaId?: string
+}
+
+export interface Anticipo {
+  id: string
+  remitoId: string
+  monto: number
+  fecha: string
+  medioPago?: MedioPago
+  chequeId?: string
+}
+
+export function calcularMontoAnticipado(remitoId: string, anticipos: Anticipo[]): number {
+  return anticipos.filter((a) => a.remitoId === remitoId).reduce((s, a) => s + a.monto, 0)
+}
+
+export function calcularSaldoRemito(r: RemitoPresupuesto, anticipos: Anticipo[]): number {
+  return Math.max(0, r.monto - calcularMontoAnticipado(r.id, anticipos))
+}
+
+export interface RemitoConSaldo extends RemitoPresupuesto {
+  montoAnticipado: number
+  saldo: number
+}
+
+/** Remitos/presupuestos todavía sin facturar, de un cliente o proveedor, con lo ya anticipado y
+ * el saldo — de más viejo a más nuevo. */
+export function listarRemitosPendientes(
+  remitos: RemitoPresupuesto[],
+  anticipos: Anticipo[],
+  tipo: TipoFactura,
+): RemitoConSaldo[] {
+  return remitos
+    .filter((r) => r.tipo === tipo && r.estado === 'pendiente')
+    .map((r) => {
+      const montoAnticipado = calcularMontoAnticipado(r.id, anticipos)
+      return { ...r, montoAnticipado, saldo: Math.max(0, r.monto - montoAnticipado) }
+    })
+    .sort((a, b) => a.fecha.localeCompare(b.fecha))
+}
+
+export interface ResultadoVinculacion {
+  pagos: Pago[]
+  /** Si los anticipos ya transferidos, sumados a lo que la factura ya tuviera pagado, cubren el
+   * total facturado — para poder marcarla cumplida de una vez. */
+  facturaCubierta: boolean
+}
+
+/**
+ * Vincula un remito/presupuesto a la factura real emitida al terminar el trabajo: convierte cada
+ * anticipo ya cobrado/pagado en un pago contra esa factura (mismo monto, fecha y medio), para que
+ * el saldo de la factura ya refleje lo adelantado.
+ */
+export function vincularRemitoAFactura(
+  anticiposDelRemito: Anticipo[],
+  factura: Factura,
+  pagosExistentes: Pago[],
+  generarId: () => string,
+): ResultadoVinculacion {
+  const pagos: Pago[] = anticiposDelRemito.map((a) => ({
+    id: generarId(),
+    facturaId: factura.id,
+    monto: a.monto,
+    fecha: a.fecha,
+    medioPago: a.medioPago,
+    chequeId: a.chequeId,
+  }))
+  const totalPagado = calcularMontoPagado(factura.id, pagosExistentes) + pagos.reduce((s, p) => s + p.monto, 0)
+  return { pagos, facturaCubierta: totalPagado >= factura.monto }
+}
+
+// ---------------------------------------------------------------------------
 // Tendencia mensual de margen (Premium)
 // ---------------------------------------------------------------------------
 

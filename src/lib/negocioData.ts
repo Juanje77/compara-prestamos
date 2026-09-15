@@ -1,4 +1,4 @@
-import type { Bien, Cheque, ClasificacionesProveedores, CuentaBancaria, Deuda, Factura, IngresosBrutosManualMes, IvaManualMes, MovimientoDiario, Pago } from './cfo'
+import type { Anticipo, Bien, Cheque, ClasificacionesProveedores, CuentaBancaria, Deuda, Factura, IngresosBrutosManualMes, IvaManualMes, MovimientoDiario, Pago, RemitoPresupuesto } from './cfo'
 
 export interface NegocioData {
   ingresos: number
@@ -16,6 +16,10 @@ export interface NegocioData {
   cheques: Cheque[]
   /** Pagos parciales imputados desde Cuentas corrientes — ver agruparCuentaCorriente. */
   pagos: Pago[]
+  /** Remitos/presupuestos de trabajos todavía sin facturar — ver listarRemitosPendientes. */
+  remitos: RemitoPresupuesto[]
+  /** Anticipos cobrados/pagados contra un remito o presupuesto — ver calcularSaldoRemito. */
+  anticipos: Anticipo[]
   /** Ediciones manuales de la Posición de IVA por mes — ver calcularPosicionIvaPorMes. */
   ivaManualPorMes: Record<string, IvaManualMes>
   /** Ediciones manuales de la Posición de Ingresos Brutos por mes — ver calcularPosicionIngresosBrutosPorMes. */
