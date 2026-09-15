@@ -27,6 +27,7 @@ import {
   CATEGORIAS_GASTO,
   agruparCuentaCorriente,
   aplicarMovimientoStock,
+  calcularValorInventario,
   calcularCoberturaDeuda,
   calcularCuotaDeudaTotal,
   calcularDeudaTotal,
@@ -471,6 +472,17 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
 
   function handleCambiarEstadoCheque(id: string, estado: EstadoCheque) {
     setCheques((prev) => prev.map((c) => (c.id === id ? { ...c, estado } : c)))
+    if (estado === 'rechazado') {
+      // Un cheque rebotado no saldó nada: revertimos las facturas que había cubierto.
+      const cheque = cheques.find((c) => c.id === id)
+      if (cheque?.facturasIds && cheque.facturasIds.length > 0) {
+        const idsFactura = new Set(cheque.facturasIds)
+        setPagos((prev) => prev.filter((p) => p.chequeId !== id))
+        setFacturas((prev) =>
+          prev.map((f) => (idsFactura.has(f.id) ? { ...f, cumplido: false, medioPago: undefined } : f)),
+        )
+      }
+    }
   }
 
   function handleCambiarComisionCheque(id: string, comisionDescuento: number) {
@@ -676,7 +688,8 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   // cero — no los gastos totales, porque los variables (insumos, mercadería) dejarían de
   // comprarse junto con la caída del ingreso que los genera.
   const runwayMeses = calcularRunwayMeses(saldoInicial, gastosFijos)
-  const valorBienes = useMemo(() => calcularValorTotalBienes(bienes), [bienes])
+  const valorInventario = useMemo(() => calcularValorInventario(productos), [productos])
+  const valorBienes = useMemo(() => calcularValorTotalBienes(bienes) + valorInventario, [bienes, valorInventario])
   const runwayExtendido = calcularRunwayExtendido(saldoInicial, valorBienes, gastosFijos)
   const endeudamientoMeses = calcularEndeudamientoMeses(deudaTotal, ingresosEfectivos)
   const puntoEquilibrio = useMemo(
@@ -721,8 +734,8 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     [facturas, ingresosBrutosManualPorMes],
   )
   const alertas = useMemo(
-    () => generarAlertas({ margenOperativo, runwayMeses, proyeccion, deudas, facturas }),
-    [margenOperativo, runwayMeses, proyeccion, deudas, facturas],
+    () => generarAlertas({ margenOperativo, runwayMeses, proyeccion, deudas, facturas, cheques, productos }),
+    [margenOperativo, runwayMeses, proyeccion, deudas, facturas, cheques, productos],
   )
   const indicadoresCobroPago = useMemo(() => calcularDSOyDPO(facturas, pagos), [facturas, pagos])
   const recomendaciones = useMemo(
@@ -1157,13 +1170,13 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
             {esPremium && (
               <KpiCard
                 label="Runway extendido"
-                info="Lo mismo que el runway de caja, pero sumando lo que podrías conseguir vendiendo tu patrimonio (inversiones, vehículos, etc.) si hiciera falta."
+                info="Lo mismo que el runway de caja, pero sumando lo que podrías conseguir vendiendo tu patrimonio (inversiones, vehículos, etc.) y tu stock si hiciera falta."
                 value={runwayExtendido === Infinity ? '∞' : `${runwayExtendido.toFixed(1)} meses`}
                 status={runwayExtendido >= 6 ? 'good' : runwayExtendido >= 3 ? 'warning' : 'critical'}
                 statusLabel={
                   valorBienes > 0
-                    ? `Caja + patrimonio (${formatoMoneda(valorBienes)}), pagando solo gastos fijos`
-                    : 'Cargá tus bienes en la solapa Patrimonio para sumarlos acá'
+                    ? `Caja + patrimonio y stock (${formatoMoneda(valorBienes)}), pagando solo gastos fijos`
+                    : 'Cargá tus bienes en Patrimonio o productos en Stock para sumarlos acá'
                 }
               />
             )}

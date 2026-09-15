@@ -123,7 +123,7 @@ export function Patrimonio({ bienes, runwayExtendido, onAgregar, onEliminar }: P
       </div>
       {total > 0 && (
         <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
-          Runway extendido (caja + este patrimonio, pagando solo gastos fijos):{' '}
+          Runway extendido (caja + este patrimonio + el valor de tu Stock, pagando solo gastos fijos):{' '}
           <span className="tabular font-medium">
             {runwayExtendido === Infinity ? 'sin límite' : `${runwayExtendido.toFixed(1)} meses`}
           </span>

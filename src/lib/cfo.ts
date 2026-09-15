@@ -1,3 +1,5 @@
+import { formatoMoneda } from './finance'
+
 export interface CuentaBancaria {
   id: string
   nombre: string
@@ -785,9 +787,13 @@ export function generarAlertas(input: {
   proyeccion: FilaProyeccion[]
   deudas: Deuda[]
   facturas: Factura[]
+  /** Cheques (plan Full) — para avisar de rechazados sin resolver y próximos a vencer. */
+  cheques?: Cheque[]
+  /** Productos de Stock (plan Full) — para avisar de los que están bajo su stock mínimo. */
+  productos?: Producto[]
 }): Alerta[] {
   const alertas: Alerta[] = []
-  const { margenOperativo, runwayMeses, proyeccion, deudas, facturas } = input
+  const { margenOperativo, runwayMeses, proyeccion, deudas, facturas, cheques = [], productos = [] } = input
 
   if (margenOperativo < 0) {
     alertas.push({ id: 'margen-negativo', severidad: 'critical', mensaje: 'Estás perdiendo plata cada mes: tus gastos superan tus ingresos.' })
@@ -828,6 +834,39 @@ export function generarAlertas(input: {
           'Según tus comprobantes, compraste más de lo que facturaste en el período cargado (margen bruto negativo). Esto no implica necesariamente un quiebre de caja: si esas compras las estás pagando en cuotas, el impacto real en tu caja se reparte en el tiempo — revisá el runway y la proyección para ver tu situación real.',
       })
     }
+  }
+
+  const chequesRechazados = cheques.filter((c) => c.estado === 'rechazado')
+  if (chequesRechazados.length > 0) {
+    const total = chequesRechazados.reduce((s, c) => s + c.monto, 0)
+    alertas.push({
+      id: 'cheques-rechazados',
+      severidad: 'critical',
+      mensaje: `Tenés ${chequesRechazados.length} cheque${chequesRechazados.length === 1 ? '' : 's'} rechazado${chequesRechazados.length === 1 ? '' : 's'} por ${formatoMoneda(total)} sin resolver.`,
+    })
+  }
+  for (const c of cheques) {
+    if (c.estado !== 'cartera') continue
+    const fecha = new Date(`${c.fechaCobro}T00:00:00`)
+    if (fecha >= hoy && fecha <= enSieteDias) {
+      alertas.push({
+        id: `cheque-vence-${c.id}`,
+        severidad: 'warning',
+        mensaje: `Cheque ${c.tipo === 'recibido' ? 'a cobrar' : 'a pagar'} de ${formatoMoneda(c.monto)} (${c.contraparte}) vence el ${fecha.toLocaleDateString('es-AR')}.`,
+      })
+    }
+  }
+
+  const bajoMinimo = listarProductosBajoMinimo(productos)
+  if (bajoMinimo.length > 0) {
+    alertas.push({
+      id: 'stock-bajo-minimo',
+      severidad: 'warning',
+      mensaje: `${bajoMinimo.length} producto${bajoMinimo.length === 1 ? '' : 's'} en Stock por debajo del mínimo: ${bajoMinimo
+        .slice(0, 3)
+        .map((p) => p.nombre)
+        .join(', ')}${bajoMinimo.length > 3 ? '…' : ''}.`,
+    })
   }
 
   return alertas
