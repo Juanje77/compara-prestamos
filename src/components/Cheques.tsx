@@ -30,12 +30,14 @@ export function Cheques({ cheques, facturas, onAgregar, onCambiarEstado, onCambi
   const totales = calcularTotalesCheques(cheques)
   const listado = [...cheques].sort((a, b) => a.fechaCobro.localeCompare(b.fechaCobro))
 
+  // No se exige que la factura esté sin cobrar/pagar: muchos cargan el comprobante ya marcado
+  // como cumplido y recién después arman el cheque que lo cubre, para dejar el registro de con
+  // qué cheque puntual se saldó.
   const facturasCubiertas = new Set(cheques.flatMap((c) => c.facturasIds ?? []))
   const facturasElegibles = facturas.filter(
     (f) =>
       f.tipo === (tipo === 'recibido' ? 'emitida' : 'recibida') &&
       f.tipoComprobante !== 'nota_credito' &&
-      !f.cumplido &&
       !facturasCubiertas.has(f.id),
   )
 
