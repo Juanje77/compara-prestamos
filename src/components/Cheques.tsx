@@ -26,6 +26,7 @@ export function Cheques({ cheques, facturas, onAgregar, onCambiarEstado, onCambi
   const [fechaEmision, setFechaEmision] = useState(hoyISO)
   const [fechaCobro, setFechaCobro] = useState(hoyISO)
   const [facturasSeleccionadas, setFacturasSeleccionadas] = useState<Set<string>>(new Set())
+  const [busquedaFactura, setBusquedaFactura] = useState('')
 
   const totales = calcularTotalesCheques(cheques)
   const listado = [...cheques].sort((a, b) => a.fechaCobro.localeCompare(b.fechaCobro))
@@ -40,10 +41,17 @@ export function Cheques({ cheques, facturas, onAgregar, onCambiarEstado, onCambi
       f.tipoComprobante !== 'nota_credito' &&
       !facturasCubiertas.has(f.id),
   )
+  const textoBusqueda = busquedaFactura.trim().toLowerCase()
+  const facturasFiltradas = textoBusqueda
+    ? facturasElegibles.filter(
+        (f) => f.contraparte.toLowerCase().includes(textoBusqueda) || f.numero?.toLowerCase().includes(textoBusqueda),
+      )
+    : facturasElegibles
 
   function cambiarTipo(nuevoTipo: TipoCheque) {
     setTipo(nuevoTipo)
     setFacturasSeleccionadas(new Set())
+    setBusquedaFactura('')
   }
 
   function alternarFactura(id: string) {
@@ -166,8 +174,21 @@ export function Cheques({ cheques, facturas, onAgregar, onCambiarEstado, onCambi
               {tipo === 'recibido' ? 'Facturas de venta que cobra este cheque' : 'Facturas de compra que paga este cheque'}{' '}
               <span style={{ color: 'var(--text-secondary)' }}>(opcional)</span>
             </p>
+            <input
+              type="text"
+              placeholder="Buscar por cliente/proveedor o número…"
+              value={busquedaFactura}
+              onChange={(e) => setBusquedaFactura(e.target.value)}
+              className="mb-2 w-full rounded-lg border px-3 py-1.5 text-sm"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+            />
+            {facturasFiltradas.length === 0 ? (
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                No hay facturas que coincidan con la búsqueda.
+              </p>
+            ) : (
             <ul className="max-h-40 space-y-1 overflow-y-auto">
-              {facturasElegibles.map((f) => (
+              {facturasFiltradas.map((f) => (
                 <li key={f.id}>
                   <label className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
                     <input
@@ -185,6 +206,7 @@ export function Cheques({ cheques, facturas, onAgregar, onCambiarEstado, onCambi
                 </li>
               ))}
             </ul>
+            )}
             {facturasSeleccionadas.size > 0 && (
               <p className="mt-2 text-xs" style={{ color: 'var(--series-blue)' }}>
                 {facturasSeleccionadas.size} factura(s) seleccionada(s) — el monto de arriba se completó con su total.
