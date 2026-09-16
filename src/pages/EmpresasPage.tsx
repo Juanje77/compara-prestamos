@@ -23,6 +23,7 @@ import { Patrimonio } from '../components/Patrimonio'
 import { Ayuda } from '../components/Ayuda'
 import { CuentasCorrientes } from '../components/CuentasCorrientes'
 import { RemitosPresupuestos } from '../components/RemitosPresupuestos'
+import { MargenesPorSector } from '../components/MargenesPorSector'
 import { Stock } from '../components/Stock'
 import { Tesoreria } from '../components/Tesoreria'
 import {
@@ -41,6 +42,7 @@ import {
   calcularGastosTotales,
   calcularMargenBrutoTotal,
   calcularMargenOperativo,
+  calcularMargenPorSector,
   calcularMontoPagado,
   calcularAgingCuentas,
   calcularDSOyDPO,
@@ -88,6 +90,7 @@ import {
   type Pago,
   type Producto,
   type RemitoPresupuesto,
+  type Sector,
   type TipoFactura,
   type TipoMovimientoStock,
 } from '../lib/cfo'
@@ -119,6 +122,7 @@ const SECCIONES = [
   { key: 'cobranzas', label: 'Cobranzas y pagos' },
   { key: 'cuentasCorrientes', label: 'Cuentas corrientes' },
   { key: 'remitos', label: 'Remitos y presupuestos' },
+  { key: 'margenes', label: 'Márgenes por sector' },
   { key: 'stock', label: 'Stock' },
   { key: 'tesoreria', label: 'Tesorería' },
   { key: 'proveedores', label: 'Proveedores' },
@@ -133,7 +137,7 @@ const SECCIONES = [
 
 /** Secciones exclusivas del plan Full (el sistema de gestión de uso diario) — el resto que
  * requiere pago sigue disponible desde el plan Medio. */
-const SECCIONES_FULL = new Set(['cuentasCorrientes', 'remitos', 'cheques', 'stock', 'tesoreria'])
+const SECCIONES_FULL = new Set(['cuentasCorrientes', 'remitos', 'margenes', 'cheques', 'stock', 'tesoreria'])
 
 type Seccion = (typeof SECCIONES)[number]['key']
 
@@ -178,6 +182,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   const [cheques, setCheques] = useState<Cheque[]>(() => cargarNegocioData()?.cheques ?? [])
   const [pagos, setPagos] = useState<Pago[]>(() => cargarNegocioData()?.pagos ?? [])
   const [remitos, setRemitos] = useState<RemitoPresupuesto[]>(() => cargarNegocioData()?.remitos ?? [])
+  const [sectores, setSectores] = useState<Sector[]>(() => cargarNegocioData()?.sectores ?? [])
   const [anticipos, setAnticipos] = useState<Anticipo[]>(() => cargarNegocioData()?.anticipos ?? [])
   const [productos, setProductos] = useState<Producto[]>(() => cargarNegocioData()?.productos ?? [])
   const [movimientosStock, setMovimientosStock] = useState<MovimientoStock[]>(
@@ -232,6 +237,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           setCheques(d.cheques ?? [])
           setPagos(d.pagos ?? [])
           setRemitos(d.remitos ?? [])
+          setSectores(d.sectores ?? [])
           setAnticipos(d.anticipos ?? [])
           setProductos(d.productos ?? [])
           setMovimientosStock(d.movimientosStock ?? [])
@@ -267,6 +273,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
       cheques,
       pagos,
       remitos,
+      sectores,
       anticipos,
       productos,
       movimientosStock,
@@ -293,6 +300,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     cheques,
     pagos,
     remitos,
+    sectores,
     anticipos,
     productos,
     movimientosStock,
@@ -324,6 +332,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           cheques,
           pagos,
           remitos,
+          sectores,
           anticipos,
           productos,
           movimientosStock,
@@ -357,6 +366,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     cheques,
     pagos,
     remitos,
+    sectores,
     anticipos,
     productos,
     movimientosStock,
@@ -825,6 +835,16 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     setAnticipos((prev) => prev.filter((a) => a.remitoId !== id))
   }
 
+  function handleAgregarSector(nombre: string) {
+    setSectores((prev) => [...prev, { id: generarId(), nombre }])
+  }
+
+  /** No borra los remitos que ya tenían este sector asignado — simplemente dejan de contar en
+   * Márgenes por sector, mismo criterio de borrado sin cascada que el resto de la app. */
+  function handleEliminarSector(id: string) {
+    setSectores((prev) => prev.filter((s) => s.id !== id))
+  }
+
   function handleRegistrarAnticipo(
     remitoId: string,
     monto: number,
@@ -1031,6 +1051,10 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   )
   const remitosCobrar = useMemo(() => listarRemitosPendientes(remitos, anticipos, 'emitida'), [remitos, anticipos])
   const remitosPagar = useMemo(() => listarRemitosPendientes(remitos, anticipos, 'recibida'), [remitos, anticipos])
+  const margenesPorSector = useMemo(
+    () => calcularMargenPorSector(sectores, remitos, productos),
+    [sectores, remitos, productos],
+  )
   const contrapartesClientes = useMemo(() => clientes.map((c) => c.cliente).sort(), [clientes])
   const contrapartesProveedores = useMemo(() => proveedores.map((p) => p.proveedor).sort(), [proveedores])
   const posicionIva = useMemo(
@@ -1263,6 +1287,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
             remitosPagar={remitosPagar}
             facturas={facturas}
             productos={productos}
+            sectores={sectores}
             contrapartesClientes={contrapartesClientes}
             contrapartesProveedores={contrapartesProveedores}
             cuentasBancarias={cuentas}
@@ -1270,6 +1295,23 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
             onRegistrarAnticipo={handleRegistrarAnticipo}
             onVincularFactura={handleVincularRemitoAFactura}
             onEliminar={handleEliminarRemito}
+          />
+        </PremiumLock>
+      )}
+
+      {seccion === 'margenes' && (
+        <PremiumLock
+          activo={esFull}
+          nivelRequerido="full"
+          titulo="Márgenes por sector"
+          descripcion="Creá sectores (divisiones o centros de costo del negocio) y asignalos a tus remitos para ver cuánto factura, cuánto cuesta y cuánto deja de ganancia cada uno."
+          onQuieroPremium={abrirPlanes}
+        >
+          <MargenesPorSector
+            sectores={sectores}
+            margenes={margenesPorSector}
+            onAgregarSector={handleAgregarSector}
+            onEliminarSector={handleEliminarSector}
           />
         </PremiumLock>
       )}

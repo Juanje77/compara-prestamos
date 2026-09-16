@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { CuentaBancaria, Factura, LineaProducto, MedioPago, Producto, RemitoConSaldo, TipoDocumentoAnticipo, TipoFactura } from '../lib/cfo'
+import type { CuentaBancaria, Factura, LineaProducto, MedioPago, Producto, RemitoConSaldo, Sector, TipoDocumentoAnticipo, TipoFactura } from '../lib/cfo'
 import { MEDIOS_PAGO_LABEL, calcularMontoDesdeLineas } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
@@ -9,6 +9,9 @@ interface Props {
   remitosPagar: RemitoConSaldo[]
   facturas: Factura[]
   productos: Producto[]
+  /** Sectores (divisiones/centros de costo) creados en Márgenes por sector, para asignar cada
+   * remito a uno al cargarlo — ver calcularMargenPorSector. */
+  sectores: Sector[]
   /** Clientes y proveedores ya cargados en Comprobantes, para sugerir mientras se escribe y usar
    * siempre el mismo nombre exacto — así la cuenta corriente y la vinculación a factura los
    * reconocen sin depender de tipeo. */
@@ -24,6 +27,7 @@ interface Props {
     fecha: string
     numero?: string
     lineas?: LineaProducto[]
+    sectorId?: string
   }) => void
   onRegistrarAnticipo: (
     remitoId: string,
@@ -49,6 +53,7 @@ function TarjetaRemito({
   remito,
   facturasDisponibles,
   cuentasBancarias,
+  nombreSector,
   onRegistrarAnticipo,
   onVincularFactura,
   onEliminar,
@@ -56,6 +61,7 @@ function TarjetaRemito({
   remito: RemitoConSaldo
   facturasDisponibles: Factura[]
   cuentasBancarias?: CuentaBancaria[]
+  nombreSector?: string
   onRegistrarAnticipo: Props['onRegistrarAnticipo']
   onVincularFactura: Props['onVincularFactura']
   onEliminar: Props['onEliminar']
@@ -92,6 +98,14 @@ function TarjetaRemito({
           {remito.numero && (
             <span className="ml-1.5 text-xs font-normal" style={{ color: 'var(--text-muted)' }}>
               ({remito.numero})
+            </span>
+          )}
+          {nombreSector && (
+            <span
+              className="ml-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+              style={{ background: 'color-mix(in srgb, var(--series-blue) 14%, transparent)', color: 'var(--series-blue)' }}
+            >
+              {nombreSector}
             </span>
           )}
         </p>
@@ -200,6 +214,7 @@ function Columna({
   remitos,
   facturas,
   cuentasBancarias,
+  sectores,
   onRegistrarAnticipo,
   onVincularFactura,
   onEliminar,
@@ -208,6 +223,7 @@ function Columna({
   remitos: RemitoConSaldo[]
   facturas: Factura[]
   cuentasBancarias?: CuentaBancaria[]
+  sectores: Sector[]
   onRegistrarAnticipo: Props['onRegistrarAnticipo']
   onVincularFactura: Props['onVincularFactura']
   onEliminar: Props['onEliminar']
@@ -236,6 +252,7 @@ function Columna({
             remito={r}
             facturasDisponibles={facturas.filter((f) => f.contraparte === r.contraparte && f.tipo === r.tipo && f.tipoComprobante === 'factura')}
             cuentasBancarias={cuentasBancarias}
+            nombreSector={sectores.find((s) => s.id === r.sectorId)?.nombre}
             onRegistrarAnticipo={onRegistrarAnticipo}
             onVincularFactura={onVincularFactura}
             onEliminar={onEliminar}
@@ -251,6 +268,7 @@ export function RemitosPresupuestos({
   remitosPagar,
   facturas,
   productos,
+  sectores,
   contrapartesClientes,
   contrapartesProveedores,
   cuentasBancarias,
@@ -265,6 +283,7 @@ export function RemitosPresupuestos({
   const [numero, setNumero] = useState('')
   const [monto, setMonto] = useState(0)
   const [fecha, setFecha] = useState(hoyISO)
+  const [sectorId, setSectorId] = useState('')
   const [lineas, setLineas] = useState<LineaProducto[]>([])
   const [tipoLinea, setTipoLinea] = useState<'producto' | 'otro'>('producto')
   const [productoElegido, setProductoElegido] = useState('')
@@ -322,11 +341,13 @@ export function RemitosPresupuestos({
       fecha,
       numero: numero.trim() || undefined,
       lineas: lineas.length > 0 ? lineas : undefined,
+      sectorId: sectorId || undefined,
     })
     setContraparte('')
     setNumero('')
     setMonto(0)
     setLineas([])
+    setSectorId('')
   }
 
   return (
@@ -383,6 +404,21 @@ export function RemitosPresupuestos({
               <option key={nombre} value={nombre} />
             ))}
           </datalist>
+          {sectores.length > 0 && (
+            <select
+              value={sectorId}
+              onChange={(e) => setSectorId(e.target.value)}
+              className="shrink-0 rounded-lg border px-3 py-1.5 text-sm"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+            >
+              <option value="">Sin sector</option>
+              {sectores.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nombre}
+                </option>
+              ))}
+            </select>
+          )}
           {montoDesdeLineas !== null ? (
             <div
               className="tabular flex w-32 shrink-0 items-center rounded-lg border px-3 py-1.5 text-sm font-semibold"
@@ -541,6 +577,7 @@ export function RemitosPresupuestos({
           remitos={remitosCobrar}
           facturas={facturas}
           cuentasBancarias={cuentasBancarias}
+          sectores={sectores}
           onRegistrarAnticipo={onRegistrarAnticipo}
           onVincularFactura={onVincularFactura}
           onEliminar={onEliminar}
@@ -550,6 +587,7 @@ export function RemitosPresupuestos({
           remitos={remitosPagar}
           facturas={facturas}
           cuentasBancarias={cuentasBancarias}
+          sectores={sectores}
           onRegistrarAnticipo={onRegistrarAnticipo}
           onVincularFactura={onVincularFactura}
           onEliminar={onEliminar}

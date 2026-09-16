@@ -109,8 +109,21 @@ const SECCIONES: SeccionAyuda[] = [
     tip: 'Remitos y presupuestos no suman a ventas/compras ni a IVA — son solo un seguimiento hasta que se facturan de verdad. Las líneas de "mano de obra / otro costo" tampoco mueven stock, solo suman al monto.',
   },
   {
-    id: 'stock',
+    id: 'margenes',
     numero: '07',
+    titulo: 'Márgenes por sector',
+    tier: 'full',
+    descripcion: 'Cuánto factura, cuánto cuesta y cuánto deja de ganancia cada división o centro de costo de tu negocio.',
+    pasos: [
+      'Creá un sector por cada división del negocio (ej: "Metalúrgica", "Instalaciones", "Service").',
+      'Al cargar un remito en la solapa Remitos, asignale un sector desde el selector del formulario.',
+      'Volvé acá para ver, por sector: el ingreso (remitos a clientes), el costo (remitos a proveedores más el costo de las líneas de producto) y la ganancia resultante.',
+    ],
+    tip: 'Solo cuenta remitos, nunca presupuestos — un presupuesto todavía no es un compromiso real. Y solo separa el costo real de las líneas con producto de Stock: las líneas de "mano de obra / otro costo" se cuentan al mismo precio facturado (margen cero), porque la app no tiene un costo de mano de obra cargado en ningún otro lado para compararlas.',
+  },
+  {
+    id: 'stock',
+    numero: '08',
     titulo: 'Stock',
     tier: 'full',
     descripcion: 'Catálogo de productos con control de entradas y salidas, conectado solo con Remitos.',
@@ -123,7 +136,7 @@ const SECCIONES: SeccionAyuda[] = [
   },
   {
     id: 'tesoreria',
-    numero: '08',
+    numero: '09',
     titulo: 'Tesorería',
     tier: 'full',
     descripcion: 'El saldo real de cada caja o cuenta bancaria, armado solo con lo que vas cobrando y pagando en el resto del sistema.',
@@ -138,7 +151,7 @@ const SECCIONES: SeccionAyuda[] = [
   },
   {
     id: 'cheques',
-    numero: '09',
+    numero: '10',
     titulo: 'Cheques',
     tier: 'full',
     descripcion: 'Cheques de terceros que recibís y cheques propios que emitís.',
@@ -151,7 +164,7 @@ const SECCIONES: SeccionAyuda[] = [
   },
   {
     id: 'proveedores',
-    numero: '10',
+    numero: '11',
     titulo: 'Proveedores',
     tier: 'medio',
     descripcion: 'Lista de proveedores con el total facturado, clasificados por categoría de gasto.',
@@ -163,7 +176,7 @@ const SECCIONES: SeccionAyuda[] = [
   },
   {
     id: 'clientes',
-    numero: '11',
+    numero: '12',
     titulo: 'Clientes',
     tier: 'medio',
     descripcion: 'Mismo formato que Proveedores, pero para ventas, sin categoría.',
@@ -174,7 +187,7 @@ const SECCIONES: SeccionAyuda[] = [
   },
   {
     id: 'presupuesto-real',
-    numero: '12',
+    numero: '13',
     titulo: 'Presupuesto vs. Real',
     tier: 'medio',
     descripcion: 'Compará lo que presupuestaste en el Dashboard contra lo que facturaste y gastaste de verdad, mes a mes.',
@@ -187,7 +200,7 @@ const SECCIONES: SeccionAyuda[] = [
   },
   {
     id: 'iva',
-    numero: '13',
+    numero: '14',
     titulo: 'Posición de IVA',
     tier: 'medio',
     descripcion: 'Cuánto débito fiscal generaron tus ventas, cuánto crédito tus compras, y el saldo a pagar o a favor por mes.',
@@ -198,7 +211,7 @@ const SECCIONES: SeccionAyuda[] = [
   },
   {
     id: 'iibb',
-    numero: '14',
+    numero: '15',
     titulo: 'Ingresos Brutos',
     tier: 'medio',
     descripcion: 'La misma lógica que IVA, aplicada a Ingresos Brutos con tu alícuota.',
@@ -209,7 +222,7 @@ const SECCIONES: SeccionAyuda[] = [
   },
   {
     id: 'patrimonio',
-    numero: '15',
+    numero: '16',
     titulo: 'Patrimonio',
     tier: 'medio',
     descripcion: 'Bienes que no son caja del día a día, pero que podrías vender ante un quiebre de caja.',
@@ -220,7 +233,7 @@ const SECCIONES: SeccionAyuda[] = [
   },
   {
     id: 'contador',
-    numero: '16',
+    numero: '17',
     titulo: 'Exportar para el contador',
     tier: 'medio',
     descripcion: 'Un Excel prolijo, listo para mandar al estudio contable o importar en su sistema.',

@@ -1462,6 +1462,9 @@ export interface RemitoPresupuesto {
    * "remito" (un presupuesto todavía no movió nada). Si están cargadas, el monto del remito se
    * calcula solo a partir de ellas (ver calcularMontoDesdeLineas). */
   lineas?: LineaProducto[]
+  /** División o centro de costo del negocio al que pertenece este remito — ver Sector y
+   * calcularMargenPorSector. */
+  sectorId?: string
 }
 
 export interface Anticipo {
@@ -1639,6 +1642,88 @@ export function generarMovimientosDeRemito(remito: RemitoPresupuesto, generarId:
       costoUnitario: tipo === 'entrada' ? l.precioUnitario : undefined,
       remitoId: remito.id,
     }))
+}
+
+// ---------------------------------------------------------------------------
+// Márgenes por sector (Full): ingreso, costo y ganancia agrupados por sector
+// ---------------------------------------------------------------------------
+//
+// Un Sector es una división o centro de costo del negocio (ej. "Metalúrgica", "Instalaciones",
+// "Service") que se asigna a cada Remito al cargarlo. Con eso se puede ver cuánto factura,
+// cuánto cuesta y cuánto deja de ganancia cada sector. Solo mira remitos (tipoDocumento ===
+// "remito"), nunca presupuestos — un presupuesto todavía no es un compromiso real, mismo
+// criterio que generarMovimientosDeRemito con el stock.
+
+export interface Sector {
+  id: string
+  nombre: string
+}
+
+export interface MargenSector {
+  sector: Sector
+  ingreso: number
+  costoCompras: number
+  costoLineas: number
+  costoTotal: number
+  ganancia: number
+  margenPct: number
+  cantidadRemitos: number
+  /** Remitos emitidos del sector sin líneas cargadas: su costo de venta no se puede separar del
+   * monto facturado, así que la ganancia de ese remito queda sobrestimada en el total. */
+  remitosSinLineas: number
+}
+
+/**
+ * Ingreso = remitos emitidos (a un cliente) del sector. Costo = remitos recibidos (de un
+ * proveedor) del sector, más el costo de las líneas de producto de los remitos emitidos (al
+ * costoUnitario de Stock, no al precio facturado). Las líneas sin producto (mano de obra, flete,
+ * otros costos) se cuentan al mismo precio facturado, porque la app no tiene un costo de mano de
+ * obra cargado en ningún otro lado para compararlas — esas líneas siempre dan margen cero.
+ */
+export function calcularMargenPorSector(
+  sectores: Sector[],
+  remitos: RemitoPresupuesto[],
+  productos: Producto[],
+): MargenSector[] {
+  const productoPorId = new Map(productos.map((p) => [p.id, p]))
+
+  return sectores.map((sector) => {
+    const delSector = remitos.filter((r) => r.tipoDocumento === 'remito' && r.sectorId === sector.id)
+    const emitidos = delSector.filter((r) => r.tipo === 'emitida')
+    const recibidos = delSector.filter((r) => r.tipo === 'recibida')
+
+    const ingreso = emitidos.reduce((s, r) => s + r.monto, 0)
+    const costoCompras = recibidos.reduce((s, r) => s + r.monto, 0)
+    let costoLineas = 0
+    let remitosSinLineas = 0
+    for (const r of emitidos) {
+      if (!r.lineas || r.lineas.length === 0) {
+        remitosSinLineas += 1
+        continue
+      }
+      for (const l of r.lineas) {
+        if (l.productoId) {
+          costoLineas += (productoPorId.get(l.productoId)?.costoUnitario ?? 0) * l.cantidad
+        } else {
+          costoLineas += l.precioUnitario * l.cantidad
+        }
+      }
+    }
+
+    const costoTotal = costoCompras + costoLineas
+    const ganancia = ingreso - costoTotal
+    return {
+      sector,
+      ingreso,
+      costoCompras,
+      costoLineas,
+      costoTotal,
+      ganancia,
+      margenPct: ingreso > 0 ? (ganancia / ingreso) * 100 : 0,
+      cantidadRemitos: delSector.length,
+      remitosSinLineas,
+    }
+  })
 }
 
 // ---------------------------------------------------------------------------
