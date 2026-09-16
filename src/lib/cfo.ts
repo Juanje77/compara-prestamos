@@ -1166,9 +1166,44 @@ export function calcularTotalesCheques(cheques: Cheque[]): TotalesCheques {
 // exige — que no son "contribuciones" en sentido técnico pero sí un costo laboral más). El costo
 // real de cada empleado es el bruto más ambas.
 
-export const APORTES_PERSONALES_PCT_DEFAULT = 17
 export const CONTRIBUCIONES_PATRONALES_PCT_DEFAULT = 24
 export const CARGAS_SOCIALES_ADICIONALES_PCT_DEFAULT = 3
+
+/** Sobre qué se calcula un descuento. La diferencia importa: jubilación y PAMI se calculan solo
+ * sobre lo remunerativo, mientras que obra social y los aportes de convenio toman también las
+ * sumas no remunerativas. */
+export type BaseDescuento = 'remunerativo' | 'total'
+
+export const BASE_DESCUENTO_LABEL: Record<BaseDescuento, string> = {
+  remunerativo: 'Remunerativo',
+  total: 'Remunerativo + no remunerativo',
+}
+
+/** Una línea de haberes del recibo: el básico va aparte, acá van antigüedad, presentismo, los
+ * acuerdos no remunerativos, etc. */
+export interface ConceptoHaber {
+  id: string
+  descripcion: string
+  monto: number
+  /** Los no remunerativos no pagan jubilación ni PAMI ni generan contribuciones patronales. */
+  remunerativo: boolean
+}
+
+export interface DescuentoEmpleado {
+  id: string
+  descripcion: string
+  porcentaje: number
+  base: BaseDescuento
+}
+
+/** Los tres descuentos que lleva cualquier recibo en relación de dependencia. Los de convenio
+ * (S.E.C., F.A.E.C. y S., cuota sindical, etc.) se agregan aparte porque cambian según la
+ * actividad. */
+export const DESCUENTOS_DEFAULT: Omit<DescuentoEmpleado, 'id'>[] = [
+  { descripcion: 'Jubilación', porcentaje: 11, base: 'remunerativo' },
+  { descripcion: 'Ley 19.032 (PAMI)', porcentaje: 3, base: 'remunerativo' },
+  { descripcion: 'Obra social', porcentaje: 3, base: 'total' },
+]
 
 /** Parte del costo de un empleado que se imputa a un sector — un mismo empleado puede repartirse
  * entre varios (60% Metalúrgica, 40% Service). Lo que no se asigna no cae en ningún sector. */
@@ -1180,10 +1215,15 @@ export interface AsignacionSector {
 export interface Empleado {
   id: string
   nombre: string
+  /** Sueldo básico de convenio — el resto de los haberes van en `conceptos`. */
   sueldoBruto: number
-  /** % del bruto que se descuenta al empleado (jubilación, obra social, PAMI) — llega al neto de bolsillo. */
-  aportesPersonalesPct: number
-  /** % del bruto que la empresa aporta al sistema de seguridad social (Dto. 814/2001). */
+  /** Categoría/convenio, solo informativo (ej. "Administrativo A — CCT 130/75"). */
+  categoria?: string
+  /** Antigüedad, presentismo, acuerdos no remunerativos y demás líneas del recibo. */
+  conceptos?: ConceptoHaber[]
+  /** Descuentos al empleado. Si no está definido se usan los de DESCUENTOS_DEFAULT. */
+  descuentos?: DescuentoEmpleado[]
+  /** % que la empresa aporta al sistema de seguridad social (Dto. 814/2001), sobre lo remunerativo. */
   contribucionesPatronalesPct: number
   /** % del bruto de otras cargas sociales a cargo de la empresa que NO son contribución
    * previsional — ART, seguro de vida obligatorio, cuota sindical patronal, etc. */
@@ -1194,29 +1234,66 @@ export interface Empleado {
   asignaciones?: AsignacionSector[]
 }
 
+export interface DescuentoCalculado extends DescuentoEmpleado {
+  /** Sobre cuánto se aplicó el porcentaje — es la columna "Base" del recibo. */
+  montoBase: number
+  monto: number
+}
+
 export interface CostoEmpleado {
   empleado: Empleado
+  /** Básico + conceptos remunerativos: la base de jubilación y de las contribuciones. */
+  remunerativo: number
+  noRemunerativo: number
+  brutoTotal: number
+  descuentos: DescuentoCalculado[]
+  totalDescuentos: number
+  /** Lo que cobra de bolsillo: remunerativo + no remunerativo − descuentos. */
   sueldoNeto: number
   contribucionesPatronales: number
   cargasSocialesAdicionales: number
-  /** Lo que le cuesta este empleado a la empresa cada mes: bruto + contribuciones + otras cargas sociales. */
+  /** Lo que le cuesta a la empresa: todos los haberes + contribuciones + otras cargas sociales. */
   costoEmpresa: number
 }
 
+/** Reproduce un recibo de sueldo: separa haberes remunerativos de no remunerativos, aplica cada
+ * descuento sobre la base que le corresponde, y suma lo que la empresa paga por encima. */
 export function calcularCostoEmpleado(e: Empleado): CostoEmpleado {
-  const contribucionesPatronales = e.sueldoBruto * (e.contribucionesPatronalesPct / 100)
-  const cargasSocialesAdicionales = e.sueldoBruto * ((e.cargasSocialesAdicionalesPct ?? CARGAS_SOCIALES_ADICIONALES_PCT_DEFAULT) / 100)
+  const conceptos = e.conceptos ?? []
+  const remunerativo = e.sueldoBruto + conceptos.filter((c) => c.remunerativo).reduce((s, c) => s + c.monto, 0)
+  const noRemunerativo = conceptos.filter((c) => !c.remunerativo).reduce((s, c) => s + c.monto, 0)
+  const brutoTotal = remunerativo + noRemunerativo
+
+  const definiciones = e.descuentos ?? DESCUENTOS_DEFAULT.map((d, i) => ({ ...d, id: `default-${i}` }))
+  const descuentos: DescuentoCalculado[] = definiciones.map((d) => {
+    const montoBase = d.base === 'remunerativo' ? remunerativo : brutoTotal
+    return { ...d, montoBase, monto: montoBase * (d.porcentaje / 100) }
+  })
+  const totalDescuentos = descuentos.reduce((s, d) => s + d.monto, 0)
+
+  // Las sumas no remunerativas existen justamente para no generar contribuciones patronales.
+  const contribucionesPatronales = remunerativo * (e.contribucionesPatronalesPct / 100)
+  const cargasSocialesAdicionales =
+    remunerativo * ((e.cargasSocialesAdicionalesPct ?? CARGAS_SOCIALES_ADICIONALES_PCT_DEFAULT) / 100)
+
   return {
     empleado: e,
-    sueldoNeto: e.sueldoBruto * (1 - e.aportesPersonalesPct / 100),
+    remunerativo,
+    noRemunerativo,
+    brutoTotal,
+    descuentos,
+    totalDescuentos,
+    sueldoNeto: brutoTotal - totalDescuentos,
     contribucionesPatronales,
     cargasSocialesAdicionales,
-    costoEmpresa: e.sueldoBruto + contribucionesPatronales + cargasSocialesAdicionales,
+    costoEmpresa: brutoTotal + contribucionesPatronales + cargasSocialesAdicionales,
   }
 }
 
 export interface NominaTotal {
   cantidadActivos: number
+  totalRemunerativo: number
+  totalNoRemunerativo: number
   totalBruto: number
   totalNeto: number
   totalContribucionesPatronales: number
@@ -1230,7 +1307,9 @@ export function calcularNominaTotal(empleados: Empleado[]): NominaTotal {
   const costos = empleados.filter((e) => e.activo).map(calcularCostoEmpleado)
   return {
     cantidadActivos: costos.length,
-    totalBruto: costos.reduce((s, c) => s + c.empleado.sueldoBruto, 0),
+    totalRemunerativo: costos.reduce((s, c) => s + c.remunerativo, 0),
+    totalNoRemunerativo: costos.reduce((s, c) => s + c.noRemunerativo, 0),
+    totalBruto: costos.reduce((s, c) => s + c.brutoTotal, 0),
     totalNeto: costos.reduce((s, c) => s + c.sueldoNeto, 0),
     totalContribucionesPatronales: costos.reduce((s, c) => s + c.contribucionesPatronales, 0),
     totalCargasSocialesAdicionales: costos.reduce((s, c) => s + c.cargasSocialesAdicionales, 0),
@@ -1286,9 +1365,18 @@ export function mesTieneAguinaldo(mesISO: string): boolean {
   return MESES_AGUINALDO.includes(Number(mesISO.split('-')[1]))
 }
 
-/** El aguinaldo es medio sueldo bruto por empleado, con sus mismos aportes y contribuciones. */
+/** El aguinaldo es la mitad de la remuneración de cada empleado, con sus mismos descuentos y
+ * contribuciones. Las sumas no remunerativas no entran en el cálculo del SAC. */
 export function calcularAguinaldo(empleados: Empleado[]): NominaTotal {
-  return calcularNominaTotal(empleados.map((e) => ({ ...e, sueldoBruto: e.sueldoBruto / 2 })))
+  return calcularNominaTotal(
+    empleados.map((e) => ({
+      ...e,
+      sueldoBruto: e.sueldoBruto / 2,
+      conceptos: (e.conceptos ?? [])
+        .filter((c) => c.remunerativo)
+        .map((c) => ({ ...c, monto: c.monto / 2 })),
+    })),
+  )
 }
 
 /**

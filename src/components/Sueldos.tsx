@@ -1,13 +1,17 @@
 import { useState } from 'react'
 import {
-  APORTES_PERSONALES_PCT_DEFAULT,
+  BASE_DESCUENTO_LABEL,
   CARGAS_SOCIALES_ADICIONALES_PCT_DEFAULT,
+  DESCUENTOS_DEFAULT,
   CONCEPTO_PAGO_SUELDOS_LABEL,
   CONTRIBUCIONES_PATRONALES_PCT_DEFAULT,
   calcularCostoEmpleado,
   calcularPagosSueldos,
+  type BaseDescuento,
+  type ConceptoHaber,
   type ConceptoPagoSueldos,
   type CuentaBancaria,
+  type DescuentoEmpleado,
   type Empleado,
   type MovimientoTesoreria,
   type NominaTotal,
@@ -34,6 +38,10 @@ interface Props {
   onDeshacerPago: (movimientoId: string) => void
 }
 
+function nuevoId(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
 function mesActualISO(): string {
   return new Date().toISOString().slice(0, 7)
 }
@@ -58,6 +66,16 @@ function FilaEmpleado({
   const costo = calcularCostoEmpleado(empleado)
   const asignaciones = empleado.asignaciones ?? []
   const totalAsignado = asignaciones.reduce((s, a) => s + a.porcentaje, 0)
+  const conceptos = empleado.conceptos ?? []
+  const descuentos = empleado.descuentos ?? DESCUENTOS_DEFAULT.map((d, i) => ({ ...d, id: `default-${i}` }))
+
+  function cambiarConceptos(nuevos: ConceptoHaber[]) {
+    onActualizar(empleado.id, { conceptos: nuevos })
+  }
+
+  function cambiarDescuentos(nuevos: DescuentoEmpleado[]) {
+    onActualizar(empleado.id, { descuentos: nuevos })
+  }
 
   function cambiarAsignacion(sectorId: string, porcentaje: number) {
     const resto = asignaciones.filter((a) => a.sectorId !== sectorId)
@@ -106,23 +124,25 @@ function FilaEmpleado({
       <div className="mt-3 flex flex-wrap items-end gap-3">
         <label className="block">
           <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            Sueldo bruto
+            Sueldo básico
           </span>
           <InputMoneda
             value={empleado.sueldoBruto}
             onChange={(v) => onActualizar(empleado.id, { sueldoBruto: v })}
-            className="tabular mt-0.5 w-32 rounded-lg border px-2 py-1 text-sm"
+            className="tabular mt-0.5 w-36 rounded-lg border px-2 py-1 text-sm"
             style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
           />
         </label>
         <label className="block">
           <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            Aportes personales %
+            Categoría / convenio
           </span>
-          <InputMoneda
-            value={empleado.aportesPersonalesPct}
-            onChange={(v) => onActualizar(empleado.id, { aportesPersonalesPct: v })}
-            className="tabular mt-0.5 w-24 rounded-lg border px-2 py-1 text-sm"
+          <input
+            type="text"
+            placeholder="Ej: Administrativo A — CCT 130/75"
+            value={empleado.categoria ?? ''}
+            onChange={(e) => onActualizar(empleado.id, { categoria: e.target.value })}
+            className="mt-0.5 w-60 rounded-lg border px-2 py-1 text-sm"
             style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
           />
         </label>
@@ -150,36 +170,174 @@ function FilaEmpleado({
         </label>
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-4 border-t pt-3" style={{ borderColor: 'var(--gridline)' }}>
+      <div className="mt-3 border-t pt-3" style={{ borderColor: 'var(--gridline)' }}>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+            Otros haberes <span style={{ color: 'var(--text-secondary)' }}>(antigüedad, presentismo, acuerdos)</span>
+          </p>
+          <button
+            onClick={() =>
+              cambiarConceptos([...conceptos, { id: nuevoId(), descripcion: '', monto: 0, remunerativo: true }])
+            }
+            className="rounded-lg border px-2 py-0.5 text-xs font-medium"
+            style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
+          >
+            + Agregar haber
+          </button>
+        </div>
+        {conceptos.map((c, i) => (
+          <div key={c.id} className="mb-1.5 flex flex-wrap items-center gap-2">
+            <input
+              type="text"
+              placeholder="Concepto"
+              value={c.descripcion}
+              onChange={(e) =>
+                cambiarConceptos(conceptos.map((x, j) => (j === i ? { ...x, descripcion: e.target.value } : x)))
+              }
+              className="min-w-[160px] flex-1 rounded-lg border px-2 py-1 text-sm"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+            />
+            <InputMoneda
+              value={c.monto}
+              onChange={(v) => cambiarConceptos(conceptos.map((x, j) => (j === i ? { ...x, monto: v } : x)))}
+              className="tabular w-32 shrink-0 rounded-lg border px-2 py-1 text-sm"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+            />
+            <select
+              value={c.remunerativo ? 'rem' : 'norem'}
+              onChange={(e) =>
+                cambiarConceptos(
+                  conceptos.map((x, j) => (j === i ? { ...x, remunerativo: e.target.value === 'rem' } : x)),
+                )
+              }
+              className="shrink-0 rounded-lg border px-2 py-1 text-sm"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+            >
+              <option value="rem">Remunerativo</option>
+              <option value="norem">No remunerativo</option>
+            </select>
+            <button
+              onClick={() => cambiarConceptos(conceptos.filter((_, j) => j !== i))}
+              aria-label="Quitar haber"
+              className="shrink-0 text-xs"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              🗑
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-3 border-t pt-3" style={{ borderColor: 'var(--gridline)' }}>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+            Descuentos al empleado
+          </p>
+          <button
+            onClick={() =>
+              cambiarDescuentos([...descuentos, { id: nuevoId(), descripcion: '', porcentaje: 0, base: 'total' }])
+            }
+            className="rounded-lg border px-2 py-0.5 text-xs font-medium"
+            style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
+          >
+            + Agregar descuento
+          </button>
+        </div>
+        {costo.descuentos.map((d, i) => (
+          <div key={d.id} className="mb-1.5 flex flex-wrap items-center gap-2">
+            <input
+              type="text"
+              placeholder="Ej: S.E.C. Art. 100 CCT 130/75"
+              value={d.descripcion}
+              onChange={(e) =>
+                cambiarDescuentos(descuentos.map((x, j) => (j === i ? { ...x, descripcion: e.target.value } : x)))
+              }
+              className="min-w-[160px] flex-1 rounded-lg border px-2 py-1 text-sm"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+            />
+            <InputMoneda
+              value={d.porcentaje}
+              onChange={(v) => cambiarDescuentos(descuentos.map((x, j) => (j === i ? { ...x, porcentaje: v } : x)))}
+              className="tabular w-20 shrink-0 rounded-lg border px-2 py-1 text-sm"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+            />
+            <select
+              value={d.base}
+              onChange={(e) =>
+                cambiarDescuentos(
+                  descuentos.map((x, j) => (j === i ? { ...x, base: e.target.value as BaseDescuento } : x)),
+                )
+              }
+              className="shrink-0 rounded-lg border px-2 py-1 text-sm"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+            >
+              {(Object.keys(BASE_DESCUENTO_LABEL) as BaseDescuento[]).map((b) => (
+                <option key={b} value={b}>
+                  {BASE_DESCUENTO_LABEL[b]}
+                </option>
+              ))}
+            </select>
+            <span className="tabular w-32 shrink-0 text-right text-sm" style={{ color: 'var(--text-secondary)' }}>
+              {formatoMoneda(d.monto)}
+            </span>
+            <button
+              onClick={() => cambiarDescuentos(descuentos.filter((_, j) => j !== i))}
+              aria-label="Quitar descuento"
+              className="shrink-0 text-xs"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              🗑
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-3 border-t pt-3 sm:grid-cols-3" style={{ borderColor: 'var(--gridline)' }}>
+        <div>
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            Remunerativo
+          </p>
+          <p className="tabular font-semibold" style={{ color: 'var(--text-primary)' }}>
+            {formatoMoneda(costo.remunerativo)}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            No remunerativo
+          </p>
+          <p className="tabular font-semibold" style={{ color: 'var(--text-primary)' }}>
+            {formatoMoneda(costo.noRemunerativo)}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            Total descuentos
+          </p>
+          <p className="tabular font-semibold" style={{ color: 'var(--text-secondary)' }}>
+            {formatoMoneda(costo.totalDescuentos)}
+          </p>
+        </div>
         <div>
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
             Neto de bolsillo
           </p>
-          <p className="tabular font-semibold" style={{ color: 'var(--text-primary)' }}>
+          <p className="tabular text-lg font-semibold" style={{ color: 'var(--status-good-text)' }}>
             {formatoMoneda(costo.sueldoNeto)}
           </p>
         </div>
         <div>
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            Contribuciones patronales
+            Contribuciones + cargas
           </p>
           <p className="tabular font-semibold" style={{ color: 'var(--text-secondary)' }}>
-            {formatoMoneda(costo.contribucionesPatronales)}
-          </p>
-        </div>
-        <div>
-          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            Cargas sociales adicionales
-          </p>
-          <p className="tabular font-semibold" style={{ color: 'var(--text-secondary)' }}>
-            {formatoMoneda(costo.cargasSocialesAdicionales)}
+            {formatoMoneda(costo.contribucionesPatronales + costo.cargasSocialesAdicionales)}
           </p>
         </div>
         <div>
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
             Costo para la empresa
           </p>
-          <p className="tabular font-semibold" style={{ color: 'var(--series-blue)' }}>
+          <p className="tabular text-lg font-semibold" style={{ color: 'var(--series-blue)' }}>
             {formatoMoneda(costo.costoEmpresa)}
           </p>
         </div>
@@ -392,7 +550,6 @@ export function Sueldos({
     onAgregar({
       nombre: nombre.trim(),
       sueldoBruto,
-      aportesPersonalesPct: APORTES_PERSONALES_PCT_DEFAULT,
       contribucionesPatronalesPct: CONTRIBUCIONES_PATRONALES_PCT_DEFAULT,
       cargasSocialesAdicionalesPct: CARGAS_SOCIALES_ADICIONALES_PCT_DEFAULT,
       activo: true,
@@ -410,14 +567,15 @@ export function Sueldos({
           Sueldos y cargas sociales
         </h2>
         <p className="mb-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
-          Cargá el sueldo bruto de cada empleado. La empresa paga dos cosas distintas además del
-          bruto: las <strong>contribuciones patronales</strong> (jubilación, PAMI y obra social a
-          cargo del empleador) y otras <strong>cargas sociales adicionales</strong> (ART, seguro de
-          vida obligatorio, cuota sindical patronal). Los tres porcentajes vienen con un valor de
-          referencia editable por si tu actividad tiene alícuotas distintas. El costo para la
-          empresa de la nómina activa reemplaza al estimado de sueldos en todo el Dashboard —
-          composición de gastos, margen operativo, runway y punto de equilibrio— y en Presupuesto
-          vs. Real.
+          Cada empleado se arma como su recibo: el <strong>básico</strong> más los haberes que
+          correspondan, separando los <strong>remunerativos</strong> de los{' '}
+          <strong>no remunerativos</strong> (los acuerdos no remunerativos no pagan jubilación ni
+          PAMI ni generan contribuciones patronales). Los descuentos vienen con los tres de
+          siempre —jubilación 11%, Ley 19.032 3% y obra social 3%— y podés sumar los de tu convenio
+          (S.E.C., F.A.E.C. y S., cuota sindical), cada uno con la base sobre la que se calcula. El
+          costo para la empresa de la nómina activa reemplaza al estimado de sueldos en todo el
+          Dashboard —composición de gastos, margen operativo, runway y punto de equilibrio— y en
+          Presupuesto vs. Real.
         </p>
 
         <form onSubmit={handleSubmit} className="flex flex-wrap gap-2">
@@ -451,13 +609,21 @@ export function Sueldos({
           <p className="mb-3 text-xs font-semibold tracking-wide uppercase" style={{ color: 'var(--text-muted)' }}>
             Nómina vigente ({nomina.cantidadActivos} activo{nomina.cantidadActivos === 1 ? '' : 's'})
           </p>
-          <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:grid-cols-5">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:grid-cols-3">
             <div>
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                Total bruto
+                Remunerativo
               </p>
               <p className="tabular text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-                {formatoMoneda(nomina.totalBruto)}
+                {formatoMoneda(nomina.totalRemunerativo)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                No remunerativo
+              </p>
+              <p className="tabular text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+                {formatoMoneda(nomina.totalNoRemunerativo)}
               </p>
             </div>
             <div>
