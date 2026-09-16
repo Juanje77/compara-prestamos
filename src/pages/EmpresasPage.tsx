@@ -1433,6 +1433,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           onQuieroPremium={abrirPlanes}
         >
           <Sueldos
+            nombreNegocio={nombreNegocio}
             empleados={empleados}
             nomina={nominaTotal}
             aguinaldo={aguinaldo}

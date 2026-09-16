@@ -17,6 +17,7 @@ import type {
   Recomendacion,
   TendenciaMensual,
 } from './cfo'
+import { calcularCostoEmpleado, type Empleado } from './cfo'
 
 // ---------------------------------------------------------------------------
 // Paleta — misma que src/index.css (modo claro), fijada en hexadecimal porque
@@ -662,4 +663,151 @@ export function abrirInformeSaludFinanciera(datos: InformeSaludFinancieraData) {
   `
 
   abrirDocumentoHtml(documentoBase('Informe de Salud Financiera', tituloNegocio, cuerpo))
+}
+
+// ---------------------------------------------------------------------------
+// Recibo de sueldo (Sueldos)
+// ---------------------------------------------------------------------------
+//
+// Réplica de la estructura de un recibo en relación de dependencia: los haberes en sus columnas
+// de remunerativo y no remunerativo, los descuentos con la base sobre la que se calculó cada uno,
+// los subtotales y el neto. Con varios empleados se imprime uno por hoja.
+
+export interface ReciboSueldoData {
+  nombreNegocio: string
+  /** Mes liquidado, en formato "YYYY-MM". */
+  mes: string
+  empleados: Empleado[]
+}
+
+function etiquetaMesLargo(mesISO: string): string {
+  const [anio, mes] = mesISO.split('-').map(Number)
+  const texto = new Date(anio, mes - 1, 1).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })
+  return texto.charAt(0).toUpperCase() + texto.slice(1)
+}
+
+function celdaMonto(valor: number): string {
+  return valor === 0 ? '<td class="num" style="color:' + COLOR.textoMuted + '">—</td>' : `<td class="num">${formatoMoneda(valor)}</td>`
+}
+
+function reciboDeEmpleado(empleado: Empleado, nombreNegocio: string, mes: string): string {
+  const costo = calcularCostoEmpleado(empleado)
+  const conceptos = empleado.conceptos ?? []
+
+  const filasHaberes = [
+    `<tr><td>Sueldo básico</td><td class="num">${formatoMoneda(empleado.sueldoBruto)}</td>${celdaMonto(0)}</tr>`,
+    ...conceptos.map(
+      (c) =>
+        `<tr><td>${escapeHtml(c.descripcion || 'Sin descripción')}</td>` +
+        (c.remunerativo ? `<td class="num">${formatoMoneda(c.monto)}</td>${celdaMonto(0)}` : `${celdaMonto(0)}<td class="num">${formatoMoneda(c.monto)}</td>`) +
+        `</tr>`,
+    ),
+  ].join('')
+
+  const filasDescuentos = costo.descuentos
+    .map(
+      (d) =>
+        `<tr><td>${escapeHtml(d.descripcion || 'Sin descripción')}</td>` +
+        `<td class="num">${formatoPorcentaje(d.porcentaje)}</td>` +
+        `<td class="num">${formatoMoneda(d.montoBase)}</td>` +
+        `<td class="num">${formatoMoneda(d.monto)}</td></tr>`,
+    )
+    .join('')
+
+  return `
+    <section class="recibo">
+      <div class="encabezado">
+        <div>
+          <div class="marca">
+            <span class="logo">F</span>
+            <span class="marca-nombre">Fin<span>Corp</span></span>
+          </div>
+          <h1>Recibo de sueldo</h1>
+          <p style="margin:0;color:${COLOR.textoSecundario};font-size:13px">${escapeHtml(nombreNegocio)} — ${escapeHtml(etiquetaMesLargo(mes))}</p>
+        </div>
+        <p class="meta">Generado el<br>${escapeHtml(new Date().toLocaleDateString('es-AR'))}</p>
+      </div>
+
+      <table class="datos-empleado">
+        <tr>
+          <td><span>Empleado</span><strong>${escapeHtml(empleado.nombre)}</strong></td>
+          <td><span>Categoría / convenio</span><strong>${escapeHtml(empleado.categoria || '—')}</strong></td>
+          <td><span>Período</span><strong>${escapeHtml(etiquetaMesLargo(mes))}</strong></td>
+        </tr>
+      </table>
+
+      <h2>Haberes</h2>
+      <table class="tabla">
+        <thead><tr><th>Concepto</th><th class="num">Remunerativo</th><th class="num">No remunerativo</th></tr></thead>
+        <tbody>${filasHaberes}</tbody>
+        <tfoot>
+          <tr><td>Subtotales</td><td class="num">${formatoMoneda(costo.remunerativo)}</td><td class="num">${formatoMoneda(costo.noRemunerativo)}</td></tr>
+        </tfoot>
+      </table>
+
+      <h2>Descuentos</h2>
+      <table class="tabla">
+        <thead><tr><th>Concepto</th><th class="num">%</th><th class="num">Base</th><th class="num">Importe</th></tr></thead>
+        <tbody>${filasDescuentos}</tbody>
+        <tfoot>
+          <tr><td colspan="3">Total de descuentos</td><td class="num">${formatoMoneda(costo.totalDescuentos)}</td></tr>
+        </tfoot>
+      </table>
+
+      <div class="neto">
+        <span>Neto a cobrar</span>
+        <strong>${formatoMoneda(costo.sueldoNeto)}</strong>
+      </div>
+
+      <table class="tabla costo-empresa">
+        <thead><tr><th colspan="2">Costo para la empresa (no forma parte del recibo del empleado)</th></tr></thead>
+        <tbody>
+          <tr><td>Haberes totales</td><td class="num">${formatoMoneda(costo.brutoTotal)}</td></tr>
+          <tr><td>Contribuciones patronales (${formatoPorcentaje(empleado.contribucionesPatronalesPct)} s/ remunerativo)</td><td class="num">${formatoMoneda(costo.contribucionesPatronales)}</td></tr>
+          <tr><td>Cargas sociales adicionales — ART, seguro de vida, sindicato</td><td class="num">${formatoMoneda(costo.cargasSocialesAdicionales)}</td></tr>
+        </tbody>
+        <tfoot><tr><td>Costo total</td><td class="num">${formatoMoneda(costo.costoEmpresa)}</td></tr></tfoot>
+      </table>
+
+      <div class="firmas">
+        <div><span></span><p>Firma del empleador</p></div>
+        <div><span></span><p>Firma del empleado — recibí conforme</p></div>
+      </div>
+    </section>
+  `
+}
+
+const ESTILO_RECIBO = `
+  .recibo { margin-bottom: 40px; }
+  .recibo + .recibo { border-top: 2px dashed ${COLOR.borde}; padding-top: 32px; }
+  .datos-empleado { width: 100%; border-collapse: collapse; margin: 0 0 22px; }
+  .datos-empleado td { border: 1px solid ${COLOR.borde}; padding: 8px 10px; vertical-align: top; width: 33.33%; }
+  .datos-empleado span { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: ${COLOR.textoMuted}; margin-bottom: 2px; }
+  .datos-empleado strong { font-size: 13px; color: ${COLOR.texto}; }
+  .tabla { width: 100%; border-collapse: collapse; margin: 0 0 22px; font-size: 13px; }
+  .tabla th, .tabla td { border: 1px solid ${COLOR.borde}; padding: 6px 10px; text-align: left; }
+  .tabla thead th { background: ${COLOR.fondoAlterno}; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: ${COLOR.textoSecundario}; }
+  .tabla tfoot td { background: ${COLOR.fondoAlterno}; font-weight: 600; }
+  .tabla .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .neto { display: flex; align-items: center; justify-content: space-between; gap: 16px; border: 2px solid ${COLOR.navy}; border-radius: 8px; padding: 12px 16px; margin: 0 0 22px; }
+  .neto span { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: ${COLOR.textoSecundario}; }
+  .neto strong { font-size: 22px; color: ${COLOR.navy}; font-variant-numeric: tabular-nums; }
+  .costo-empresa thead th { background: ${COLOR.fondo}; color: ${COLOR.textoMuted}; font-weight: 500; }
+  .firmas { display: flex; gap: 40px; margin-top: 48px; }
+  .firmas div { flex: 1; text-align: center; }
+  .firmas span { display: block; border-top: 1px solid ${COLOR.texto}; margin-bottom: 6px; }
+  .firmas p { margin: 0; font-size: 11px; color: ${COLOR.textoMuted}; }
+  @media print { .recibo { page-break-after: always; } .recibo:last-child { page-break-after: auto; } .recibo + .recibo { border-top: none; padding-top: 0; } }
+`
+
+/** Abre los recibos del mes en una pestaña nueva, uno por hoja, listos para imprimir o guardar
+ * como PDF con el diálogo del navegador. */
+export function abrirRecibosSueldo(datos: ReciboSueldoData) {
+  const tituloNegocio = datos.nombreNegocio.trim() || 'Tu negocio'
+  const cuerpo = datos.empleados.map((e) => reciboDeEmpleado(e, tituloNegocio, datos.mes)).join('')
+  const html = documentoBase('Recibo de sueldo', tituloNegocio, cuerpo).replace(
+    '</style>',
+    `${ESTILO_RECIBO}</style>`,
+  )
+  abrirDocumentoHtml(html)
 }

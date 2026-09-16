@@ -19,9 +19,11 @@ import {
   type Sector,
 } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
+import { abrirRecibosSueldo } from '../lib/htmlReport'
 import { InputMoneda } from './InputMoneda'
 
 interface Props {
+  nombreNegocio: string
   empleados: Empleado[]
   nomina: NominaTotal
   /** Medio sueldo por empleado con sus cargas — solo se paga en junio y diciembre. */
@@ -57,12 +59,15 @@ function FilaEmpleado({
   sectores,
   onActualizar,
   onEliminar,
+  onImprimir,
 }: {
   empleado: Empleado
   sectores: Sector[]
+  onImprimir: (empleado: Empleado) => void
   onActualizar: Props['onActualizar']
   onEliminar: Props['onEliminar']
 }) {
+  const [abierto, setAbierto] = useState(false)
   const costo = calcularCostoEmpleado(empleado)
   const asignaciones = empleado.asignaciones ?? []
   const totalAsignado = asignaciones.reduce((s, a) => s + a.porcentaje, 0)
@@ -93,21 +98,59 @@ function FilaEmpleado({
         opacity: empleado.activo ? 1 : 0.7,
       }}
     >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <p className="font-semibold" style={{ color: 'var(--text-primary)' }}>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          onClick={() => setAbierto(!abierto)}
+          aria-expanded={abierto}
+          className="flex min-w-[180px] flex-1 items-center gap-2 text-left"
+        >
+          <span className="shrink-0 text-xs" style={{ color: 'var(--text-muted)' }}>
+            {abierto ? '▾' : '▸'}
+          </span>
+          <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>
             {empleado.nombre}
-          </p>
+          </span>
+          {empleado.categoria && (
+            <span className="truncate text-xs" style={{ color: 'var(--text-muted)' }}>
+              {empleado.categoria}
+            </span>
+          )}
           {!empleado.activo && (
             <span
-              className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+              className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold"
               style={{ background: 'var(--gridline)', color: 'var(--text-muted)' }}
             >
               De baja
             </span>
           )}
-        </div>
-        <div className="flex items-center gap-2">
+        </button>
+
+        <div className="flex shrink-0 items-center gap-4 text-right">
+          <div>
+            <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+              Neto
+            </p>
+            <p className="tabular text-sm font-semibold" style={{ color: 'var(--status-good-text)' }}>
+              {formatoMoneda(costo.sueldoNeto)}
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+              Costo empresa
+            </p>
+            <p className="tabular text-sm font-semibold" style={{ color: 'var(--series-blue)' }}>
+              {formatoMoneda(costo.costoEmpresa)}
+            </p>
+          </div>
+          <button
+            onClick={() => onImprimir(empleado)}
+            title="Imprimir recibo"
+            aria-label={`Imprimir recibo de ${empleado.nombre}`}
+            className="rounded-lg border px-2 py-1 text-xs"
+            style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
+          >
+            🖨
+          </button>
           <button
             onClick={() => onActualizar(empleado.id, { activo: !empleado.activo })}
             className="rounded-lg border px-2.5 py-1 text-xs font-medium"
@@ -120,6 +163,9 @@ function FilaEmpleado({
           </button>
         </div>
       </div>
+
+      {abierto && (
+      <>
 
       <div className="mt-3 flex flex-wrap items-end gap-3">
         <label className="block">
@@ -373,6 +419,8 @@ function FilaEmpleado({
           </div>
         </div>
       )}
+      </>
+      )}
     </div>
   )
 }
@@ -529,6 +577,7 @@ function PanelPagos({
 }
 
 export function Sueldos({
+  nombreNegocio,
   empleados,
   nomina,
   aguinaldo,
@@ -543,6 +592,11 @@ export function Sueldos({
 }: Props) {
   const [nombre, setNombre] = useState('')
   const [sueldoBruto, setSueldoBruto] = useState(0)
+
+  function imprimirRecibos(deQuienes: Empleado[]) {
+    if (deQuienes.length === 0) return
+    abrirRecibosSueldo({ nombreNegocio, mes: mesActualISO(), empleados: deQuienes })
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -606,9 +660,18 @@ export function Sueldos({
 
       {nomina.cantidadActivos > 0 && (
         <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
-          <p className="mb-3 text-xs font-semibold tracking-wide uppercase" style={{ color: 'var(--text-muted)' }}>
-            Nómina vigente ({nomina.cantidadActivos} activo{nomina.cantidadActivos === 1 ? '' : 's'})
-          </p>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-semibold tracking-wide uppercase" style={{ color: 'var(--text-muted)' }}>
+              Nómina vigente ({nomina.cantidadActivos} activo{nomina.cantidadActivos === 1 ? '' : 's'})
+            </p>
+            <button
+              onClick={() => imprimirRecibos(empleados.filter((e) => e.activo))}
+              className="rounded-lg border px-3 py-1 text-xs font-semibold"
+              style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
+            >
+              🖨 Imprimir todos los recibos
+            </button>
+          </div>
           <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:grid-cols-3">
             <div>
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
@@ -680,7 +743,14 @@ export function Sueldos({
       ) : (
         <div className="space-y-3">
           {ordenados.map((e) => (
-            <FilaEmpleado key={e.id} empleado={e} sectores={sectores} onActualizar={onActualizar} onEliminar={onEliminar} />
+            <FilaEmpleado
+              key={e.id}
+              empleado={e}
+              sectores={sectores}
+              onImprimir={(emp) => imprimirRecibos([emp])}
+              onActualizar={onActualizar}
+              onEliminar={onEliminar}
+            />
           ))}
         </div>
       )}
