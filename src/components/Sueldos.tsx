@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import {
   APORTES_PERSONALES_PCT_DEFAULT,
+  CARGAS_SOCIALES_ADICIONALES_PCT_DEFAULT,
   CONTRIBUCIONES_PATRONALES_PCT_DEFAULT,
   calcularCostoEmpleado,
   type Empleado,
@@ -99,6 +100,17 @@ function FilaEmpleado({
             style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
           />
         </label>
+        <label className="block">
+          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            Cargas sociales adicionales %
+          </span>
+          <InputMoneda
+            value={empleado.cargasSocialesAdicionalesPct}
+            onChange={(v) => onActualizar(empleado.id, { cargasSocialesAdicionalesPct: v })}
+            className="tabular mt-0.5 w-24 rounded-lg border px-2 py-1 text-sm"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+          />
+        </label>
       </div>
 
       <div className="mt-3 flex flex-wrap gap-4 border-t pt-3" style={{ borderColor: 'var(--gridline)' }}>
@@ -116,6 +128,14 @@ function FilaEmpleado({
           </p>
           <p className="tabular font-semibold" style={{ color: 'var(--text-secondary)' }}>
             {formatoMoneda(costo.contribucionesPatronales)}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            Cargas sociales adicionales
+          </p>
+          <p className="tabular font-semibold" style={{ color: 'var(--text-secondary)' }}>
+            {formatoMoneda(costo.cargasSocialesAdicionales)}
           </p>
         </div>
         <div>
@@ -143,6 +163,7 @@ export function Sueldos({ empleados, nomina, onAgregar, onActualizar, onEliminar
       sueldoBruto,
       aportesPersonalesPct: APORTES_PERSONALES_PCT_DEFAULT,
       contribucionesPatronalesPct: CONTRIBUCIONES_PATRONALES_PCT_DEFAULT,
+      cargasSocialesAdicionalesPct: CARGAS_SOCIALES_ADICIONALES_PCT_DEFAULT,
       activo: true,
     })
     setNombre('')
@@ -158,11 +179,13 @@ export function Sueldos({ empleados, nomina, onAgregar, onActualizar, onEliminar
           Sueldos y cargas sociales
         </h2>
         <p className="mb-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
-          Cargá el sueldo bruto de cada empleado — los porcentajes de aportes personales y
-          contribuciones patronales vienen con un valor de referencia editable por si tu actividad
-          tiene una alícuota distinta. El costo para la empresa de la nómina activa alimenta solo
-          la categoría "Sueldos" de Presupuesto vs. Real y el Dashboard, como el resto de las
-          categorías automáticas.
+          Cargá el sueldo bruto de cada empleado. La empresa paga dos cosas distintas además del
+          bruto: las <strong>contribuciones patronales</strong> (jubilación, PAMI y obra social a
+          cargo del empleador) y otras <strong>cargas sociales adicionales</strong> (ART, seguro de
+          vida obligatorio, cuota sindical patronal). Los tres porcentajes vienen con un valor de
+          referencia editable por si tu actividad tiene alícuotas distintas. El costo para la
+          empresa de la nómina activa alimenta solo la categoría "Sueldos" de Presupuesto vs. Real
+          y el Dashboard, como el resto de las categorías automáticas.
         </p>
 
         <form onSubmit={handleSubmit} className="flex flex-wrap gap-2">
@@ -196,7 +219,7 @@ export function Sueldos({ empleados, nomina, onAgregar, onActualizar, onEliminar
           <p className="mb-3 text-xs font-semibold tracking-wide uppercase" style={{ color: 'var(--text-muted)' }}>
             Nómina vigente ({nomina.cantidadActivos} activo{nomina.cantidadActivos === 1 ? '' : 's'})
           </p>
-          <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:grid-cols-5">
             <div>
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                 Total bruto
@@ -215,10 +238,18 @@ export function Sueldos({ empleados, nomina, onAgregar, onActualizar, onEliminar
             </div>
             <div>
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                Contribuciones
+                Contribuciones patronales
               </p>
               <p className="tabular text-lg font-semibold" style={{ color: 'var(--text-secondary)' }}>
-                {formatoMoneda(nomina.totalContribuciones)}
+                {formatoMoneda(nomina.totalContribucionesPatronales)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                Cargas sociales adicionales
+              </p>
+              <p className="tabular text-lg font-semibold" style={{ color: 'var(--text-secondary)' }}>
+                {formatoMoneda(nomina.totalCargasSocialesAdicionales)}
               </p>
             </div>
             <div>

@@ -129,8 +129,8 @@ const SECCIONES: SeccionAyuda[] = [
     descripcion: 'Nómina de empleados: cuánto cobra cada uno de bolsillo y cuánto le cuesta realmente a la empresa.',
     pasos: [
       'Cargá cada empleado con su nombre y sueldo bruto.',
-      'Los porcentajes de aportes personales (jubilación, obra social, PAMI) y contribuciones patronales vienen con un valor de referencia — editalos si tu actividad tiene una alícuota distinta.',
-      'Mirá el resumen de la nómina vigente: total bruto, neto, contribuciones y costo total para la empresa.',
+      'Se distinguen tres porcentajes, cada uno editable si tu actividad tiene una alícuota distinta: aportes personales (jubilación, obra social, PAMI — se descuentan del bruto para dar el neto), contribuciones patronales (lo que la empresa aporta al sistema de seguridad social) y cargas sociales adicionales (ART, seguro de vida obligatorio, cuota sindical patronal — costos laborales que no son una contribución previsional).',
+      'Mirá el resumen de la nómina vigente: total bruto, neto, contribuciones patronales, cargas sociales adicionales y costo total para la empresa.',
       'Dado de baja un empleado con `Dar de baja` en vez de borrarlo, para no perder el historial.',
     ],
     tip: 'En cuanto cargás al menos un empleado activo, el costo total de la nómina pasa a ser el valor automático (🧾 auto) de la categoría "Sueldos" en Presupuesto vs. Real y en el gráfico de Composición de gastos del Dashboard, en vez del estimado que cargaste a mano.',

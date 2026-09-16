@@ -1155,12 +1155,16 @@ export function calcularTotalesCheques(cheques: Cheque[]): TotalesCheques {
 //
 // Terminología estándar de un recibo de sueldo argentino: al sueldo bruto se le descuentan los
 // aportes personales del empleado (jubilación + obra social + PAMI, ~17%) para llegar al neto de
-// bolsillo, y la empresa paga ADEMÁS las contribuciones patronales (~24%) sobre ese mismo bruto —
-// lo que realmente le cuesta cada empleado a la empresa es el bruto más esas contribuciones, no
-// el bruto solo.
+// bolsillo. La empresa paga ADEMÁS dos cosas distintas sobre ese mismo bruto, que NO son lo
+// mismo: las contribuciones patronales (~24%, Dto. 814/2001 — jubilación, PAMI y obra social a
+// cargo del empleador, van al sistema de seguridad social) y otras cargas sociales adicionales
+// (~3% de referencia — ART, seguro de vida obligatorio, cuota sindical patronal si el convenio la
+// exige — que no son "contribuciones" en sentido técnico pero sí un costo laboral más). El costo
+// real de cada empleado es el bruto más ambas.
 
 export const APORTES_PERSONALES_PCT_DEFAULT = 17
 export const CONTRIBUCIONES_PATRONALES_PCT_DEFAULT = 24
+export const CARGAS_SOCIALES_ADICIONALES_PCT_DEFAULT = 3
 
 export interface Empleado {
   id: string
@@ -1168,8 +1172,11 @@ export interface Empleado {
   sueldoBruto: number
   /** % del bruto que se descuenta al empleado (jubilación, obra social, PAMI) — llega al neto de bolsillo. */
   aportesPersonalesPct: number
-  /** % del bruto que paga la empresa además del sueldo — define el costo real de ese empleado. */
+  /** % del bruto que la empresa aporta al sistema de seguridad social (Dto. 814/2001). */
   contribucionesPatronalesPct: number
+  /** % del bruto de otras cargas sociales a cargo de la empresa que NO son contribución
+   * previsional — ART, seguro de vida obligatorio, cuota sindical patronal, etc. */
+  cargasSocialesAdicionalesPct: number
   /** Un empleado inactivo (de baja) queda en el historial pero no suma a la nómina vigente. */
   activo: boolean
 }
@@ -1178,17 +1185,20 @@ export interface CostoEmpleado {
   empleado: Empleado
   sueldoNeto: number
   contribucionesPatronales: number
-  /** Lo que le cuesta este empleado a la empresa cada mes: bruto + contribuciones patronales. */
+  cargasSocialesAdicionales: number
+  /** Lo que le cuesta este empleado a la empresa cada mes: bruto + contribuciones + otras cargas sociales. */
   costoEmpresa: number
 }
 
 export function calcularCostoEmpleado(e: Empleado): CostoEmpleado {
   const contribucionesPatronales = e.sueldoBruto * (e.contribucionesPatronalesPct / 100)
+  const cargasSocialesAdicionales = e.sueldoBruto * ((e.cargasSocialesAdicionalesPct ?? CARGAS_SOCIALES_ADICIONALES_PCT_DEFAULT) / 100)
   return {
     empleado: e,
     sueldoNeto: e.sueldoBruto * (1 - e.aportesPersonalesPct / 100),
     contribucionesPatronales,
-    costoEmpresa: e.sueldoBruto + contribucionesPatronales,
+    cargasSocialesAdicionales,
+    costoEmpresa: e.sueldoBruto + contribucionesPatronales + cargasSocialesAdicionales,
   }
 }
 
@@ -1196,7 +1206,8 @@ export interface NominaTotal {
   cantidadActivos: number
   totalBruto: number
   totalNeto: number
-  totalContribuciones: number
+  totalContribucionesPatronales: number
+  totalCargasSocialesAdicionales: number
   totalCostoEmpresa: number
 }
 
@@ -1208,7 +1219,8 @@ export function calcularNominaTotal(empleados: Empleado[]): NominaTotal {
     cantidadActivos: costos.length,
     totalBruto: costos.reduce((s, c) => s + c.empleado.sueldoBruto, 0),
     totalNeto: costos.reduce((s, c) => s + c.sueldoNeto, 0),
-    totalContribuciones: costos.reduce((s, c) => s + c.contribucionesPatronales, 0),
+    totalContribucionesPatronales: costos.reduce((s, c) => s + c.contribucionesPatronales, 0),
+    totalCargasSocialesAdicionales: costos.reduce((s, c) => s + c.cargasSocialesAdicionales, 0),
     totalCostoEmpresa: costos.reduce((s, c) => s + c.costoEmpresa, 0),
   }
 }
