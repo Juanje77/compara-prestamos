@@ -75,6 +75,7 @@ const SECCIONES: SeccionAyuda[] = [
     pasos: [
       'Mirá lo agrupado por semana: qué vence y cuánto.',
       'Tildá cada ítem cuando se cobre o se pague — es el mismo tilde que en Comprobantes, se sincroniza para los dos lados.',
+      'Elegí el medio y, si tenés el plan Full, la cuenta — igual que en Comprobantes, así el saldo de esa cuenta en Tesorería baja o sube al toque.',
       'Con el plan Full, también aparecen los cheques por cobrar/pagar, con el mismo cambio de estado que en la solapa Cheques.',
     ],
   },

@@ -1150,6 +1150,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           onCambiarFactura={esPremium ? handleCambiarFactura : undefined}
           cheques={esFull ? cheques : undefined}
           onCambiarEstadoCheque={esFull ? handleCambiarEstadoCheque : undefined}
+          cuentas={esFull ? cuentas : undefined}
         />
       )}
 

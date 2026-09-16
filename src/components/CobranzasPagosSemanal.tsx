@@ -18,7 +18,7 @@ import { formatoMoneda } from '../lib/finance'
 import { descargarPdfCobranzasSemanal } from '../lib/pdf'
 import { cargarDatosUsuario, guardarDatosUsuario } from '../lib/userSync'
 import { useAuth } from '../lib/AuthContext'
-import { MEDIOS_PAGO_LABEL, type Cheque, type EstadoCheque, type Factura, type MedioPago } from '../lib/cfo'
+import { MEDIOS_PAGO_LABEL, type Cheque, type CuentaBancaria, type EstadoCheque, type Factura, type MedioPago } from '../lib/cfo'
 import { InputMoneda } from './InputMoneda'
 
 /** Los movimientos generados a partir de una factura llevan este prefijo en el id, para poder
@@ -129,6 +129,9 @@ interface ColumnaProps {
   onEliminar: (id: string) => void
   onMarcarVarios: (ids: string[], cumplido: boolean) => void
   onCambiarMedioPago: (id: string, medioPago: MedioPago | undefined) => void
+  /** Cuentas bancarias/caja (plan Full) para elegir dónde entró/salió la plata de una factura. */
+  cuentas?: CuentaBancaria[]
+  onCambiarCuentaFactura: (id: string, cuentaId: string) => void
   extra?: React.ReactNode
 }
 
@@ -140,6 +143,8 @@ function FilaMovimiento({
   onToggle,
   onEliminar,
   onCambiarMedioPago,
+  cuentas,
+  onCambiarCuentaFactura,
 }: {
   m: Movimiento
   semanas: RangoSemana[]
@@ -148,6 +153,8 @@ function FilaMovimiento({
   onToggle: (id: string) => void
   onEliminar: (id: string) => void
   onCambiarMedioPago: (id: string, medioPago: MedioPago | undefined) => void
+  cuentas?: CuentaBancaria[]
+  onCambiarCuentaFactura: (id: string, cuentaId: string) => void
 }) {
   const etiqueta = etiquetaSemana(m.fecha, semanas)
   const deFactura = m.id.startsWith(PREFIJO_FACTURA)
@@ -213,6 +220,24 @@ function FilaMovimiento({
           ))}
         </select>
       )}
+      {m.cumplido && deFactura && m.medioPago && m.medioPago !== 'cheque' && cuentas && cuentas.length > 0 && (
+        <select
+          defaultValue=""
+          onChange={(e) => {
+            if (e.target.value) onCambiarCuentaFactura(m.id, e.target.value)
+          }}
+          title="En qué caja o cuenta entró/salió la plata"
+          className="shrink-0 rounded border px-1.5 py-0.5 text-xs"
+          style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+        >
+          <option value="">Cuenta…</option>
+          {cuentas.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.nombre}
+            </option>
+          ))}
+        </select>
+      )}
       <span className="tabular shrink-0 font-medium" style={{ color: 'var(--text-primary)' }}>
         {formatoMoneda(m.monto)}
       </span>
@@ -240,6 +265,8 @@ function ColumnaMovimientos({
   onEliminar,
   onMarcarVarios,
   onCambiarMedioPago,
+  cuentas,
+  onCambiarCuentaFactura,
   extra,
 }: ColumnaProps) {
   const [concepto, setConcepto] = useState('')
@@ -399,6 +426,8 @@ function ColumnaMovimientos({
                   onToggle={onToggle}
                   onEliminar={onEliminar}
                   onCambiarMedioPago={onCambiarMedioPago}
+                  cuentas={cuentas}
+                  onCambiarCuentaFactura={onCambiarCuentaFactura}
                 />
               ))}
             </ul>
@@ -438,6 +467,8 @@ function ColumnaMovimientos({
                         onToggle={onToggle}
                         onEliminar={onEliminar}
                         onCambiarMedioPago={onCambiarMedioPago}
+                        cuentas={cuentas}
+                        onCambiarCuentaFactura={onCambiarCuentaFactura}
                       />
                     ))}
                   </ul>
@@ -470,12 +501,14 @@ function ColumnaMovimientos({
 
 interface Props {
   facturas?: Factura[]
-  onCambiarFactura?: (id: string, cambios: Partial<Pick<Factura, 'cumplido' | 'medioPago'>>) => void
+  onCambiarFactura?: (id: string, cambios: Partial<Pick<Factura, 'cumplido' | 'medioPago'>> & { cuentaId?: string }) => void
   cheques?: Cheque[]
   onCambiarEstadoCheque?: (id: string, estado: EstadoCheque) => void
+  /** Cuentas bancarias/caja (plan Full) para elegir dónde entró/salió la plata al cobrar/pagar. */
+  cuentas?: CuentaBancaria[]
 }
 
-export function CobranzasPagosSemanal({ facturas = [], onCambiarFactura, cheques = [], onCambiarEstadoCheque }: Props) {
+export function CobranzasPagosSemanal({ facturas = [], onCambiarFactura, cheques = [], onCambiarEstadoCheque, cuentas }: Props) {
   const { user } = useAuth()
   const hoy = useFechaActual()
   const [movimientos, setMovimientos] = useState<Movimiento[]>(() => obtenerMovimientos())
@@ -589,6 +622,12 @@ export function CobranzasPagosSemanal({ facturas = [], onCambiarFactura, cheques
     }
     cambiarMedioPago(id, medioPago)
     refrescar()
+  }
+
+  function handleCambiarCuentaFactura(id: string, cuentaId: string) {
+    if (id.startsWith(PREFIJO_FACTURA)) {
+      onCambiarFactura?.(id.slice(PREFIJO_FACTURA.length), { cuentaId })
+    }
   }
 
   function handleVaciar() {
@@ -741,6 +780,8 @@ export function CobranzasPagosSemanal({ facturas = [], onCambiarFactura, cheques
           onEliminar={handleEliminar}
           onMarcarVarios={handleMarcarVarios}
           onCambiarMedioPago={handleCambiarMedioPago}
+          cuentas={cuentas}
+          onCambiarCuentaFactura={handleCambiarCuentaFactura}
           extra={
             <ImportarExcelButton activo={importandoTipo === 'cobro'} onImportar={handleImportarExcel('cobro')} />
           }
@@ -755,6 +796,8 @@ export function CobranzasPagosSemanal({ facturas = [], onCambiarFactura, cheques
           onEliminar={handleEliminar}
           onMarcarVarios={handleMarcarVarios}
           onCambiarMedioPago={handleCambiarMedioPago}
+          cuentas={cuentas}
+          onCambiarCuentaFactura={handleCambiarCuentaFactura}
           extra={
             <ImportarExcelButton activo={importandoTipo === 'pago'} onImportar={handleImportarExcel('pago')} />
           }
