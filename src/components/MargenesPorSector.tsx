@@ -5,8 +5,16 @@ import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
 interface Props {
   sectores: { id: string; nombre: string }[]
   margenes: MargenSector[]
+  mes: string
+  onCambiarMes: (mes: string) => void
   onAgregarSector: (nombre: string) => void
   onEliminarSector: (id: string) => void
+}
+
+function etiquetaMes(mesISO: string): string {
+  const [anio, mes] = mesISO.split('-').map(Number)
+  const texto = new Date(anio, mes - 1, 1).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })
+  return texto.charAt(0).toUpperCase() + texto.slice(1)
 }
 
 function TarjetaMargen({ margen }: { margen: MargenSector }) {
@@ -20,7 +28,7 @@ function TarjetaMargen({ margen }: { margen: MargenSector }) {
         {margen.cantidadRemitos} remito{margen.cantidadRemitos === 1 ? '' : 's'} asignado{margen.cantidadRemitos === 1 ? '' : 's'}
       </p>
 
-      <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:grid-cols-3">
         <div>
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
             Ingreso
@@ -43,6 +51,14 @@ function TarjetaMargen({ margen }: { margen: MargenSector }) {
           </p>
           <p className="tabular font-semibold" style={{ color: 'var(--text-secondary)' }}>
             {formatoMoneda(margen.costoLineas)}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            Costo de nómina
+          </p>
+          <p className="tabular font-semibold" style={{ color: 'var(--text-secondary)' }}>
+            {formatoMoneda(margen.costoNomina)}
           </p>
         </div>
         <div>
@@ -75,7 +91,7 @@ function TarjetaMargen({ margen }: { margen: MargenSector }) {
             className="tabular text-lg font-semibold"
             style={{ color: positivo ? 'var(--status-good-text)' : 'var(--status-critical)' }}
           >
-            {formatoPorcentaje(margen.margenPct)}
+            {margen.ingreso > 0 ? formatoPorcentaje(margen.margenPct) : '—'}
           </p>
         </div>
       </div>
@@ -91,8 +107,14 @@ function TarjetaMargen({ margen }: { margen: MargenSector }) {
   )
 }
 
-export function MargenesPorSector({ sectores, margenes, onAgregarSector, onEliminarSector }: Props) {
+export function MargenesPorSector({ sectores, margenes, mes, onCambiarMes, onAgregarSector, onEliminarSector }: Props) {
   const [nombreNuevo, setNombreNuevo] = useState('')
+
+  function sumarMeses(delta: number) {
+    const [anio, m] = mes.split('-').map(Number)
+    const fecha = new Date(anio, m - 1 + delta, 1)
+    onCambiarMes(`${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`)
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -104,13 +126,37 @@ export function MargenesPorSector({ sectores, margenes, onAgregarSector, onElimi
   return (
     <div className="space-y-6">
       <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
-        <h2 className="mb-1 text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
-          Márgenes por sector
-        </h2>
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
+            Márgenes por sector
+          </h2>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => sumarMeses(-1)}
+              aria-label="Mes anterior"
+              className="rounded-lg border px-2 py-1 text-sm"
+              style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
+            >
+              ←
+            </button>
+            <span className="min-w-[140px] text-center text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+              {etiquetaMes(mes)}
+            </span>
+            <button
+              onClick={() => sumarMeses(1)}
+              aria-label="Mes siguiente"
+              className="rounded-lg border px-2 py-1 text-sm"
+              style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
+            >
+              →
+            </button>
+          </div>
+        </div>
         <p className="mb-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
           Creá un sector por cada división o centro de costo del negocio y asignalo a tus remitos (en la solapa
           Remitos y presupuestos) para ver cuánto factura, cuánto cuesta y cuánto deja de ganancia cada uno. Solo
-          se cuentan remitos (no presupuestos): un presupuesto todavía no es un compromiso real.
+          se cuentan remitos (no presupuestos): un presupuesto todavía no es un compromiso real. Se mira un mes por
+          vez, porque el costo de la nómina asignada a cada sector (desde Sueldos) es mensual.
         </p>
 
         <form onSubmit={handleSubmit} className="flex flex-wrap gap-2">

@@ -44,8 +44,10 @@ import {
   calcularMargenBrutoTotal,
   calcularMargenOperativo,
   calcularMargenPorSector,
+  calcularAguinaldo,
   calcularNominaTotal,
   calcularPagosSueldos,
+  gastosAguinaldoProyectados,
   idOrigenPagoSueldos,
   CONCEPTO_PAGO_SUELDOS_LABEL,
   calcularMontoPagado,
@@ -182,6 +184,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     () => cargarNegocioData()?.ventasManualPorMes ?? {},
   )
   const [mesPresupuesto, setMesPresupuesto] = useState(() => mesActualISO())
+  const [mesMargenes, setMesMargenes] = useState(() => mesActualISO())
   const [facturas, setFacturas] = useState<Factura[]>(() => cargarNegocioData()?.facturas ?? [])
   const [clasificaciones, setClasificaciones] = useState<ClasificacionesProveedores>(
     () => cargarNegocioData()?.clasificaciones ?? {},
@@ -1013,6 +1016,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   }))
 
   const nominaTotal = useMemo(() => calcularNominaTotal(empleados), [empleados])
+  const aguinaldo = useMemo(() => calcularAguinaldo(empleados), [empleados])
   // Los indicadores (margen, runway, punto de equilibrio, proyección) se calculan sobre el costo
   // REAL de la nómina cuando hay empleados cargados, no sobre el estimado a mano — si no, el
   // Dashboard mostraría el costo real en la composición de gastos y uno distinto en los KPIs de
@@ -1091,9 +1095,16 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     () => calcularPuntoEquilibrio(ingresosEfectivos, gastosFijos, gastosVariables),
     [ingresosEfectivos, gastosFijos, gastosVariables],
   )
+  // El aguinaldo no se reparte en doce cuotas: pega entero en junio y en diciembre, y es
+  // justamente el mes donde más de un negocio se queda corto de caja sin verlo venir.
+  const gastosAguinaldo = useMemo(
+    () => gastosAguinaldoProyectados(aguinaldo.totalCostoEmpresa, meses),
+    [aguinaldo, meses],
+  )
   const proyeccion = useMemo(
-    () => proyectarFlujoCaja(saldoInicial, ingresosProyeccion, gastosProyeccion, meses, esPremium ? tasaCrecimiento : 0),
-    [saldoInicial, ingresosProyeccion, gastosProyeccion, meses, esPremium, tasaCrecimiento],
+    () =>
+      proyectarFlujoCaja(saldoInicial, ingresosProyeccion, gastosProyeccion, meses, esPremium ? tasaCrecimiento : 0, gastosAguinaldo),
+    [saldoInicial, ingresosProyeccion, gastosProyeccion, meses, esPremium, tasaCrecimiento, gastosAguinaldo],
   )
   const realEfectivo = useMemo(() => {
     const base = calcularRealEfectivoPorMes(categorias, facturas, clasificaciones, realManualPorMes, mesPresupuesto)
@@ -1124,14 +1135,22 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   )
   const remitosCobrar = useMemo(() => listarRemitosPendientes(remitos, anticipos, 'emitida'), [remitos, anticipos])
   const remitosPagar = useMemo(() => listarRemitosPendientes(remitos, anticipos, 'recibida'), [remitos, anticipos])
+  // Los remitos se filtran al mes elegido porque el costo de la nómina que se les suma es mensual:
+  // mezclar los remitos de todo el año con el sueldo de un mes daría un margen sin sentido.
   const margenesPorSector = useMemo(
-    () => calcularMargenPorSector(sectores, remitos, productos),
-    [sectores, remitos, productos],
+    () =>
+      calcularMargenPorSector(
+        sectores,
+        remitos.filter((r) => r.fecha.slice(0, 7) === mesMargenes),
+        productos,
+        empleados,
+      ),
+    [sectores, remitos, productos, empleados, mesMargenes],
   )
   // Para el calendario semanal: los pagos que genera la nómina del mes en curso.
   const pagosSueldosMesActual = useMemo(
-    () => calcularPagosSueldos(nominaTotal, mesActualISO(), movimientosTesoreria),
-    [nominaTotal, movimientosTesoreria],
+    () => calcularPagosSueldos(nominaTotal, mesActualISO(), movimientosTesoreria, aguinaldo),
+    [nominaTotal, movimientosTesoreria, aguinaldo],
   )
   const contrapartesClientes = useMemo(() => clientes.map((c) => c.cliente).sort(), [clientes])
   const contrapartesProveedores = useMemo(() => proveedores.map((p) => p.proveedor).sort(), [proveedores])
@@ -1164,8 +1183,16 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     [esPremium, margenOperativo, runwayMeses, proyeccion, deudas, indicadoresCobroPago],
   )
   const escenarios = useMemo(
-    () => proyectarFlujoCajaEscenarios(saldoInicial, ingresosProyeccion, gastosProyeccion, meses, esPremium ? tasaCrecimiento : 0),
-    [saldoInicial, ingresosProyeccion, gastosProyeccion, meses, esPremium, tasaCrecimiento],
+    () =>
+      proyectarFlujoCajaEscenarios(
+        saldoInicial,
+        ingresosProyeccion,
+        gastosProyeccion,
+        meses,
+        esPremium ? tasaCrecimiento : 0,
+        gastosAguinaldo,
+      ),
+    [saldoInicial, ingresosProyeccion, gastosProyeccion, meses, esPremium, tasaCrecimiento, gastosAguinaldo],
   )
 
   const mensajeWhatsApp = `Hola Juan! Armé mi dashboard financiero en FinCorp (margen operativo: ${formatoPorcentaje(
@@ -1389,6 +1416,8 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           <MargenesPorSector
             sectores={sectores}
             margenes={margenesPorSector}
+            mes={mesMargenes}
+            onCambiarMes={setMesMargenes}
             onAgregarSector={handleAgregarSector}
             onEliminarSector={handleEliminarSector}
           />
@@ -1406,6 +1435,8 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           <Sueldos
             empleados={empleados}
             nomina={nominaTotal}
+            aguinaldo={aguinaldo}
+            sectores={sectores}
             cuentas={cuentas}
             movimientosTesoreria={movimientosTesoreria}
             onAgregar={handleAgregarEmpleado}
@@ -1742,6 +1773,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
               usaIngresosReales={usaIngresosReales}
               gastosTotales={gastosProyeccion}
               usaGastosReales={usaGastosReales}
+              gastosExtraPorMes={gastosAguinaldo}
               meses={meses}
               onCambiarMeses={setMeses}
               tasaCrecimiento={tasaCrecimiento}

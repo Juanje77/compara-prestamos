@@ -12,6 +12,7 @@ import {
   type MovimientoTesoreria,
   type NominaTotal,
   type PagoSueldos,
+  type Sector,
 } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
@@ -19,6 +20,10 @@ import { InputMoneda } from './InputMoneda'
 interface Props {
   empleados: Empleado[]
   nomina: NominaTotal
+  /** Medio sueldo por empleado con sus cargas — solo se paga en junio y diciembre. */
+  aguinaldo: NominaTotal
+  /** Sectores creados en Márgenes por sector, para repartir el costo de cada empleado. */
+  sectores: Sector[]
   /** Cajas y cuentas de Tesorería, para elegir de dónde sale la plata al pagar la nómina. */
   cuentas: CuentaBancaria[]
   movimientosTesoreria: MovimientoTesoreria[]
@@ -41,14 +46,25 @@ function etiquetaMes(mesISO: string): string {
 
 function FilaEmpleado({
   empleado,
+  sectores,
   onActualizar,
   onEliminar,
 }: {
   empleado: Empleado
+  sectores: Sector[]
   onActualizar: Props['onActualizar']
   onEliminar: Props['onEliminar']
 }) {
   const costo = calcularCostoEmpleado(empleado)
+  const asignaciones = empleado.asignaciones ?? []
+  const totalAsignado = asignaciones.reduce((s, a) => s + a.porcentaje, 0)
+
+  function cambiarAsignacion(sectorId: string, porcentaje: number) {
+    const resto = asignaciones.filter((a) => a.sectorId !== sectorId)
+    onActualizar(empleado.id, {
+      asignaciones: porcentaje > 0 ? [...resto, { sectorId, porcentaje }] : resto,
+    })
+  }
 
   return (
     <div
@@ -168,6 +184,37 @@ function FilaEmpleado({
           </p>
         </div>
       </div>
+
+      {sectores.length > 0 && (
+        <div className="mt-3 border-t pt-3" style={{ borderColor: 'var(--gridline)' }}>
+          <p className="mb-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+            Reparto por sector <span style={{ color: 'var(--text-secondary)' }}>(% del costo)</span> — si hace varias
+            tareas, repartilo entre los sectores que corresponda.
+          </p>
+          <div className="flex flex-wrap items-end gap-3">
+            {sectores.map((s) => (
+              <label key={s.id} className="block">
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  {s.nombre}
+                </span>
+                <InputMoneda
+                  value={asignaciones.find((a) => a.sectorId === s.id)?.porcentaje ?? 0}
+                  onChange={(v) => cambiarAsignacion(s.id, v)}
+                  className="tabular mt-0.5 w-20 rounded-lg border px-2 py-1 text-sm"
+                  style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+                />
+              </label>
+            ))}
+            <p
+              className="tabular pb-1 text-xs font-semibold"
+              style={{ color: totalAsignado > 100 ? 'var(--status-critical)' : 'var(--text-muted)' }}
+            >
+              {totalAsignado}% asignado
+              {totalAsignado > 100 && ' — te pasaste del 100%'}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -252,19 +299,21 @@ function FilaPago({
 
 function PanelPagos({
   nomina,
+  aguinaldo,
   cuentas,
   movimientosTesoreria,
   onPagar,
   onDeshacerPago,
 }: {
   nomina: NominaTotal
+  aguinaldo: NominaTotal
   cuentas: CuentaBancaria[]
   movimientosTesoreria: MovimientoTesoreria[]
   onPagar: Props['onPagar']
   onDeshacerPago: Props['onDeshacerPago']
 }) {
   const [mes, setMes] = useState(mesActualISO)
-  const pagos = calcularPagosSueldos(nomina, mes, movimientosTesoreria)
+  const pagos = calcularPagosSueldos(nomina, mes, movimientosTesoreria, aguinaldo)
 
   function sumarMeses(delta: number) {
     const [anio, m] = mes.split('-').map(Number)
@@ -324,6 +373,8 @@ function PanelPagos({
 export function Sueldos({
   empleados,
   nomina,
+  aguinaldo,
+  sectores,
   cuentas,
   movimientosTesoreria,
   onAgregar,
@@ -448,6 +499,7 @@ export function Sueldos({
       {nomina.cantidadActivos > 0 && (
         <PanelPagos
           nomina={nomina}
+          aguinaldo={aguinaldo}
           cuentas={cuentas}
           movimientosTesoreria={movimientosTesoreria}
           onPagar={onPagar}
@@ -462,7 +514,7 @@ export function Sueldos({
       ) : (
         <div className="space-y-3">
           {ordenados.map((e) => (
-            <FilaEmpleado key={e.id} empleado={e} onActualizar={onActualizar} onEliminar={onEliminar} />
+            <FilaEmpleado key={e.id} empleado={e} sectores={sectores} onActualizar={onActualizar} onEliminar={onEliminar} />
           ))}
         </div>
       )}

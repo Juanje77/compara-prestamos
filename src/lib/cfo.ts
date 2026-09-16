@@ -306,13 +306,17 @@ export function proyectarFlujoCaja(
   gastosTotales: number,
   meses: number,
   tasaCrecimientoMensualPct = 0,
+  /** Gastos que caen en un mes puntual y no todos los meses — hoy el aguinaldo de junio y
+   * diciembre. El índice 0 es el primer mes proyectado. */
+  gastosExtraPorMes: number[] = [],
 ): FilaProyeccion[] {
   const filas: FilaProyeccion[] = []
   let saldo = saldoInicial
   let ingresoMes = ingresos
   for (let mes = 1; mes <= meses; mes++) {
-    saldo += ingresoMes - gastosTotales
-    filas.push({ mes, ingresos: ingresoMes, gastos: gastosTotales, saldo })
+    const gastosDelMes = gastosTotales + (gastosExtraPorMes[mes - 1] ?? 0)
+    saldo += ingresoMes - gastosDelMes
+    filas.push({ mes, ingresos: ingresoMes, gastos: gastosDelMes, saldo })
     ingresoMes *= 1 + tasaCrecimientoMensualPct / 100
   }
   return filas
@@ -1166,6 +1170,13 @@ export const APORTES_PERSONALES_PCT_DEFAULT = 17
 export const CONTRIBUCIONES_PATRONALES_PCT_DEFAULT = 24
 export const CARGAS_SOCIALES_ADICIONALES_PCT_DEFAULT = 3
 
+/** Parte del costo de un empleado que se imputa a un sector — un mismo empleado puede repartirse
+ * entre varios (60% Metalúrgica, 40% Service). Lo que no se asigna no cae en ningún sector. */
+export interface AsignacionSector {
+  sectorId: string
+  porcentaje: number
+}
+
 export interface Empleado {
   id: string
   nombre: string
@@ -1179,6 +1190,8 @@ export interface Empleado {
   cargasSocialesAdicionalesPct: number
   /** Un empleado inactivo (de baja) queda en el historial pero no suma a la nómina vigente. */
   activo: boolean
+  /** Cómo se reparte su costo entre sectores — ver calcularMargenPorSector. */
+  asignaciones?: AsignacionSector[]
 }
 
 export interface CostoEmpleado {
@@ -1232,15 +1245,64 @@ export function calcularNominaTotal(empleados: Empleado[]): NominaTotal {
 // No hay una entidad "pago de sueldos" guardada aparte: el MovimientoTesoreria con origen
 // "sueldo" ES el registro, y su origenId dice de qué mes y concepto es.
 
-export type ConceptoPagoSueldos = 'netos' | 'cargas'
+export type ConceptoPagoSueldos = 'netos' | 'cargas' | 'aguinaldoNetos' | 'aguinaldoCargas'
 
 export const CONCEPTO_PAGO_SUELDOS_LABEL: Record<ConceptoPagoSueldos, string> = {
   netos: 'Sueldos netos al personal',
   cargas: 'Cargas sociales (F.931, ART y sindicato)',
+  aguinaldoNetos: 'Aguinaldo (SAC) al personal',
+  aguinaldoCargas: 'Cargas sociales del aguinaldo',
 }
 
-/** Día del mes siguiente en que se estima cada pago, para ubicarlo en el calendario semanal. */
-const DIA_ESTIMADO_PAGO: Record<ConceptoPagoSueldos, number> = { netos: 4, cargas: 15 }
+/** Día en que se estima cada pago, para ubicarlo en el calendario semanal. Los sueldos del mes y
+ * sus cargas se pagan al mes siguiente; el aguinaldo se paga dentro del mismo mes que vence. */
+const DIA_ESTIMADO_PAGO: Record<ConceptoPagoSueldos, number> = {
+  netos: 4,
+  cargas: 15,
+  aguinaldoNetos: 30,
+  aguinaldoCargas: 15,
+}
+const PAGO_EN_MES_SIGUIENTE: Record<ConceptoPagoSueldos, boolean> = {
+  netos: true,
+  cargas: true,
+  aguinaldoNetos: false,
+  aguinaldoCargas: true,
+}
+
+// ---------------------------------------------------------------------------
+// Aguinaldo / SAC
+// ---------------------------------------------------------------------------
+//
+// El sueldo anual complementario se paga en dos cuotas: la primera vence el 30 de junio y la
+// segunda el 18 de diciembre, y cada una es la mitad de la mejor remuneración del semestre. Como
+// acá solo se guarda la nómina vigente (no hay histórico de sueldos mes a mes), se calcula sobre
+// el sueldo bruto actual, que es la mejor aproximación disponible. El SAC también paga aportes y
+// contribuciones, así que se trata igual que un medio sueldo extra.
+
+/** Meses en los que vence cada cuota del aguinaldo. */
+export const MESES_AGUINALDO = [6, 12]
+
+export function mesTieneAguinaldo(mesISO: string): boolean {
+  return MESES_AGUINALDO.includes(Number(mesISO.split('-')[1]))
+}
+
+/** El aguinaldo es medio sueldo bruto por empleado, con sus mismos aportes y contribuciones. */
+export function calcularAguinaldo(empleados: Empleado[]): NominaTotal {
+  return calcularNominaTotal(empleados.map((e) => ({ ...e, sueldoBruto: e.sueldoBruto / 2 })))
+}
+
+/**
+ * En cuáles de los próximos meses cae el aguinaldo y cuánto pega, para que la proyección de caja
+ * muestre el bache de junio y diciembre en vez de asumir doce meses iguales. El índice 0 es el mes
+ * que viene, que es donde arranca la proyección.
+ */
+export function gastosAguinaldoProyectados(costoAguinaldo: number, meses: number, desde = new Date()): number[] {
+  if (costoAguinaldo <= 0) return []
+  return Array.from({ length: meses }, (_, i) => {
+    const mes = new Date(desde.getFullYear(), desde.getMonth() + 1 + i, 1).getMonth() + 1
+    return MESES_AGUINALDO.includes(mes) ? costoAguinaldo : 0
+  })
+}
 
 /** Identifica unívocamente el pago de un concepto de un mes, para no duplicarlo ni perderle el rastro. */
 export function idOrigenPagoSueldos(mes: string, concepto: ConceptoPagoSueldos): string {
@@ -1265,24 +1327,32 @@ export function calcularPagosSueldos(
   nomina: NominaTotal,
   mes: string,
   movimientosTesoreria: MovimientoTesoreria[],
+  /** Nómina con la que se calcula el aguinaldo — solo aporta pagos en junio y diciembre. */
+  aguinaldo?: NominaTotal,
 ): PagoSueldos[] {
   if (nomina.cantidadActivos === 0) return []
   const [anio, mesNumero] = mes.split('-').map(Number)
-  const montos: Record<ConceptoPagoSueldos, number> = {
+  const montos: Partial<Record<ConceptoPagoSueldos, number>> = {
     netos: nomina.totalNeto,
     cargas: nomina.totalCostoEmpresa - nomina.totalNeto,
   }
+  if (aguinaldo && aguinaldo.cantidadActivos > 0 && mesTieneAguinaldo(mes)) {
+    montos.aguinaldoNetos = aguinaldo.totalNeto
+    montos.aguinaldoCargas = aguinaldo.totalCostoEmpresa - aguinaldo.totalNeto
+  }
 
   return (Object.keys(montos) as ConceptoPagoSueldos[]).map((concepto) => {
-    // Mes siguiente al de la nómina: con mesNumero (1-12) sin restar 1, Date ya apunta al que sigue.
-    const fecha = new Date(anio, mesNumero, DIA_ESTIMADO_PAGO[concepto])
+    // Con mesNumero (1-12) sin restar 1, Date ya apunta al mes siguiente; restando 1, al mismo.
+    const mesDelPago = PAGO_EN_MES_SIGUIENTE[concepto] ? mesNumero : mesNumero - 1
+    const dia = concepto === 'aguinaldoNetos' && mesNumero === 12 ? 18 : DIA_ESTIMADO_PAGO[concepto]
+    const fecha = new Date(anio, mesDelPago, dia)
     const movimiento = movimientosTesoreria.find(
       (m) => m.origen === 'sueldo' && m.origenId === idOrigenPagoSueldos(mes, concepto),
     )
     return {
       concepto,
       mes,
-      monto: montos[concepto],
+      monto: montos[concepto]!,
       fechaEstimada: `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}-${String(fecha.getDate()).padStart(2, '0')}`,
       pagado: movimiento !== undefined,
       movimientoId: movimiento?.id,
@@ -1805,6 +1875,8 @@ export interface MargenSector {
   ingreso: number
   costoCompras: number
   costoLineas: number
+  /** Costo mensual de la nómina asignada a este sector — ver AsignacionSector. */
+  costoNomina: number
   costoTotal: number
   ganancia: number
   margenPct: number
@@ -1817,16 +1889,23 @@ export interface MargenSector {
 /**
  * Ingreso = remitos emitidos (a un cliente) del sector. Costo = remitos recibidos (de un
  * proveedor) del sector, más el costo de las líneas de producto de los remitos emitidos (al
- * costoUnitario de Stock, no al precio facturado). Las líneas sin producto (mano de obra, flete,
- * otros costos) se cuentan al mismo precio facturado, porque la app no tiene un costo de mano de
- * obra cargado en ningún otro lado para compararlas — esas líneas siempre dan margen cero.
+ * costoUnitario de Stock, no al precio facturado), más el costo mensual de la nómina asignada a
+ * ese sector. Las líneas sin producto (mano de obra, flete, otros costos) se cuentan al mismo
+ * precio facturado, así que dan margen cero por sí solas — el costo real de esa mano de obra
+ * entra por la nómina.
+ *
+ * El costo de la nómina es mensual, así que quien llama tiene que pasar los remitos de UN mes
+ * para que ingreso y costo hablen del mismo período.
  */
 export function calcularMargenPorSector(
   sectores: Sector[],
   remitos: RemitoPresupuesto[],
   productos: Producto[],
+  /** Nómina vigente: cada empleado suma a los sectores donde esté asignado, según su porcentaje. */
+  empleados: Empleado[] = [],
 ): MargenSector[] {
   const productoPorId = new Map(productos.map((p) => [p.id, p]))
+  const activos = empleados.filter((e) => e.activo)
 
   return sectores.map((sector) => {
     const delSector = remitos.filter((r) => r.tipoDocumento === 'remito' && r.sectorId === sector.id)
@@ -1851,13 +1930,19 @@ export function calcularMargenPorSector(
       }
     }
 
-    const costoTotal = costoCompras + costoLineas
+    const costoNomina = activos.reduce((total, e) => {
+      const porcentaje = (e.asignaciones ?? []).find((a) => a.sectorId === sector.id)?.porcentaje ?? 0
+      return total + calcularCostoEmpleado(e).costoEmpresa * (porcentaje / 100)
+    }, 0)
+
+    const costoTotal = costoCompras + costoLineas + costoNomina
     const ganancia = ingreso - costoTotal
     return {
       sector,
       ingreso,
       costoCompras,
       costoLineas,
+      costoNomina,
       costoTotal,
       ganancia,
       margenPct: ingreso > 0 ? (ganancia / ingreso) * 100 : 0,
@@ -1932,16 +2017,22 @@ export function proyectarFlujoCajaEscenarios(
   gastosTotales: number,
   meses: number,
   tasaCrecimientoMensualPct = 0,
+  gastosExtraPorMes: number[] = [],
 ): EscenarioProyeccion[] {
+  // El aguinaldo no se negocia ni se recorta según cómo venga el año: entra igual en los tres
+  // escenarios, sin el ±10% que se le aplica al resto de los gastos.
   return [
     {
       nombre: 'pesimista',
-      filas: proyectarFlujoCaja(saldoInicial, ingresos * 0.9, gastosTotales * 1.1, meses, tasaCrecimientoMensualPct - 2),
+      filas: proyectarFlujoCaja(saldoInicial, ingresos * 0.9, gastosTotales * 1.1, meses, tasaCrecimientoMensualPct - 2, gastosExtraPorMes),
     },
-    { nombre: 'base', filas: proyectarFlujoCaja(saldoInicial, ingresos, gastosTotales, meses, tasaCrecimientoMensualPct) },
+    {
+      nombre: 'base',
+      filas: proyectarFlujoCaja(saldoInicial, ingresos, gastosTotales, meses, tasaCrecimientoMensualPct, gastosExtraPorMes),
+    },
     {
       nombre: 'optimista',
-      filas: proyectarFlujoCaja(saldoInicial, ingresos * 1.1, gastosTotales * 0.95, meses, tasaCrecimientoMensualPct + 2),
+      filas: proyectarFlujoCaja(saldoInicial, ingresos * 1.1, gastosTotales * 0.95, meses, tasaCrecimientoMensualPct + 2, gastosExtraPorMes),
     },
   ]
 }

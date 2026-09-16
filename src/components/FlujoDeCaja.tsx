@@ -9,6 +9,9 @@ interface Props {
   usaIngresosReales?: boolean
   gastosTotales: number
   usaGastosReales?: boolean
+  /** Gastos que caen en un mes puntual y no todos los meses — el aguinaldo de junio y diciembre.
+   * El índice 0 es el primer mes proyectado. */
+  gastosExtraPorMes?: number[]
   meses: number
   onCambiarMeses: (meses: number) => void
   tasaCrecimiento?: number
@@ -78,6 +81,7 @@ export function FlujoDeCaja({
   usaIngresosReales = false,
   gastosTotales,
   usaGastosReales = false,
+  gastosExtraPorMes,
   meses,
   onCambiarMeses,
   tasaCrecimiento = 0,
@@ -86,8 +90,8 @@ export function FlujoDeCaja({
   onQuierePremium,
 }: Props) {
   const proyeccion = useMemo(
-    () => proyectarFlujoCaja(saldoInicial, ingresos, gastosTotales, meses, esPremium ? tasaCrecimiento : 0),
-    [saldoInicial, ingresos, gastosTotales, meses, esPremium, tasaCrecimiento],
+    () => proyectarFlujoCaja(saldoInicial, ingresos, gastosTotales, meses, esPremium ? tasaCrecimiento : 0, gastosExtraPorMes),
+    [saldoInicial, ingresos, gastosTotales, meses, esPremium, tasaCrecimiento, gastosExtraPorMes],
   )
 
   const saldoFinal = proyeccion[proyeccion.length - 1]?.saldo ?? saldoInicial
@@ -95,12 +99,12 @@ export function FlujoDeCaja({
 
   const datosEscenarios = useMemo(() => {
     if (!esPremium) return []
-    const escenarios = proyectarFlujoCajaEscenarios(saldoInicial, ingresos, gastosTotales, meses, tasaCrecimiento)
+    const escenarios = proyectarFlujoCajaEscenarios(saldoInicial, ingresos, gastosTotales, meses, tasaCrecimiento, gastosExtraPorMes)
     const base = escenarios.find((e) => e.nombre === 'base')!.filas
     const pesimista = escenarios.find((e) => e.nombre === 'pesimista')!.filas
     const optimista = escenarios.find((e) => e.nombre === 'optimista')!.filas
     return base.map((f, i) => ({ mes: f.mes, pesimista: pesimista[i].saldo, base: f.saldo, optimista: optimista[i].saldo }))
-  }, [esPremium, saldoInicial, ingresos, gastosTotales, meses, tasaCrecimiento])
+  }, [esPremium, saldoInicial, ingresos, gastosTotales, meses, tasaCrecimiento, gastosExtraPorMes])
 
   return (
     <div className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
