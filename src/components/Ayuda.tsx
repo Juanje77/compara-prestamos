@@ -99,11 +99,12 @@ const SECCIONES: SeccionAyuda[] = [
     tier: 'full',
     descripcion: 'Para trabajos largos: entregás un remito o pasás un presupuesto, cobrás un anticipo, y facturás todo junto al terminar.',
     pasos: [
-      'Cargá el remito o presupuesto: cliente/proveedor, fecha, y el monto — o líneas de producto si tenés Stock cargado, y el monto se calcula solo.',
+      'Cargá el remito o presupuesto: cliente/proveedor, fecha, y el monto total.',
+      'Para un cliente industrial, en vez de tipear el monto podés cargar líneas: productos de Stock (descuentan/suman inventario solo) y también "Mano de obra / otro costo" para lo que no es producto — flete, instalación, alquiler de equipo. El monto se calcula solo sumando todas las líneas.',
       'Registrá los anticipos que te vayan pagando, con su cuenta si corresponde.',
       'Cuando factures el trabajo completo, tocá `Vincular` a esa factura — los anticipos ya cobrados pasan a ser pago de esa factura sin cargarlos de nuevo.',
     ],
-    tip: 'Remitos y presupuestos no suman a ventas/compras ni a IVA — son solo un seguimiento hasta que se facturan de verdad.',
+    tip: 'Remitos y presupuestos no suman a ventas/compras ni a IVA — son solo un seguimiento hasta que se facturan de verdad. Las líneas de "mano de obra / otro costo" tampoco mueven stock, solo suman al monto.',
   },
   {
     id: 'stock',

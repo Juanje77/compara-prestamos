@@ -102,7 +102,7 @@ function TarjetaRemito({
       <p className="mt-0.5 text-xs" style={{ color: 'var(--text-muted)' }}>
         {new Date(`${remito.fecha}T00:00:00`).toLocaleDateString('es-AR')} · Total {formatoMoneda(remito.monto)} · Anticipado{' '}
         {formatoMoneda(remito.montoAnticipado)}
-        {remito.lineas && remito.lineas.length > 0 && ` · ${remito.lineas.length} producto(s)`}
+        {remito.lineas && remito.lineas.length > 0 && ` · ${remito.lineas.length} ítem(s)`}
       </p>
       <p className="tabular mt-1 text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
         {formatoMoneda(remito.saldo)} <span className="text-xs font-normal" style={{ color: 'var(--text-muted)' }}>saldo sin anticipar</span>
@@ -266,11 +266,14 @@ export function RemitosPresupuestos({
   const [monto, setMonto] = useState(0)
   const [fecha, setFecha] = useState(hoyISO)
   const [lineas, setLineas] = useState<LineaProducto[]>([])
+  const [tipoLinea, setTipoLinea] = useState<'producto' | 'otro'>('producto')
   const [productoElegido, setProductoElegido] = useState('')
+  const [descripcionLinea, setDescripcionLinea] = useState('')
   const [cantidadLinea, setCantidadLinea] = useState(0)
   const [precioLinea, setPrecioLinea] = useState(0)
 
-  const usaLineas = tipoDocumento === 'remito' && productos.length > 0
+  const usaLineas = tipoDocumento === 'remito'
+  const puedeElegirProducto = productos.length > 0
   const montoDesdeLineas = lineas.length > 0 ? calcularMontoDesdeLineas(lineas) : null
 
   function handleTipoDocumentoChange(nuevo: TipoDocumentoAnticipo) {
@@ -284,12 +287,23 @@ export function RemitosPresupuestos({
     if (producto) setPrecioLinea((tipo === 'emitida' ? producto.precioVenta : producto.costoUnitario) ?? 0)
   }
 
-  function handleAgregarLinea() {
-    if (!productoElegido || cantidadLinea <= 0) return
-    setLineas((prev) => [...prev, { productoId: productoElegido, cantidad: cantidadLinea, precioUnitario: precioLinea }])
+  function limpiarFormularioLinea() {
     setProductoElegido('')
+    setDescripcionLinea('')
     setCantidadLinea(0)
     setPrecioLinea(0)
+  }
+
+  function handleAgregarLinea() {
+    if (cantidadLinea <= 0) return
+    if (tipoLinea === 'producto' && puedeElegirProducto) {
+      if (!productoElegido) return
+      setLineas((prev) => [...prev, { productoId: productoElegido, cantidad: cantidadLinea, precioUnitario: precioLinea }])
+    } else {
+      if (!descripcionLinea.trim()) return
+      setLineas((prev) => [...prev, { descripcion: descripcionLinea.trim(), cantidad: cantidadLinea, precioUnitario: precioLinea }])
+    }
+    limpiarFormularioLinea()
   }
 
   function handleEliminarLinea(index: number) {
@@ -410,23 +424,49 @@ export function RemitosPresupuestos({
         {usaLineas && (
           <div className="mt-4 border-t pt-4" style={{ borderColor: 'var(--gridline)' }}>
             <p className="mb-2 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
-              Líneas de producto <span style={{ color: 'var(--text-secondary)' }}>(opcional)</span> — si cargás
-              alguna, el remito {tipo === 'emitida' ? 'descuenta' : 'suma'} stock solo al guardarse.
+              Líneas del remito <span style={{ color: 'var(--text-secondary)' }}>(opcional)</span> — productos,
+              mano de obra o cualquier otro costo del trabajo. Solo los productos {tipo === 'emitida' ? 'descuentan' : 'suman'} stock al
+              guardarse; el resto suma al monto sin tocar el inventario.
             </p>
             <div className="flex flex-wrap gap-2">
-              <select
-                value={productoElegido}
-                onChange={(e) => handleElegirProducto(e.target.value)}
-                className="min-w-[160px] flex-1 rounded-lg border px-2 py-1.5 text-sm"
-                style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
-              >
-                <option value="">Elegir producto…</option>
-                {productos.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.nombre} (stock: {p.stockActual})
-                  </option>
-                ))}
-              </select>
+              {puedeElegirProducto && (
+                <select
+                  value={tipoLinea}
+                  onChange={(e) => {
+                    setTipoLinea(e.target.value as 'producto' | 'otro')
+                    limpiarFormularioLinea()
+                  }}
+                  className="shrink-0 rounded-lg border px-2 py-1.5 text-sm"
+                  style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+                >
+                  <option value="producto">Producto</option>
+                  <option value="otro">Mano de obra / otro costo</option>
+                </select>
+              )}
+              {tipoLinea === 'producto' && puedeElegirProducto ? (
+                <select
+                  value={productoElegido}
+                  onChange={(e) => handleElegirProducto(e.target.value)}
+                  className="min-w-[160px] flex-1 rounded-lg border px-2 py-1.5 text-sm"
+                  style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+                >
+                  <option value="">Elegir producto…</option>
+                  {productos.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nombre} (stock: {p.stockActual})
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  placeholder="Descripción (ej: Mano de obra, Flete, Alquiler de equipo)"
+                  value={descripcionLinea}
+                  onChange={(e) => setDescripcionLinea(e.target.value)}
+                  className="min-w-[160px] flex-1 rounded-lg border px-2 py-1.5 text-sm"
+                  style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+                />
+              )}
               <InputMoneda
                 placeholder="Cantidad"
                 value={cantidadLinea}
@@ -454,15 +494,23 @@ export function RemitosPresupuestos({
             {lineas.length > 0 && (
               <ul className="mt-3 space-y-1 text-sm">
                 {lineas.map((l, i) => {
-                  const producto = productos.find((p) => p.id === l.productoId)
+                  const producto = l.productoId ? productos.find((p) => p.id === l.productoId) : undefined
                   return (
                     <li
-                      key={`${l.productoId}-${i}`}
+                      key={i}
                       className="flex items-center gap-2 rounded-lg border px-2 py-1"
                       style={{ borderColor: 'var(--gridline)' }}
                     >
                       <span className="flex-1" style={{ color: 'var(--text-primary)' }}>
-                        {producto?.nombre ?? l.productoId}
+                        {producto?.nombre ?? l.descripcion ?? l.productoId}
+                        {!l.productoId && (
+                          <span
+                            className="ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+                            style={{ background: 'var(--gridline)', color: 'var(--text-muted)' }}
+                          >
+                            no mueve stock
+                          </span>
+                        )}
                       </span>
                       <span className="tabular shrink-0" style={{ color: 'var(--text-secondary)' }}>
                         {l.cantidad} × {formatoMoneda(l.precioUnitario)}

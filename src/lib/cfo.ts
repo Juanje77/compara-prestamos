@@ -1408,7 +1408,11 @@ export function imputarPagoAFIFO(
 export type TipoDocumentoAnticipo = 'remito' | 'presupuesto'
 
 export interface LineaProducto {
-  productoId: string
+  /** Si es un producto de Stock — mueve inventario al guardar el remito. */
+  productoId?: string
+  /** Para líneas sin producto (mano de obra, flete, otros costos de un trabajo industrial) — no
+   * mueven stock, solo suman al monto del remito. Obligatorio cuando no hay productoId. */
+  descripcion?: string
   cantidad: number
   precioUnitario: number
 }
@@ -1593,16 +1597,19 @@ export function generarMovimientosDeRemito(remito: RemitoPresupuesto, generarId:
   if (remito.tipoDocumento !== 'remito' || !remito.lineas || remito.lineas.length === 0) return []
   const tipo: TipoMovimientoStock = remito.tipo === 'emitida' ? 'salida' : 'entrada'
   const motivo = `Remito${remito.numero ? ` ${remito.numero}` : ''} — ${remito.contraparte}`
-  return remito.lineas.map((l) => ({
-    id: generarId(),
-    productoId: l.productoId,
-    tipo,
-    cantidad: l.cantidad,
-    fecha: remito.fecha,
-    motivo,
-    costoUnitario: tipo === 'entrada' ? l.precioUnitario : undefined,
-    remitoId: remito.id,
-  }))
+  // Las líneas sin producto (mano de obra, flete, otros costos) suman al monto pero no mueven stock.
+  return remito.lineas
+    .filter((l): l is LineaProducto & { productoId: string } => Boolean(l.productoId))
+    .map((l) => ({
+      id: generarId(),
+      productoId: l.productoId,
+      tipo,
+      cantidad: l.cantidad,
+      fecha: remito.fecha,
+      motivo,
+      costoUnitario: tipo === 'entrada' ? l.precioUnitario : undefined,
+      remitoId: remito.id,
+    }))
 }
 
 // ---------------------------------------------------------------------------
