@@ -382,6 +382,35 @@ export function calcularDesvios(categorias: CategoriaGasto[], real: Record<strin
   })
 }
 
+export interface DesvioVentas {
+  presupuestado: number
+  real: number
+  desvioMonto: number
+  desvioPct: number
+  esAutomatico: boolean
+}
+
+/**
+ * Compara el ingreso mensual presupuestado (el mismo que se carga en el Dashboard) contra lo
+ * realmente facturado ese mes — mismo criterio que calcularDesvios, pero del lado de ventas, donde
+ * superar el presupuesto es una buena noticia en vez de un exceso de gasto. Se completa solo con
+ * las facturas emitidas de ese mes, salvo que el usuario lo haya pisado a mano.
+ */
+export function calcularDesvioVentas(
+  presupuestado: number,
+  facturas: Factura[],
+  ventasManualPorMes: Record<string, number>,
+  mesISO: string,
+): DesvioVentas {
+  const fila = calcularResumenMensual(facturas).find((r) => r.mes === mesISO)
+  const manual = ventasManualPorMes[mesISO]
+  const real = manual !== undefined ? manual : (fila?.ventasNetas ?? 0)
+  const esAutomatico = manual === undefined && fila !== undefined
+  const desvioMonto = real - presupuestado
+  const desvioPct = presupuestado > 0 ? (desvioMonto / presupuestado) * 100 : real > 0 ? 100 : 0
+  return { presupuestado, real, desvioMonto, desvioPct, esAutomatico }
+}
+
 // ---------------------------------------------------------------------------
 // Salud financiera a partir de comprobantes (Premium)
 // ---------------------------------------------------------------------------

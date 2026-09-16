@@ -36,6 +36,7 @@ import {
   calcularCuotaDeudaTotal,
   calcularDeudaTotal,
   calcularDesvios,
+  calcularDesvioVentas,
   calcularEndeudamientoMeses,
   calcularGastosTotales,
   calcularMargenBrutoTotal,
@@ -48,6 +49,7 @@ import {
   calcularPromediosMensualesReales,
   calcularPuntoEquilibrio,
   calcularRanking,
+  calcularRealAutomaticoPorMes,
   calcularRealEfectivoPorMes,
   calcularRunwayExtendido,
   calcularRunwayMeses,
@@ -164,6 +166,9 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   const [realManualPorMes, setRealManualPorMes] = useState<Record<string, Record<string, number>>>(
     () => cargarNegocioData()?.realManualPorMes ?? {},
   )
+  const [ventasManualPorMes, setVentasManualPorMes] = useState<Record<string, number>>(
+    () => cargarNegocioData()?.ventasManualPorMes ?? {},
+  )
   const [mesPresupuesto, setMesPresupuesto] = useState(() => mesActualISO())
   const [facturas, setFacturas] = useState<Factura[]>(() => cargarNegocioData()?.facturas ?? [])
   const [clasificaciones, setClasificaciones] = useState<ClasificacionesProveedores>(
@@ -220,6 +225,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           setDeudas(d.deudas)
           setBienes(d.bienes ?? [])
           setRealManualPorMes(d.realManualPorMes ?? {})
+          setVentasManualPorMes(d.ventasManualPorMes ?? {})
           setFacturas(d.facturas ?? [])
           setClasificaciones(d.clasificaciones ?? {})
           setClientesManual(d.clientesManual ?? [])
@@ -254,6 +260,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
       deudas,
       bienes,
       realManualPorMes,
+      ventasManualPorMes,
       facturas,
       clasificaciones,
       clientesManual,
@@ -279,6 +286,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     deudas,
     bienes,
     realManualPorMes,
+    ventasManualPorMes,
     facturas,
     clasificaciones,
     clientesManual,
@@ -309,6 +317,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           deudas,
           bienes,
           realManualPorMes,
+          ventasManualPorMes,
           facturas,
           clasificaciones,
           clientesManual,
@@ -341,6 +350,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     deudas,
     bienes,
     realManualPorMes,
+    ventasManualPorMes,
     facturas,
     clasificaciones,
     clientesManual,
@@ -368,6 +378,10 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
       ...prev,
       [mesPresupuesto]: { ...(prev[mesPresupuesto] ?? {}), [key]: monto },
     }))
+  }
+
+  function cambiarVentasReales(monto: number) {
+    setVentasManualPorMes((prev) => ({ ...prev, [mesPresupuesto]: monto }))
   }
 
   function handleAgregarCuenta(nombre: string, saldo: number) {
@@ -931,6 +945,25 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   }))
 
   const { fijos: gastosFijos, variables: gastosVariables, total: gastosTotales } = calcularGastosTotales(categorias)
+  // Para el gráfico de anillo del Dashboard: mostrar lo realmente gastado este mes en cada
+  // categoría (automático desde facturas clasificadas, o pisado a mano) cuando hay dato, y el
+  // estimado del presupuesto en las que todavía no tienen nada cargado.
+  const categoriasDona = useMemo(() => {
+    const mesActual = mesActualISO()
+    const automaticoMesActual = calcularRealAutomaticoPorMes(facturas, clasificaciones, mesActual)
+    const manualMesActual = realManualPorMes[mesActual] ?? {}
+    const hayDatoReal = categorias.some(
+      (c) => manualMesActual[c.key] !== undefined || automaticoMesActual[c.key] !== undefined,
+    )
+    return {
+      categorias: categorias.map((c) => {
+        if (manualMesActual[c.key] !== undefined) return { ...c, monto: manualMesActual[c.key] }
+        if (automaticoMesActual[c.key] !== undefined) return { ...c, monto: automaticoMesActual[c.key] }
+        return c
+      }),
+      esReal: hayDatoReal,
+    }
+  }, [categorias, facturas, clasificaciones, realManualPorMes])
   const saldoInicial = calcularSaldoTotalBancos(cuentas)
   const deudaTotal = calcularDeudaTotal(deudas)
   const cuotaDeudaTotal = calcularCuotaDeudaTotal(deudas)
@@ -976,6 +1009,10 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     [categorias, facturas, clasificaciones, realManualPorMes, mesPresupuesto],
   )
   const desvios = useMemo(() => calcularDesvios(categorias, realEfectivo), [categorias, realEfectivo])
+  const desvioVentas = useMemo(
+    () => calcularDesvioVentas(ingresos, facturas, ventasManualPorMes, mesPresupuesto),
+    [ingresos, facturas, ventasManualPorMes, mesPresupuesto],
+  )
   const proveedores = useMemo(() => listarProveedores(facturas, clasificaciones), [facturas, clasificaciones])
   const clientes = useMemo(() => listarClientes(facturas, clientesManual), [facturas, clientesManual])
   const coberturaDeuda = calcularCoberturaDeuda(ingresosEfectivos, cuotaDeudaTotal)
@@ -1163,9 +1200,11 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
         >
           <PresupuestoVsReal
             desvios={desvios}
+            ventas={desvioVentas}
             mes={mesPresupuesto}
             onCambiarMes={setMesPresupuesto}
             onCambiarReal={cambiarReal}
+            onCambiarVentas={cambiarVentasReales}
           />
         </PremiumLock>
       )}
@@ -1553,7 +1592,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           </section>
 
           <section className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <GastosPorCategoria categorias={categorias} />
+            <GastosPorCategoria categorias={categoriasDona.categorias} esReal={categoriasDona.esReal} />
             <FlujoDeCaja
               saldoInicial={saldoInicial}
               ingresos={ingresosProyeccion}

@@ -10,6 +10,7 @@ export interface NegocioDataUsuario {
   deudas: Deuda[]
   bienes?: Bien[]
   realManualPorMes?: Record<string, Record<string, number>>
+  ventasManualPorMes?: Record<string, number>
   facturas?: Factura[]
   clasificaciones?: ClasificacionesProveedores
   clientesManual?: string[]

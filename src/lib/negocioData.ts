@@ -11,6 +11,9 @@ export interface NegocioData {
   /** Ediciones manuales de "Real" por mes ("YYYY-MM") y categoría — lo que no está acá pero sí
    * hay facturas clasificadas, se completa solo (ver calcularRealEfectivoPorMes). */
   realManualPorMes: Record<string, Record<string, number>>
+  /** Ediciones manuales de las ventas reales por mes ("YYYY-MM") — lo que no está acá se completa
+   * solo con las facturas emitidas de ese mes (ver calcularDesvioVentas). */
+  ventasManualPorMes: Record<string, number>
   facturas: Factura[]
   clasificaciones: ClasificacionesProveedores
   /** Clientes agregados a mano en la solapa Clientes, sin factura todavía — ver listarClientes. */

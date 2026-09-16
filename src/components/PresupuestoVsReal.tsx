@@ -1,13 +1,15 @@
 import { useMemo } from 'react'
-import { generarComentariosDesvio, type DesvioCategoria } from '../lib/cfo'
+import { generarComentariosDesvio, type DesvioCategoria, type DesvioVentas } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
 
 interface Props {
   desvios: DesvioCategoria[]
+  ventas: DesvioVentas
   mes: string
   onCambiarMes: (mes: string) => void
   onCambiarReal: (key: string, monto: number) => void
+  onCambiarVentas: (monto: number) => void
 }
 
 function etiquetaMes(mesISO: string): string {
@@ -17,7 +19,7 @@ function etiquetaMes(mesISO: string): string {
   return texto.charAt(0).toUpperCase() + texto.slice(1)
 }
 
-export function PresupuestoVsReal({ desvios, mes, onCambiarMes, onCambiarReal }: Props) {
+export function PresupuestoVsReal({ desvios, ventas, mes, onCambiarMes, onCambiarReal, onCambiarVentas }: Props) {
   const totalPresupuestado = desvios.reduce((s, d) => s + d.presupuestado, 0)
   const totalReal = desvios.reduce((s, d) => s + d.real, 0)
   const desvioTotalPct = totalPresupuestado > 0 ? ((totalReal - totalPresupuestado) / totalPresupuestado) * 100 : 0
@@ -58,8 +60,71 @@ export function PresupuestoVsReal({ desvios, mes, onCambiarMes, onCambiarReal }:
         </div>
       </div>
       <p className="mb-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
-        Lo que facturaste ese mes en cada categoría se completa solo con tus facturas recibidas clasificadas (🧾
-        auto). Podés pisarlo a mano si hace falta.
+        Ventas y gastos de ese mes se completan solos con tus facturas (🧾 auto). Podés pisarlos a mano si hace
+        falta.
+      </p>
+
+      <div className="mb-4 rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+        <p className="mb-2 text-xs font-semibold tracking-wide uppercase" style={{ color: 'var(--text-muted)' }}>
+          Ventas del mes
+        </p>
+        <div className="flex flex-wrap items-center gap-4">
+          <div>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              Presupuestado
+            </p>
+            <p className="tabular text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+              {formatoMoneda(ventas.presupuestado)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              Real
+            </p>
+            <div className="flex items-center gap-1.5">
+              {ventas.esAutomatico && (
+                <span className="shrink-0 text-xs" title="Completado automáticamente desde tus facturas emitidas">
+                  🧾 auto
+                </span>
+              )}
+              <InputMoneda
+                value={ventas.real}
+                onChange={onCambiarVentas}
+                className="tabular w-32 rounded-lg border px-2 py-1 text-sm font-semibold"
+                style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+              />
+            </div>
+          </div>
+          <div className="ml-auto text-right">
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              Desvío
+            </p>
+            <p
+              className="tabular text-lg font-semibold"
+              style={{
+                color:
+                  ventas.desvioMonto >= 0
+                    ? 'var(--status-good-text)'
+                    : Math.abs(ventas.desvioPct) < 15
+                      ? 'var(--status-warning)'
+                      : 'var(--status-critical)',
+              }}
+            >
+              {ventas.desvioMonto >= 0 ? '+' : ''}
+              {formatoMoneda(ventas.desvioMonto)} ({ventas.desvioPct >= 0 ? '+' : ''}
+              {ventas.desvioPct.toFixed(0)}%)
+            </p>
+          </div>
+        </div>
+        <p className="mt-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+          {ventas.desvioMonto >= 0
+            ? 'Facturaste más de lo presupuestado — buena señal.'
+            : 'Facturaste menos de lo presupuestado.'}
+        </p>
+      </div>
+
+      <p className="mb-2 text-xs font-semibold tracking-wide uppercase" style={{ color: 'var(--text-muted)' }}>
+        Gastos por categoría
       </p>
 
       {comentarios.length > 0 && (

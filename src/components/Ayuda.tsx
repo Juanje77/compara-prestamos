@@ -35,6 +35,7 @@ const SECCIONES: SeccionAyuda[] = [
       'Cargá cada cuenta bancaria o caja con su nombre y saldo actual. (Con el plan Full, el saldo pasa a actualizarse solo — ver Tesorería.)',
       'Cargá tus deudas: concepto, monto adeudado, cuota mensual y próximo vencimiento.',
       'Completá tus ingresos y gastos mensuales estimados por categoría (sueldos, alquiler, insumos, impuestos, etc.).',
+      'Mirá el gráfico de anillo "Composición de gastos": muestra lo real de este mes en cuanto tengas al menos una factura clasificada (con el plan Medio), y mientras tanto el estimado que cargaste acá.',
       'Revisá los indicadores — margen operativo, runway, punto de equilibrio, endeudamiento, cobertura de deuda. Si alguno aparece en rojo o naranja, es momento de mirar más de cerca.',
       'Con el plan Medio o superior, mirá el panel de Alertas y Recomendaciones — avisa solo sobre facturas vencidas, cheques por cobrar, stock bajo mínimo, etc.',
     ],
@@ -176,11 +177,12 @@ const SECCIONES: SeccionAyuda[] = [
     numero: '12',
     titulo: 'Presupuesto vs. Real',
     tier: 'medio',
-    descripcion: 'Compará lo que presupuestaste en el Dashboard contra lo que gastaste de verdad, mes a mes.',
+    descripcion: 'Compará lo que presupuestaste en el Dashboard contra lo que facturaste y gastaste de verdad, mes a mes.',
     pasos: [
       'Elegí el mes que querés revisar.',
-      'Cargá el gasto real de cada categoría, o dejá que se complete solo con tus facturas ya clasificadas.',
-      'Mirá el desvío en pesos y en porcentaje, categoría por categoría.',
+      'Arriba de todo, "Ventas del mes" compara el ingreso que presupuestaste en el Dashboard contra lo que realmente facturaste ese mes (se completa solo con tus facturas emitidas) — acá superar el presupuesto es una buena noticia.',
+      'Más abajo, cargá el gasto real de cada categoría, o dejá que se complete solo con tus facturas ya clasificadas.',
+      'Mirá el desvío en pesos y en porcentaje, tanto de ventas como categoría por categoría de gasto.',
     ],
   },
   {

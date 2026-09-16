@@ -4,6 +4,9 @@ import { formatoMoneda } from '../lib/finance'
 
 interface Props {
   categorias: CategoriaGasto[]
+  /** Si al menos una categoría trae dato real de este mes (automático o a mano) — si no, todo lo
+   * mostrado es el estimado del presupuesto. */
+  esReal?: boolean
 }
 
 function TortaTooltip({ active, payload }: { active?: boolean; payload?: { payload: CategoriaGasto; value: number }[] }) {
@@ -22,15 +25,27 @@ function TortaTooltip({ active, payload }: { active?: boolean; payload?: { paylo
   )
 }
 
-export function GastosPorCategoria({ categorias }: Props) {
+export function GastosPorCategoria({ categorias, esReal = false }: Props) {
   const activas = categorias.filter((c) => c.monto > 0)
   const total = activas.reduce((s, c) => s + c.monto, 0)
 
   return (
     <div className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
-      <h3 className="mb-1 text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
-        Composición de gastos
-      </h3>
+      <div className="mb-1 flex flex-wrap items-center gap-2">
+        <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
+          Composición de gastos
+        </h3>
+        <span
+          className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+          style={
+            esReal
+              ? { background: 'color-mix(in srgb, var(--status-good) 16%, transparent)', color: 'var(--status-good-text)' }
+              : { background: 'var(--gridline)', color: 'var(--text-muted)' }
+          }
+        >
+          {esReal ? '🧾 Real de este mes' : 'Estimado (presupuesto)'}
+        </span>
+      </div>
       <p className="mb-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
         Total mensual: <span className="tabular font-semibold">{formatoMoneda(total)}</span>
       </p>
