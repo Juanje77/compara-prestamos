@@ -45,6 +45,9 @@ import {
   calcularMargenOperativo,
   calcularMargenPorSector,
   calcularNominaTotal,
+  calcularPagosSueldos,
+  idOrigenPagoSueldos,
+  CONCEPTO_PAGO_SUELDOS_LABEL,
   calcularMontoPagado,
   calcularAgingCuentas,
   calcularDSOyDPO,
@@ -79,6 +82,7 @@ import {
   type Cheque,
   type ClasificacionesProveedores,
   type CuentaBancaria,
+  type ConceptoPagoSueldos,
   type Deuda as DeudaTipo,
   type Empleado,
   type EstadoCheque,
@@ -867,6 +871,28 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     setEmpleados((prev) => prev.filter((e) => e.id !== id))
   }
 
+  function handlePagarSueldos(concepto: ConceptoPagoSueldos, mes: string, monto: number, cuentaId: string, fecha: string) {
+    const movimiento: MovimientoTesoreria = {
+      id: generarId(),
+      cuentaId,
+      tipo: 'egreso',
+      monto,
+      fecha,
+      concepto: `${CONCEPTO_PAGO_SUELDOS_LABEL[concepto]} — ${mes}`,
+      origen: 'sueldo',
+      origenId: idOrigenPagoSueldos(mes, concepto),
+    }
+    setMovimientosTesoreria((prev) => [...prev, movimiento])
+    setCuentas((prev) => aplicarMovimientoTesoreria(prev, movimiento))
+  }
+
+  function handleDeshacerPagoSueldos(movimientoId: string) {
+    const movimiento = movimientosTesoreria.find((m) => m.id === movimientoId)
+    if (!movimiento) return
+    setCuentas((prev) => revertirMovimientoTesoreria(prev, movimiento))
+    setMovimientosTesoreria((prev) => prev.filter((m) => m.id !== movimientoId))
+  }
+
   function handleRegistrarAnticipo(
     remitoId: string,
     monto: number,
@@ -986,8 +1012,20 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     monto: montos[c.key] ?? 0,
   }))
 
-  const { fijos: gastosFijos, variables: gastosVariables, total: gastosTotales } = calcularGastosTotales(categorias)
   const nominaTotal = useMemo(() => calcularNominaTotal(empleados), [empleados])
+  // Los indicadores (margen, runway, punto de equilibrio, proyección) se calculan sobre el costo
+  // REAL de la nómina cuando hay empleados cargados, no sobre el estimado a mano — si no, el
+  // Dashboard mostraría el costo real en la composición de gastos y uno distinto en los KPIs de
+  // arriba. Las demás categorías siguen siendo el estimado: una factura clasificada no alcanza
+  // para saber si ese gasto se repite todos los meses, la nómina sí.
+  const categoriasEfectivas = useMemo(
+    () =>
+      nominaTotal.cantidadActivos === 0
+        ? categorias
+        : categorias.map((c) => (c.key === 'sueldos' ? { ...c, monto: nominaTotal.totalCostoEmpresa } : c)),
+    [categorias, nominaTotal],
+  )
+  const { fijos: gastosFijos, variables: gastosVariables, total: gastosTotales } = calcularGastosTotales(categoriasEfectivas)
   // Para el gráfico de anillo del Dashboard: mostrar lo realmente gastado este mes en cada
   // categoría (automático desde facturas clasificadas, o pisado a mano) cuando hay dato, y el
   // estimado del presupuesto en las que todavía no tienen nada cargado. La categoría "sueldos" usa
@@ -1031,7 +1069,12 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   const usaIngresosReales = promediosReales?.hayVentas ?? false
   const usaGastosReales = promediosReales?.hayCompras ?? false
   const ingresosEfectivos = usaIngresosReales ? promediosReales!.ventasPromedio : ingresos
-  const gastosEfectivos = usaGastosReales ? promediosReales!.comprasPromedio : gastosTotales
+  // El promedio de compras sale de las facturas recibidas, y los sueldos nunca vienen por factura:
+  // sin sumarlos acá, un negocio con empleados y comprobantes cargados mostraría un margen
+  // operativo inflado, porque estaría descontando solo lo que le compra a proveedores.
+  const gastosEfectivos = usaGastosReales
+    ? promediosReales!.comprasPromedio + nominaTotal.totalCostoEmpresa
+    : gastosTotales
   const ingresosProyeccion = ingresosEfectivos
   const gastosProyeccion = gastosEfectivos
 
@@ -1084,6 +1127,11 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   const margenesPorSector = useMemo(
     () => calcularMargenPorSector(sectores, remitos, productos),
     [sectores, remitos, productos],
+  )
+  // Para el calendario semanal: los pagos que genera la nómina del mes en curso.
+  const pagosSueldosMesActual = useMemo(
+    () => calcularPagosSueldos(nominaTotal, mesActualISO(), movimientosTesoreria),
+    [nominaTotal, movimientosTesoreria],
   )
   const contrapartesClientes = useMemo(() => clientes.map((c) => c.cliente).sort(), [clientes])
   const contrapartesProveedores = useMemo(() => proveedores.map((p) => p.proveedor).sort(), [proveedores])
@@ -1242,6 +1290,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           cheques={esFull ? cheques : undefined}
           onCambiarEstadoCheque={esFull ? handleCambiarEstadoCheque : undefined}
           cuentas={esFull ? cuentas : undefined}
+          pagosSueldos={esFull ? pagosSueldosMesActual : undefined}
         />
       )}
 
@@ -1357,9 +1406,13 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           <Sueldos
             empleados={empleados}
             nomina={nominaTotal}
+            cuentas={cuentas}
+            movimientosTesoreria={movimientosTesoreria}
             onAgregar={handleAgregarEmpleado}
             onActualizar={handleActualizarEmpleado}
             onEliminar={handleEliminarEmpleado}
+            onPagar={handlePagarSueldos}
+            onDeshacerPago={handleDeshacerPagoSueldos}
           />
         </PremiumLock>
       )}

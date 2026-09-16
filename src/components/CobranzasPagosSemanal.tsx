@@ -18,7 +18,16 @@ import { formatoMoneda } from '../lib/finance'
 import { descargarPdfCobranzasSemanal } from '../lib/pdf'
 import { cargarDatosUsuario, guardarDatosUsuario } from '../lib/userSync'
 import { useAuth } from '../lib/AuthContext'
-import { MEDIOS_PAGO_LABEL, type Cheque, type CuentaBancaria, type EstadoCheque, type Factura, type MedioPago } from '../lib/cfo'
+import {
+  CONCEPTO_PAGO_SUELDOS_LABEL,
+  MEDIOS_PAGO_LABEL,
+  type Cheque,
+  type CuentaBancaria,
+  type EstadoCheque,
+  type Factura,
+  type MedioPago,
+  type PagoSueldos,
+} from '../lib/cfo'
 import { InputMoneda } from './InputMoneda'
 
 /** Los movimientos generados a partir de una factura llevan este prefijo en el id, para poder
@@ -26,6 +35,8 @@ import { InputMoneda } from './InputMoneda'
 const PREFIJO_FACTURA = 'factura:'
 /** Ídem para los movimientos generados a partir de un cheque (ver chequeAMovimiento). */
 const PREFIJO_CHEQUE = 'cheque:'
+/** Ídem para los dos pagos que genera la nómina del mes (ver sueldoAMovimiento). */
+const PREFIJO_SUELDO = 'sueldo:'
 
 function hoyISO(): string {
   return new Date().toISOString().slice(0, 10)
@@ -90,6 +101,19 @@ function chequeAMovimiento(c: Cheque): Movimiento {
     fecha: c.fechaCobro,
     cumplido: c.estado === 'cobrado' || c.estado === 'vendido',
     medioPago: 'cheque',
+  }
+}
+
+/** Los pagos de la nómina se ven acá para que no sorprendan en la semana, pero se registran
+ * desde la solapa Sueldos, que es donde se elige de qué cuenta sale la plata. */
+function sueldoAMovimiento(p: PagoSueldos): Movimiento {
+  return {
+    id: `${PREFIJO_SUELDO}${p.mes}:${p.concepto}`,
+    tipo: 'pago',
+    concepto: CONCEPTO_PAGO_SUELDOS_LABEL[p.concepto],
+    monto: p.monto,
+    fecha: p.fechaEstimada,
+    cumplido: p.pagado,
   }
 }
 
@@ -159,6 +183,7 @@ function FilaMovimiento({
   const etiqueta = etiquetaSemana(m.fecha, semanas)
   const deFactura = m.id.startsWith(PREFIJO_FACTURA)
   const deCheque = m.id.startsWith(PREFIJO_CHEQUE)
+  const deSueldo = m.id.startsWith(PREFIJO_SUELDO)
   return (
     <li
       className="flex items-center gap-3 rounded-lg border px-3 py-2 text-sm"
@@ -170,6 +195,7 @@ function FilaMovimiento({
         onChange={(e) => onSeleccionar(m.id, e.target.checked)}
         aria-label="Seleccionar"
         className="h-4 w-4 shrink-0"
+        disabled={deSueldo}
       />
       <input
         type="checkbox"
@@ -178,6 +204,8 @@ function FilaMovimiento({
         aria-label={m.cumplido ? 'Marcar como pendiente' : 'Marcar como cumplido'}
         className="h-4 w-4 shrink-0 accent-current"
         style={{ color: 'var(--series-blue)' }}
+        disabled={deSueldo}
+        title={deSueldo ? 'El pago de la nómina se registra desde la solapa Sueldos' : undefined}
       />
       <span
         className="flex-1 truncate"
@@ -185,10 +213,19 @@ function FilaMovimiento({
           color: 'var(--text-primary)',
           textDecoration: m.cumplido ? 'line-through' : 'none',
         }}
-        title={deFactura ? 'Generado desde Comprobantes' : deCheque ? 'Generado desde Cheques' : undefined}
+        title={
+          deFactura
+            ? 'Generado desde Comprobantes'
+            : deCheque
+              ? 'Generado desde Cheques'
+              : deSueldo
+                ? 'Generado desde Sueldos — el pago se registra ahí'
+                : undefined
+        }
       >
         {deFactura && '🧾 '}
         {deCheque && '🏦 '}
+        {deSueldo && '👥 '}
         {m.concepto}
       </span>
       <span className="tabular shrink-0 text-xs" style={{ color: 'var(--text-muted)' }}>
@@ -506,9 +543,19 @@ interface Props {
   onCambiarEstadoCheque?: (id: string, estado: EstadoCheque) => void
   /** Cuentas bancarias/caja (plan Full) para elegir dónde entró/salió la plata al cobrar/pagar. */
   cuentas?: CuentaBancaria[]
+  /** Pagos que genera la nómina del mes (plan Full) — se muestran para verlos venir, pero se
+   * registran desde la solapa Sueldos. */
+  pagosSueldos?: PagoSueldos[]
 }
 
-export function CobranzasPagosSemanal({ facturas = [], onCambiarFactura, cheques = [], onCambiarEstadoCheque, cuentas }: Props) {
+export function CobranzasPagosSemanal({
+  facturas = [],
+  onCambiarFactura,
+  cheques = [],
+  onCambiarEstadoCheque,
+  cuentas,
+  pagosSueldos = [],
+}: Props) {
   const { user } = useAuth()
   const hoy = useFechaActual()
   const [movimientos, setMovimientos] = useState<Movimiento[]>(() => obtenerMovimientos())
@@ -529,9 +576,10 @@ export function CobranzasPagosSemanal({ facturas = [], onCambiarFactura, cheques
     [facturas, facturasCubiertasPorCheque],
   )
   const movimientosDeCheques = useMemo(() => cheques.map(chequeAMovimiento), [cheques])
+  const movimientosDeSueldos = useMemo(() => pagosSueldos.map(sueldoAMovimiento), [pagosSueldos])
   const todosMovimientos = useMemo(
-    () => [...movimientos, ...movimientosDeFacturas, ...movimientosDeCheques],
-    [movimientos, movimientosDeFacturas, movimientosDeCheques],
+    () => [...movimientos, ...movimientosDeFacturas, ...movimientosDeCheques, ...movimientosDeSueldos],
+    [movimientos, movimientosDeFacturas, movimientosDeCheques, movimientosDeSueldos],
   )
 
   const [nubeLista, setNubeLista] = useState(false)

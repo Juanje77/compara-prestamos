@@ -2,10 +2,16 @@ import { useState } from 'react'
 import {
   APORTES_PERSONALES_PCT_DEFAULT,
   CARGAS_SOCIALES_ADICIONALES_PCT_DEFAULT,
+  CONCEPTO_PAGO_SUELDOS_LABEL,
   CONTRIBUCIONES_PATRONALES_PCT_DEFAULT,
   calcularCostoEmpleado,
+  calcularPagosSueldos,
+  type ConceptoPagoSueldos,
+  type CuentaBancaria,
   type Empleado,
+  type MovimientoTesoreria,
   type NominaTotal,
+  type PagoSueldos,
 } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
@@ -13,9 +19,24 @@ import { InputMoneda } from './InputMoneda'
 interface Props {
   empleados: Empleado[]
   nomina: NominaTotal
+  /** Cajas y cuentas de Tesorería, para elegir de dónde sale la plata al pagar la nómina. */
+  cuentas: CuentaBancaria[]
+  movimientosTesoreria: MovimientoTesoreria[]
   onAgregar: (empleado: Omit<Empleado, 'id'>) => void
   onActualizar: (id: string, cambios: Partial<Omit<Empleado, 'id'>>) => void
   onEliminar: (id: string) => void
+  onPagar: (concepto: ConceptoPagoSueldos, mes: string, monto: number, cuentaId: string, fecha: string) => void
+  onDeshacerPago: (movimientoId: string) => void
+}
+
+function mesActualISO(): string {
+  return new Date().toISOString().slice(0, 7)
+}
+
+function etiquetaMes(mesISO: string): string {
+  const [anio, mes] = mesISO.split('-').map(Number)
+  const texto = new Date(anio, mes - 1, 1).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })
+  return texto.charAt(0).toUpperCase() + texto.slice(1)
 }
 
 function FilaEmpleado({
@@ -151,7 +172,166 @@ function FilaEmpleado({
   )
 }
 
-export function Sueldos({ empleados, nomina, onAgregar, onActualizar, onEliminar }: Props) {
+function FilaPago({
+  pago,
+  cuentas,
+  onPagar,
+  onDeshacerPago,
+}: {
+  pago: PagoSueldos
+  cuentas: CuentaBancaria[]
+  onPagar: Props['onPagar']
+  onDeshacerPago: Props['onDeshacerPago']
+}) {
+  const [cuentaId, setCuentaId] = useState(cuentas[0]?.id ?? '')
+  const [fecha, setFecha] = useState(pago.fechaEstimada)
+
+  return (
+    <div
+      className="flex flex-wrap items-center gap-3 rounded-lg border p-3"
+      style={{
+        borderColor: pago.pagado ? 'var(--status-good-text)' : 'var(--border)',
+        background: pago.pagado ? 'color-mix(in srgb, var(--status-good) 6%, transparent)' : 'var(--surface-1)',
+      }}
+    >
+      <div className="min-w-[200px] flex-1">
+        <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+          {CONCEPTO_PAGO_SUELDOS_LABEL[pago.concepto]}
+        </p>
+        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+          {pago.pagado ? 'Pagado' : `Estimado para el ${new Date(`${pago.fechaEstimada}T00:00:00`).toLocaleDateString('es-AR')}`}
+        </p>
+      </div>
+      <p className="tabular shrink-0 text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+        {formatoMoneda(pago.monto)}
+      </p>
+
+      {pago.pagado ? (
+        <button
+          onClick={() => pago.movimientoId && onDeshacerPago(pago.movimientoId)}
+          className="shrink-0 rounded-lg border px-3 py-1 text-xs font-medium"
+          style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
+        >
+          Deshacer pago
+        </button>
+      ) : (
+        <>
+          <select
+            value={cuentaId}
+            onChange={(e) => setCuentaId(e.target.value)}
+            className="shrink-0 rounded-lg border px-2 py-1 text-sm"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+          >
+            <option value="">Cuenta…</option>
+            {cuentas.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nombre}
+              </option>
+            ))}
+          </select>
+          <input
+            type="date"
+            value={fecha}
+            onChange={(e) => setFecha(e.target.value)}
+            className="tabular w-36 shrink-0 rounded-lg border px-2 py-1 text-sm"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+          />
+          <button
+            onClick={() => cuentaId && onPagar(pago.concepto, pago.mes, pago.monto, cuentaId, fecha)}
+            disabled={!cuentaId}
+            className="shrink-0 rounded-lg px-3 py-1 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+            style={{ background: 'var(--series-blue)' }}
+          >
+            Registrar pago
+          </button>
+        </>
+      )}
+    </div>
+  )
+}
+
+function PanelPagos({
+  nomina,
+  cuentas,
+  movimientosTesoreria,
+  onPagar,
+  onDeshacerPago,
+}: {
+  nomina: NominaTotal
+  cuentas: CuentaBancaria[]
+  movimientosTesoreria: MovimientoTesoreria[]
+  onPagar: Props['onPagar']
+  onDeshacerPago: Props['onDeshacerPago']
+}) {
+  const [mes, setMes] = useState(mesActualISO)
+  const pagos = calcularPagosSueldos(nomina, mes, movimientosTesoreria)
+
+  function sumarMeses(delta: number) {
+    const [anio, m] = mes.split('-').map(Number)
+    const fecha = new Date(anio, m - 1 + delta, 1)
+    setMes(`${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`)
+  }
+
+  return (
+    <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
+          Pago de la nómina
+        </h3>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => sumarMeses(-1)}
+            aria-label="Mes anterior"
+            className="rounded-lg border px-2 py-1 text-sm"
+            style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
+          >
+            ←
+          </button>
+          <span className="min-w-[140px] text-center text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+            {etiquetaMes(mes)}
+          </span>
+          <button
+            onClick={() => sumarMeses(1)}
+            aria-label="Mes siguiente"
+            className="rounded-lg border px-2 py-1 text-sm"
+            style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
+          >
+            →
+          </button>
+        </div>
+      </div>
+      <p className="mb-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
+        La nómina se paga en dos veces: primero los netos a cada empleado, y después todo lo que va
+        a AFIP, ART y sindicato con el F.931. Al registrar cada pago, la plata sale de la caja o
+        cuenta que elijas y el saldo en Tesorería baja al toque.
+      </p>
+
+      {cuentas.length === 0 ? (
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+          Cargá una caja o cuenta en Tesorería para poder registrar el pago.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {pagos.map((p) => (
+            <FilaPago key={p.concepto} pago={p} cuentas={cuentas} onPagar={onPagar} onDeshacerPago={onDeshacerPago} />
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+export function Sueldos({
+  empleados,
+  nomina,
+  cuentas,
+  movimientosTesoreria,
+  onAgregar,
+  onActualizar,
+  onEliminar,
+  onPagar,
+  onDeshacerPago,
+}: Props) {
   const [nombre, setNombre] = useState('')
   const [sueldoBruto, setSueldoBruto] = useState(0)
 
@@ -184,8 +364,9 @@ export function Sueldos({ empleados, nomina, onAgregar, onActualizar, onEliminar
           cargo del empleador) y otras <strong>cargas sociales adicionales</strong> (ART, seguro de
           vida obligatorio, cuota sindical patronal). Los tres porcentajes vienen con un valor de
           referencia editable por si tu actividad tiene alícuotas distintas. El costo para la
-          empresa de la nómina activa alimenta solo la categoría "Sueldos" de Presupuesto vs. Real
-          y el Dashboard, como el resto de las categorías automáticas.
+          empresa de la nómina activa reemplaza al estimado de sueldos en todo el Dashboard —
+          composición de gastos, margen operativo, runway y punto de equilibrio— y en Presupuesto
+          vs. Real.
         </p>
 
         <form onSubmit={handleSubmit} className="flex flex-wrap gap-2">
@@ -262,6 +443,16 @@ export function Sueldos({ empleados, nomina, onAgregar, onActualizar, onEliminar
             </div>
           </div>
         </section>
+      )}
+
+      {nomina.cantidadActivos > 0 && (
+        <PanelPagos
+          nomina={nomina}
+          cuentas={cuentas}
+          movimientosTesoreria={movimientosTesoreria}
+          onPagar={onPagar}
+          onDeshacerPago={onDeshacerPago}
+        />
       )}
 
       {ordenados.length === 0 ? (

@@ -32,7 +32,7 @@ export interface MovimientoTesoreria {
   /** De dónde vino este movimiento, para poder revertirlo si se modifica o borra el origen. Los
    * movimientos "manual" (ajustes a mano) son los únicos que se pueden borrar directamente desde
    * Tesorería. */
-  origen: 'factura' | 'anticipo' | 'cheque' | 'manual'
+  origen: 'factura' | 'anticipo' | 'cheque' | 'sueldo' | 'manual'
   origenId?: string
 }
 
@@ -1223,6 +1223,71 @@ export function calcularNominaTotal(empleados: Empleado[]): NominaTotal {
     totalCargasSocialesAdicionales: costos.reduce((s, c) => s + c.cargasSocialesAdicionales, 0),
     totalCostoEmpresa: costos.reduce((s, c) => s + c.costoEmpresa, 0),
   }
+}
+
+// Pagar la nómina son dos egresos distintos, en fechas distintas: primero los netos a cada
+// empleado (hasta el 4° día hábil del mes siguiente) y después todo lo que va a AFIP/ART/sindicato
+// —aportes retenidos + contribuciones + ART y demás— con el F.931 (vence alrededor del día 15).
+// Sumados dan exactamente el costo empresa, así que la caja nunca queda desbalanceada.
+// No hay una entidad "pago de sueldos" guardada aparte: el MovimientoTesoreria con origen
+// "sueldo" ES el registro, y su origenId dice de qué mes y concepto es.
+
+export type ConceptoPagoSueldos = 'netos' | 'cargas'
+
+export const CONCEPTO_PAGO_SUELDOS_LABEL: Record<ConceptoPagoSueldos, string> = {
+  netos: 'Sueldos netos al personal',
+  cargas: 'Cargas sociales (F.931, ART y sindicato)',
+}
+
+/** Día del mes siguiente en que se estima cada pago, para ubicarlo en el calendario semanal. */
+const DIA_ESTIMADO_PAGO: Record<ConceptoPagoSueldos, number> = { netos: 4, cargas: 15 }
+
+/** Identifica unívocamente el pago de un concepto de un mes, para no duplicarlo ni perderle el rastro. */
+export function idOrigenPagoSueldos(mes: string, concepto: ConceptoPagoSueldos): string {
+  return `${mes}:${concepto}`
+}
+
+export interface PagoSueldos {
+  concepto: ConceptoPagoSueldos
+  mes: string
+  monto: number
+  fechaEstimada: string
+  pagado: boolean
+  /** El MovimientoTesoreria que lo registra, si ya se pagó — para poder deshacerlo. */
+  movimientoId?: string
+}
+
+/**
+ * Los dos pagos que genera la nómina de un mes, con su fecha estimada y si ya se registraron como
+ * salida de alguna caja o cuenta. Con la nómina vacía no hay nada que pagar.
+ */
+export function calcularPagosSueldos(
+  nomina: NominaTotal,
+  mes: string,
+  movimientosTesoreria: MovimientoTesoreria[],
+): PagoSueldos[] {
+  if (nomina.cantidadActivos === 0) return []
+  const [anio, mesNumero] = mes.split('-').map(Number)
+  const montos: Record<ConceptoPagoSueldos, number> = {
+    netos: nomina.totalNeto,
+    cargas: nomina.totalCostoEmpresa - nomina.totalNeto,
+  }
+
+  return (Object.keys(montos) as ConceptoPagoSueldos[]).map((concepto) => {
+    // Mes siguiente al de la nómina: con mesNumero (1-12) sin restar 1, Date ya apunta al que sigue.
+    const fecha = new Date(anio, mesNumero, DIA_ESTIMADO_PAGO[concepto])
+    const movimiento = movimientosTesoreria.find(
+      (m) => m.origen === 'sueldo' && m.origenId === idOrigenPagoSueldos(mes, concepto),
+    )
+    return {
+      concepto,
+      mes,
+      monto: montos[concepto],
+      fechaEstimada: `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}-${String(fecha.getDate()).padStart(2, '0')}`,
+      pagado: movimiento !== undefined,
+      movimientoId: movimiento?.id,
+    }
+  })
 }
 
 // ---------------------------------------------------------------------------

@@ -131,6 +131,8 @@ const SECCIONES: SeccionAyuda[] = [
       'Cargá cada empleado con su nombre y sueldo bruto.',
       'Se distinguen tres porcentajes, cada uno editable si tu actividad tiene una alícuota distinta: aportes personales (jubilación, obra social, PAMI — se descuentan del bruto para dar el neto), contribuciones patronales (lo que la empresa aporta al sistema de seguridad social) y cargas sociales adicionales (ART, seguro de vida obligatorio, cuota sindical patronal — costos laborales que no son una contribución previsional).',
       'Mirá el resumen de la nómina vigente: total bruto, neto, contribuciones patronales, cargas sociales adicionales y costo total para la empresa.',
+      'En "Pago de la nómina" registrá los dos egresos del mes: primero los netos al personal y después las cargas sociales (F.931, ART y sindicato). Elegí de qué caja o cuenta sale la plata y el saldo en Tesorería baja al toque.',
+      'Los dos pagos aparecen también en Cobranzas y pagos con su fecha estimada, para verlos venir en la semana — pero se registran acá, que es donde se elige la cuenta.',
       'Dado de baja un empleado con `Dar de baja` en vez de borrarlo, para no perder el historial.',
     ],
     tip: 'En cuanto cargás al menos un empleado activo, el costo total de la nómina pasa a ser el valor automático (🧾 auto) de la categoría "Sueldos" en Presupuesto vs. Real y en el gráfico de Composición de gastos del Dashboard, en vez del estimado que cargaste a mano.',

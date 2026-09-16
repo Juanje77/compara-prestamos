@@ -128,6 +128,7 @@ const ORIGEN_LABEL: Record<MovimientoTesoreria['origen'], string> = {
   factura: 'Factura',
   anticipo: 'Anticipo',
   cheque: 'Cheque',
+  sueldo: 'Sueldos',
   manual: 'Ajuste manual',
 }
 
