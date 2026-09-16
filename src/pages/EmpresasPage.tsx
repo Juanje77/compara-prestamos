@@ -24,6 +24,7 @@ import { Ayuda } from '../components/Ayuda'
 import { CuentasCorrientes } from '../components/CuentasCorrientes'
 import { RemitosPresupuestos } from '../components/RemitosPresupuestos'
 import { MargenesPorSector } from '../components/MargenesPorSector'
+import { Sueldos } from '../components/Sueldos'
 import { Stock } from '../components/Stock'
 import { Tesoreria } from '../components/Tesoreria'
 import {
@@ -43,6 +44,7 @@ import {
   calcularMargenBrutoTotal,
   calcularMargenOperativo,
   calcularMargenPorSector,
+  calcularNominaTotal,
   calcularMontoPagado,
   calcularAgingCuentas,
   calcularDSOyDPO,
@@ -78,6 +80,7 @@ import {
   type ClasificacionesProveedores,
   type CuentaBancaria,
   type Deuda as DeudaTipo,
+  type Empleado,
   type EstadoCheque,
   type IngresosBrutosManualMes,
   type IvaManualMes,
@@ -123,6 +126,7 @@ const SECCIONES = [
   { key: 'cuentasCorrientes', label: 'Cuentas corrientes' },
   { key: 'remitos', label: 'Remitos y presupuestos' },
   { key: 'margenes', label: 'Márgenes por sector' },
+  { key: 'sueldos', label: 'Sueldos' },
   { key: 'stock', label: 'Stock' },
   { key: 'tesoreria', label: 'Tesorería' },
   { key: 'proveedores', label: 'Proveedores' },
@@ -137,7 +141,7 @@ const SECCIONES = [
 
 /** Secciones exclusivas del plan Full (el sistema de gestión de uso diario) — el resto que
  * requiere pago sigue disponible desde el plan Medio. */
-const SECCIONES_FULL = new Set(['cuentasCorrientes', 'remitos', 'margenes', 'cheques', 'stock', 'tesoreria'])
+const SECCIONES_FULL = new Set(['cuentasCorrientes', 'remitos', 'margenes', 'sueldos', 'cheques', 'stock', 'tesoreria'])
 
 type Seccion = (typeof SECCIONES)[number]['key']
 
@@ -183,6 +187,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   const [pagos, setPagos] = useState<Pago[]>(() => cargarNegocioData()?.pagos ?? [])
   const [remitos, setRemitos] = useState<RemitoPresupuesto[]>(() => cargarNegocioData()?.remitos ?? [])
   const [sectores, setSectores] = useState<Sector[]>(() => cargarNegocioData()?.sectores ?? [])
+  const [empleados, setEmpleados] = useState<Empleado[]>(() => cargarNegocioData()?.empleados ?? [])
   const [anticipos, setAnticipos] = useState<Anticipo[]>(() => cargarNegocioData()?.anticipos ?? [])
   const [productos, setProductos] = useState<Producto[]>(() => cargarNegocioData()?.productos ?? [])
   const [movimientosStock, setMovimientosStock] = useState<MovimientoStock[]>(
@@ -238,6 +243,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           setPagos(d.pagos ?? [])
           setRemitos(d.remitos ?? [])
           setSectores(d.sectores ?? [])
+          setEmpleados(d.empleados ?? [])
           setAnticipos(d.anticipos ?? [])
           setProductos(d.productos ?? [])
           setMovimientosStock(d.movimientosStock ?? [])
@@ -274,6 +280,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
       pagos,
       remitos,
       sectores,
+      empleados,
       anticipos,
       productos,
       movimientosStock,
@@ -301,6 +308,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     pagos,
     remitos,
     sectores,
+    empleados,
     anticipos,
     productos,
     movimientosStock,
@@ -333,6 +341,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           pagos,
           remitos,
           sectores,
+          empleados,
           anticipos,
           productos,
           movimientosStock,
@@ -367,6 +376,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     pagos,
     remitos,
     sectores,
+    empleados,
     anticipos,
     productos,
     movimientosStock,
@@ -845,6 +855,18 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     setSectores((prev) => prev.filter((s) => s.id !== id))
   }
 
+  function handleAgregarEmpleado(empleado: Omit<Empleado, 'id'>) {
+    setEmpleados((prev) => [...prev, { ...empleado, id: generarId() }])
+  }
+
+  function handleActualizarEmpleado(id: string, cambios: Partial<Omit<Empleado, 'id'>>) {
+    setEmpleados((prev) => prev.map((e) => (e.id === id ? { ...e, ...cambios } : e)))
+  }
+
+  function handleEliminarEmpleado(id: string) {
+    setEmpleados((prev) => prev.filter((e) => e.id !== id))
+  }
+
   function handleRegistrarAnticipo(
     remitoId: string,
     monto: number,
@@ -965,12 +987,18 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   }))
 
   const { fijos: gastosFijos, variables: gastosVariables, total: gastosTotales } = calcularGastosTotales(categorias)
+  const nominaTotal = useMemo(() => calcularNominaTotal(empleados), [empleados])
   // Para el gráfico de anillo del Dashboard: mostrar lo realmente gastado este mes en cada
   // categoría (automático desde facturas clasificadas, o pisado a mano) cuando hay dato, y el
-  // estimado del presupuesto en las que todavía no tienen nada cargado.
+  // estimado del presupuesto en las que todavía no tienen nada cargado. La categoría "sueldos" usa
+  // el costo real de la nómina vigente (ver Sueldos) en vez de facturas clasificadas, si hay al
+  // menos un empleado activo cargado.
   const categoriasDona = useMemo(() => {
     const mesActual = mesActualISO()
-    const automaticoMesActual = calcularRealAutomaticoPorMes(facturas, clasificaciones, mesActual)
+    const automaticoMesActual: Record<string, number> = {
+      ...calcularRealAutomaticoPorMes(facturas, clasificaciones, mesActual),
+      ...(nominaTotal.cantidadActivos > 0 ? { sueldos: nominaTotal.totalCostoEmpresa } : {}),
+    }
     const manualMesActual = realManualPorMes[mesActual] ?? {}
     const hayDatoReal = categorias.some(
       (c) => manualMesActual[c.key] !== undefined || automaticoMesActual[c.key] !== undefined,
@@ -983,7 +1011,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
       }),
       esReal: hayDatoReal,
     }
-  }, [categorias, facturas, clasificaciones, realManualPorMes])
+  }, [categorias, facturas, clasificaciones, realManualPorMes, nominaTotal])
   const saldoInicial = calcularSaldoTotalBancos(cuentas)
   const deudaTotal = calcularDeudaTotal(deudas)
   const cuotaDeudaTotal = calcularCuotaDeudaTotal(deudas)
@@ -1024,10 +1052,12 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     () => proyectarFlujoCaja(saldoInicial, ingresosProyeccion, gastosProyeccion, meses, esPremium ? tasaCrecimiento : 0),
     [saldoInicial, ingresosProyeccion, gastosProyeccion, meses, esPremium, tasaCrecimiento],
   )
-  const realEfectivo = useMemo(
-    () => calcularRealEfectivoPorMes(categorias, facturas, clasificaciones, realManualPorMes, mesPresupuesto),
-    [categorias, facturas, clasificaciones, realManualPorMes, mesPresupuesto],
-  )
+  const realEfectivo = useMemo(() => {
+    const base = calcularRealEfectivoPorMes(categorias, facturas, clasificaciones, realManualPorMes, mesPresupuesto)
+    const sueldosEsManual = realManualPorMes[mesPresupuesto]?.sueldos !== undefined
+    if (sueldosEsManual || nominaTotal.cantidadActivos === 0) return base
+    return { ...base, sueldos: { monto: nominaTotal.totalCostoEmpresa, automatico: true } }
+  }, [categorias, facturas, clasificaciones, realManualPorMes, mesPresupuesto, nominaTotal])
   const desvios = useMemo(() => calcularDesvios(categorias, realEfectivo), [categorias, realEfectivo])
   const desvioVentas = useMemo(
     () => calcularDesvioVentas(ingresos, facturas, ventasManualPorMes, mesPresupuesto),
@@ -1312,6 +1342,24 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
             margenes={margenesPorSector}
             onAgregarSector={handleAgregarSector}
             onEliminarSector={handleEliminarSector}
+          />
+        </PremiumLock>
+      )}
+
+      {seccion === 'sueldos' && (
+        <PremiumLock
+          activo={esFull}
+          nivelRequerido="full"
+          titulo="Sueldos"
+          descripcion="Cargá tu nómina de empleados y mirá cuánto le cuesta cada uno a la empresa, con aportes y contribuciones ya calculados."
+          onQuieroPremium={abrirPlanes}
+        >
+          <Sueldos
+            empleados={empleados}
+            nomina={nominaTotal}
+            onAgregar={handleAgregarEmpleado}
+            onActualizar={handleActualizarEmpleado}
+            onEliminar={handleEliminarEmpleado}
           />
         </PremiumLock>
       )}

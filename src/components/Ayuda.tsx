@@ -122,8 +122,22 @@ const SECCIONES: SeccionAyuda[] = [
     tip: 'Solo cuenta remitos, nunca presupuestos — un presupuesto todavía no es un compromiso real. Y solo separa el costo real de las líneas con producto de Stock: las líneas de "mano de obra / otro costo" se cuentan al mismo precio facturado (margen cero), porque la app no tiene un costo de mano de obra cargado en ningún otro lado para compararlas.',
   },
   {
-    id: 'stock',
+    id: 'sueldos',
     numero: '08',
+    titulo: 'Sueldos',
+    tier: 'full',
+    descripcion: 'Nómina de empleados: cuánto cobra cada uno de bolsillo y cuánto le cuesta realmente a la empresa.',
+    pasos: [
+      'Cargá cada empleado con su nombre y sueldo bruto.',
+      'Los porcentajes de aportes personales (jubilación, obra social, PAMI) y contribuciones patronales vienen con un valor de referencia — editalos si tu actividad tiene una alícuota distinta.',
+      'Mirá el resumen de la nómina vigente: total bruto, neto, contribuciones y costo total para la empresa.',
+      'Dado de baja un empleado con `Dar de baja` en vez de borrarlo, para no perder el historial.',
+    ],
+    tip: 'En cuanto cargás al menos un empleado activo, el costo total de la nómina pasa a ser el valor automático (🧾 auto) de la categoría "Sueldos" en Presupuesto vs. Real y en el gráfico de Composición de gastos del Dashboard, en vez del estimado que cargaste a mano.',
+  },
+  {
+    id: 'stock',
+    numero: '09',
     titulo: 'Stock',
     tier: 'full',
     descripcion: 'Catálogo de productos con control de entradas y salidas, conectado solo con Remitos.',
@@ -136,7 +150,7 @@ const SECCIONES: SeccionAyuda[] = [
   },
   {
     id: 'tesoreria',
-    numero: '09',
+    numero: '10',
     titulo: 'Tesorería',
     tier: 'full',
     descripcion: 'El saldo real de cada caja o cuenta bancaria, armado solo con lo que vas cobrando y pagando en el resto del sistema.',
@@ -151,7 +165,7 @@ const SECCIONES: SeccionAyuda[] = [
   },
   {
     id: 'cheques',
-    numero: '10',
+    numero: '11',
     titulo: 'Cheques',
     tier: 'full',
     descripcion: 'Cheques de terceros que recibís y cheques propios que emitís.',
@@ -164,7 +178,7 @@ const SECCIONES: SeccionAyuda[] = [
   },
   {
     id: 'proveedores',
-    numero: '11',
+    numero: '12',
     titulo: 'Proveedores',
     tier: 'medio',
     descripcion: 'Lista de proveedores con el total facturado, clasificados por categoría de gasto.',
@@ -176,7 +190,7 @@ const SECCIONES: SeccionAyuda[] = [
   },
   {
     id: 'clientes',
-    numero: '12',
+    numero: '13',
     titulo: 'Clientes',
     tier: 'medio',
     descripcion: 'Mismo formato que Proveedores, pero para ventas, sin categoría.',
@@ -187,7 +201,7 @@ const SECCIONES: SeccionAyuda[] = [
   },
   {
     id: 'presupuesto-real',
-    numero: '13',
+    numero: '14',
     titulo: 'Presupuesto vs. Real',
     tier: 'medio',
     descripcion: 'Compará lo que presupuestaste en el Dashboard contra lo que facturaste y gastaste de verdad, mes a mes.',
@@ -200,7 +214,7 @@ const SECCIONES: SeccionAyuda[] = [
   },
   {
     id: 'iva',
-    numero: '14',
+    numero: '15',
     titulo: 'Posición de IVA',
     tier: 'medio',
     descripcion: 'Cuánto débito fiscal generaron tus ventas, cuánto crédito tus compras, y el saldo a pagar o a favor por mes.',
@@ -211,7 +225,7 @@ const SECCIONES: SeccionAyuda[] = [
   },
   {
     id: 'iibb',
-    numero: '15',
+    numero: '16',
     titulo: 'Ingresos Brutos',
     tier: 'medio',
     descripcion: 'La misma lógica que IVA, aplicada a Ingresos Brutos con tu alícuota.',
@@ -222,7 +236,7 @@ const SECCIONES: SeccionAyuda[] = [
   },
   {
     id: 'patrimonio',
-    numero: '16',
+    numero: '17',
     titulo: 'Patrimonio',
     tier: 'medio',
     descripcion: 'Bienes que no son caja del día a día, pero que podrías vender ante un quiebre de caja.',
@@ -233,7 +247,7 @@ const SECCIONES: SeccionAyuda[] = [
   },
   {
     id: 'contador',
-    numero: '17',
+    numero: '18',
     titulo: 'Exportar para el contador',
     tier: 'medio',
     descripcion: 'Un Excel prolijo, listo para mandar al estudio contable o importar en su sistema.',

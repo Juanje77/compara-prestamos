@@ -1150,6 +1150,70 @@ export function calcularTotalesCheques(cheques: Cheque[]): TotalesCheques {
 }
 
 // ---------------------------------------------------------------------------
+// Sueldos y cargas sociales (Full): nómina básica de empleados
+// ---------------------------------------------------------------------------
+//
+// Terminología estándar de un recibo de sueldo argentino: al sueldo bruto se le descuentan los
+// aportes personales del empleado (jubilación + obra social + PAMI, ~17%) para llegar al neto de
+// bolsillo, y la empresa paga ADEMÁS las contribuciones patronales (~24%) sobre ese mismo bruto —
+// lo que realmente le cuesta cada empleado a la empresa es el bruto más esas contribuciones, no
+// el bruto solo.
+
+export const APORTES_PERSONALES_PCT_DEFAULT = 17
+export const CONTRIBUCIONES_PATRONALES_PCT_DEFAULT = 24
+
+export interface Empleado {
+  id: string
+  nombre: string
+  sueldoBruto: number
+  /** % del bruto que se descuenta al empleado (jubilación, obra social, PAMI) — llega al neto de bolsillo. */
+  aportesPersonalesPct: number
+  /** % del bruto que paga la empresa además del sueldo — define el costo real de ese empleado. */
+  contribucionesPatronalesPct: number
+  /** Un empleado inactivo (de baja) queda en el historial pero no suma a la nómina vigente. */
+  activo: boolean
+}
+
+export interface CostoEmpleado {
+  empleado: Empleado
+  sueldoNeto: number
+  contribucionesPatronales: number
+  /** Lo que le cuesta este empleado a la empresa cada mes: bruto + contribuciones patronales. */
+  costoEmpresa: number
+}
+
+export function calcularCostoEmpleado(e: Empleado): CostoEmpleado {
+  const contribucionesPatronales = e.sueldoBruto * (e.contribucionesPatronalesPct / 100)
+  return {
+    empleado: e,
+    sueldoNeto: e.sueldoBruto * (1 - e.aportesPersonalesPct / 100),
+    contribucionesPatronales,
+    costoEmpresa: e.sueldoBruto + contribucionesPatronales,
+  }
+}
+
+export interface NominaTotal {
+  cantidadActivos: number
+  totalBruto: number
+  totalNeto: number
+  totalContribuciones: number
+  totalCostoEmpresa: number
+}
+
+/** Totales de la nómina vigente (solo empleados activos) — el total de costoEmpresa es lo que se
+ * usa como "real" automático de la categoría Sueldos en Presupuesto vs. Real y en el Dashboard. */
+export function calcularNominaTotal(empleados: Empleado[]): NominaTotal {
+  const costos = empleados.filter((e) => e.activo).map(calcularCostoEmpleado)
+  return {
+    cantidadActivos: costos.length,
+    totalBruto: costos.reduce((s, c) => s + c.empleado.sueldoBruto, 0),
+    totalNeto: costos.reduce((s, c) => s + c.sueldoNeto, 0),
+    totalContribuciones: costos.reduce((s, c) => s + c.contribucionesPatronales, 0),
+    totalCostoEmpresa: costos.reduce((s, c) => s + c.costoEmpresa, 0),
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Ingresos y gastos diarios (Básico)
 // ---------------------------------------------------------------------------
 //
