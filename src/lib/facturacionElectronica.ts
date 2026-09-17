@@ -62,6 +62,9 @@ export interface PayloadComprobante {
   items: ItemComprobante[]
   total: number
   moneda: 'PES'
+  /** Sólo en el ambiente de pruebas: sobrescribe la condición del emisor para este comprobante.
+   * Producción lo rechaza. Sirve para ensayar la clase C sin dar de alta un monotributista. */
+  perfil_fiscal_pruebas?: { condicion_iva?: 'responsable_inscripto' | 'monotributo' | 'exento' }
 }
 
 export interface OpcionesEmision {
