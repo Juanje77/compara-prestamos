@@ -10,7 +10,13 @@
 // aparece verbatim en ese ejemplo queda marcado abajo como pendiente de verificar contra el
 // contrato OpenAPI (`/docs/openapi/download`).
 
-import type { CondicionEmisor, CondicionIvaReceptorId, DatosReceptor, Factura } from './cfo'
+import type {
+  CondicionEmisor,
+  CondicionIvaReceptorId,
+  DatosReceptor,
+  Factura,
+  ResultadoEmision,
+} from './cfo'
 import { esCuitValido, limpiarCuit } from './cuit'
 
 /** Letra del comprobante. La define la condición de IVA del emisor cruzada con la del receptor. */
@@ -237,5 +243,96 @@ export function mapearFacturaAPayload(f: Factura, opciones: OpcionesEmision): Pa
     ],
     total: redondear(f.monto),
     moneda: 'PES',
+  }
+}
+
+// --- Lectura de la respuesta -----------------------------------------------------------------
+//
+// La documentación dice que una respuesta autorizada trae estado, tipo y número de comprobante,
+// punto de venta, CAE, vencimiento, importes, QR fiscal y enlaces al PDF, pero no pudimos abrir el
+// contrato OpenAPI para confirmar los nombres exactos de los campos. Así que buscamos por varios
+// nombres plausibles, en la raíz y un nivel adentro.
+//
+// La regla que no se negocia: sin un CAE en la respuesta, el comprobante NO se marca como
+// autorizado. Es preferible dejarlo pendiente y que alguien lo revise, a mostrar un CAE que no
+// existe. Cuando tengamos el contrato, esto se reemplaza por una lectura directa.
+
+type Diccionario = Record<string, unknown>
+
+const CONTENEDORES = ['comprobante', 'data', 'resultado', 'respuesta']
+
+function candidatos(respuesta: unknown): Diccionario[] {
+  if (typeof respuesta !== 'object' || respuesta === null) return []
+  const raiz = respuesta as Diccionario
+  const anidados = CONTENEDORES.map((k) => raiz[k]).filter(
+    (v): v is Diccionario => typeof v === 'object' && v !== null && !Array.isArray(v),
+  )
+  return [raiz, ...anidados]
+}
+
+function buscar(respuesta: unknown, claves: string[]): unknown {
+  for (const nivel of candidatos(respuesta)) {
+    for (const clave of claves) {
+      const valor = nivel[clave]
+      if (valor !== undefined && valor !== null && valor !== '') return valor
+    }
+  }
+  return undefined
+}
+
+function texto(respuesta: unknown, claves: string[]): string | undefined {
+  const valor = buscar(respuesta, claves)
+  if (typeof valor === 'string') return valor
+  if (typeof valor === 'number') return String(valor)
+  return undefined
+}
+
+function numero(respuesta: unknown, claves: string[]): number | undefined {
+  const valor = buscar(respuesta, claves)
+  if (typeof valor === 'number' && Number.isFinite(valor)) return valor
+  if (typeof valor === 'string' && /^\d+$/.test(valor)) return Number(valor)
+  return undefined
+}
+
+function mensajes(respuesta: unknown): string[] | undefined {
+  const valor = buscar(respuesta, ['mensajes', 'observaciones', 'errores', 'messages'])
+  if (typeof valor === 'string') return [valor]
+  if (Array.isArray(valor)) {
+    const textos = valor.map((m) => (typeof m === 'string' ? m : JSON.stringify(m)))
+    return textos.length > 0 ? textos : undefined
+  }
+  return undefined
+}
+
+/**
+ * Traduce lo que devolvió la API al `ResultadoEmision` que se guarda en la factura. `emitidoEl` se
+ * pasa como argumento para que el resultado sea determinístico y testeable.
+ */
+export function interpretarRespuestaEmision(
+  referenciaExterna: string,
+  respuesta: unknown,
+  emitidoEl: string,
+): ResultadoEmision {
+  const cae = texto(respuesta, ['cae', 'CAE', 'cae_numero', 'numero_cae'])
+
+  return {
+    comprobanteId: texto(respuesta, ['id', 'comprobante_id', 'comprobanteId']) ?? '',
+    referenciaExterna,
+    // Sin CAE no hay autorización, diga lo que diga el campo `estado`.
+    estado: cae ? 'autorizado' : 'pendiente',
+    cae,
+    caeVencimiento: texto(respuesta, [
+      'cae_vencimiento',
+      'vencimiento_cae',
+      'fecha_vencimiento_cae',
+      'caeVencimiento',
+    ]),
+    puntoVenta: numero(respuesta, ['punto_venta', 'puntoVenta', 'pto_venta']),
+    numeroComprobante: numero(respuesta, ['numero', 'numero_comprobante', 'comprobante_numero']),
+    qr: texto(respuesta, ['qr', 'qr_url', 'codigo_qr', 'qr_fiscal']),
+    pdfA4: texto(respuesta, ['pdf_a4', 'pdf', 'pdf_url', 'imprimir_a4']),
+    pdfTicket: texto(respuesta, ['pdf_ticket', 'ticket', 'imprimir_ticket']),
+    mensajes: mensajes(respuesta),
+    emitidoEl,
   }
 }

@@ -1,6 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { CONDICIONES_EMISOR, type DatosEmisorFiscal } from '../lib/cfo'
 import { esCuitValido, limpiarCuit } from '../lib/cuit'
+import {
+  consultarTokenFiscal,
+  guardarTokenFiscal,
+  revocarTokenFiscal,
+  type AmbienteFiscal,
+  type EstadoTokenFiscal,
+} from '../lib/facturacionApi'
 
 // Circuito de habilitación para emitir con CAE. Los pasos de ARCA salen del instructivo oficial de
 // Sistemas 360; los de la API, de su documentación pública.
@@ -112,6 +119,156 @@ const ETAPAS: Etapa[] = [
 interface Props {
   datos: DatosEmisorFiscal
   onCambiar: (datos: DatosEmisorFiscal) => void
+}
+
+/** Carga y revocación del token de emisión. El token sale de este componente hacia el backend y no
+ * vuelve nunca: lo único que se muestra después es su pista. */
+function PanelToken() {
+  const [estado, setEstado] = useState<EstadoTokenFiscal | null>(null)
+  const [cargando, setCargando] = useState(true)
+  const [token, setToken] = useState('')
+  const [ambiente, setAmbiente] = useState<AmbienteFiscal>('pruebas')
+  const [guardando, setGuardando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let vigente = true
+    consultarTokenFiscal()
+      .then((e) => {
+        if (vigente) setEstado(e)
+      })
+      .catch((e: Error) => {
+        if (vigente) setError(e.message)
+      })
+      .finally(() => {
+        if (vigente) setCargando(false)
+      })
+    return () => {
+      vigente = false
+    }
+  }, [])
+
+  async function handleGuardar() {
+    if (!token.trim()) return
+    setGuardando(true)
+    setError(null)
+    try {
+      setEstado(await guardarTokenFiscal(token.trim(), ambiente))
+      // El token se va del navegador en cuanto el servidor confirma: no queda ni en el input.
+      setToken('')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo guardar el token.')
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  async function handleRevocar() {
+    if (!confirm('¿Borrar el token guardado? Después vas a tener que cargarlo de nuevo para emitir.')) return
+    setGuardando(true)
+    setError(null)
+    try {
+      setEstado(await revocarTokenFiscal())
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo borrar el token.')
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  return (
+    <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+      <h3 className="mb-1 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+        El token de emisión
+      </h3>
+      <p className="mb-3 text-sm" style={{ color: 'var(--text-secondary)' }}>
+        Terminado el circuito, el panel de la API te da un token. Se guarda del lado del servidor y
+        no vuelve nunca al navegador: es una credencial que habilita a facturar con tu CUIT. Acá vas
+        a ver sólo sus últimos cuatro caracteres.
+      </p>
+
+      {cargando ? (
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+          Consultando…
+        </p>
+      ) : (
+        <>
+          <div
+            className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border p-3"
+            style={{ borderColor: 'var(--gridline)', background: 'var(--surface-2)' }}
+          >
+            <span
+              className="text-sm font-medium"
+              style={{ color: estado?.configurado ? 'var(--status-good-text)' : 'var(--text-muted)' }}
+            >
+              {estado?.configurado ? `Token cargado ${estado.pista}` : 'Sin token cargado'}
+            </span>
+            {estado?.configurado && (
+              <>
+                <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                  Ambiente de {estado.ambiente === 'produccion' ? 'producción' : 'pruebas'}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleRevocar}
+                  disabled={guardando}
+                  className="ml-auto rounded-md border px-2 py-1 text-xs"
+                  style={{ borderColor: 'var(--border)', color: 'var(--status-critical)', background: 'var(--surface-1)' }}
+                >
+                  Borrar
+                </button>
+              </>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <input
+              type="password"
+              autoComplete="off"
+              placeholder={estado?.configurado ? 'Pegá un token nuevo para reemplazarlo' : 'Pegá acá el token'}
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              className="min-w-[220px] flex-1 rounded-lg border px-3 py-1.5 text-sm"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+            />
+            <select
+              value={ambiente}
+              onChange={(e) => setAmbiente(e.target.value as AmbienteFiscal)}
+              className="shrink-0 rounded-lg border px-3 py-1.5 text-sm"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+            >
+              <option value="pruebas">Ambiente de pruebas</option>
+              <option value="produccion">Producción</option>
+            </select>
+            <button
+              type="button"
+              onClick={handleGuardar}
+              disabled={guardando || !token.trim()}
+              className="shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium"
+              style={{
+                background: token.trim() ? 'var(--series-blue)' : 'var(--surface-2)',
+                color: token.trim() ? '#fff' : 'var(--text-muted)',
+              }}
+            >
+              {guardando ? 'Guardando…' : 'Guardar'}
+            </button>
+          </div>
+
+          {error && (
+            <p className="mt-2 text-xs" style={{ color: 'var(--status-critical)' }}>
+              {error}
+            </p>
+          )}
+
+          <p className="mt-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+            Empezá siempre por el ambiente de pruebas. Si alguna vez sospechás que el token se
+            filtró, se revoca desde el panel de la API y se genera uno nuevo, sin rehacer nada del
+            circuito de ARCA.
+          </p>
+        </>
+      )}
+    </div>
+  )
 }
 
 function BotonCopiar({ texto }: { texto: string }) {
@@ -361,23 +518,7 @@ export function FacturacionElectronica({ datos, onCambiar }: Props) {
         </div>
       </div>
 
-      <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
-        <h3 className="mb-1 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-          El token de emisión
-        </h3>
-        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-          Terminado el circuito, el panel de la API te da un token de producción. Ese token{' '}
-          <strong>no se carga acá todavía</strong>: es una credencial que habilita a facturar con tu
-          CUIT, y guardarla en el navegador sería como dejar la clave privada a la vista. Va a
-          guardarse del lado del servidor, donde ni FinCorp ni nadie con la sesión abierta pueda
-          leerla de vuelta.
-        </p>
-        <p className="mt-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-          Mientras tanto, guardalo en tu gestor de contraseñas. Si en algún momento sospechás que se
-          filtró, se revoca desde el mismo panel y se genera uno nuevo, sin rehacer nada del circuito
-          de ARCA.
-        </p>
-      </div>
+      <PanelToken />
     </div>
   )
 }

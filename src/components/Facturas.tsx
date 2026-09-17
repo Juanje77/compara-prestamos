@@ -1,6 +1,16 @@
 import { useMemo, useState } from 'react'
 import { Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import type { CuentaBancaria, Factura, Pago, TendenciaMensual, TipoComprobante, TipoFactura } from '../lib/cfo'
+import type {
+  CuentaBancaria,
+  DatosEmisorFiscal,
+  DatosReceptor,
+  Factura,
+  Pago,
+  ResultadoEmision,
+  TendenciaMensual,
+  TipoComprobante,
+  TipoFactura,
+} from '../lib/cfo'
 import {
   MEDIOS_PAGO_LABEL,
   calcularAgingCuentas,
@@ -18,6 +28,7 @@ import { importarComprobantesArca } from '../lib/arcaImport'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
 import { InfoTooltip } from './InfoTooltip'
+import { EmitirComprobante } from './EmitirComprobante'
 
 interface Props {
   facturas: Factura[]
@@ -31,6 +42,9 @@ interface Props {
     cambios: Partial<Pick<Factura, 'fechaEstimadaCobroPago' | 'cumplido' | 'medioPago'>> & { cuentaId?: string },
   ) => void
   onEliminar: (id: string) => void
+  /** Solo con el plan Full y el circuito de ARCA habilitado — permite emitir el comprobante. */
+  emisorFiscal?: DatosEmisorFiscal
+  onEmitida?: (id: string, receptor: DatosReceptor, emision: ResultadoEmision) => void
   onVaciar: () => void
   onExportarContador: () => Promise<void>
   onDescargarInforme: () => void
@@ -117,7 +131,8 @@ function BotonExportarContador({ onExportar }: { onExportar: Props['onExportarCo
   )
 }
 
-export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarVarias, onCambiar, onEliminar, onVaciar, onExportarContador, onDescargarInforme }: Props) {
+export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarVarias, onCambiar, onEliminar, emisorFiscal, onEmitida, onVaciar, onExportarContador, onDescargarInforme }: Props) {
+  const [facturaAEmitir, setFacturaAEmitir] = useState<Factura | null>(null)
   const [tipo, setTipo] = useState<TipoFactura>('emitida')
   const [tipoComprobante, setTipoComprobante] = useState<TipoComprobante>('factura')
   const [contraparte, setContraparte] = useState('')
@@ -838,6 +853,27 @@ export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarV
                         ×{f.cuotas} cuotas
                       </span>
                     )}
+                    {f.tipo === 'emitida' &&
+                      (f.emision?.estado === 'autorizado' ? (
+                        <span
+                          className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                          style={{ background: 'var(--surface-2)', color: 'var(--status-good-text)' }}
+                          title={`CAE ${f.emision.cae} · vence ${f.emision.caeVencimiento ?? 's/d'}`}
+                        >
+                          CAE {f.emision.cae}
+                        </span>
+                      ) : (
+                        emisorFiscal &&
+                        onEmitida && (
+                          <button
+                            onClick={() => setFacturaAEmitir(f)}
+                            className="shrink-0 rounded-md border px-2 py-0.5 text-xs"
+                            style={{ borderColor: 'var(--border)', color: 'var(--series-blue)' }}
+                          >
+                            Emitir
+                          </button>
+                        )
+                      ))}
                     <button
                       onClick={() => onEliminar(f.id)}
                       aria-label="Eliminar comprobante"
@@ -852,6 +888,15 @@ export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarV
             )}
           </section>
         </>
+      )}
+
+      {facturaAEmitir && emisorFiscal && onEmitida && (
+        <EmitirComprobante
+          factura={facturaAEmitir}
+          emisor={emisorFiscal}
+          onEmitida={onEmitida}
+          onCerrar={() => setFacturaAEmitir(null)}
+        />
       )}
     </div>
   )

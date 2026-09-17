@@ -5,6 +5,7 @@ import {
   alicuotaIvaDeFactura,
   letraSugerida,
   mapearFacturaAPayload,
+  interpretarRespuestaEmision,
   referenciaExternaDeFactura,
   validarFacturaParaEmision,
   type OpcionesEmision,
@@ -259,5 +260,72 @@ describe('validarFacturaParaEmision', () => {
     const rota = factura({ tipo: 'recibida', monto: 0, fecha: '17/09/2026', receptor: undefined })
 
     expect(validarFacturaParaEmision(rota, RI).length).toBeGreaterThanOrEqual(4)
+  })
+})
+
+describe('interpretarRespuestaEmision', () => {
+  const CUANDO = '2026-09-17T15:00:00.000Z'
+
+  it('lee una respuesta autorizada con los campos en la raíz', () => {
+    const r = interpretarRespuestaEmision(
+      'fincorp_f1',
+      {
+        id: 9001,
+        estado: 'autorizado',
+        cae: '75123456789012',
+        cae_vencimiento: '2026-09-27',
+        punto_venta: 3,
+        numero: 145,
+        qr: 'https://www.arca.gob.ar/fe/qr/?p=abc',
+        pdf_a4: 'https://api.sistemas360.ar/api/comprobantes/9001/imprimir-a4',
+      },
+      CUANDO,
+    )
+
+    expect(r).toMatchObject({
+      comprobanteId: '9001',
+      referenciaExterna: 'fincorp_f1',
+      estado: 'autorizado',
+      cae: '75123456789012',
+      caeVencimiento: '2026-09-27',
+      puntoVenta: 3,
+      numeroComprobante: 145,
+      emitidoEl: CUANDO,
+    })
+  })
+
+  it('encuentra los campos un nivel adentro', () => {
+    const r = interpretarRespuestaEmision('fincorp_f1', { comprobante: { cae: '751', numero: '12' } }, CUANDO)
+
+    expect(r.cae).toBe('751')
+    expect(r.numeroComprobante).toBe(12)
+  })
+
+  it('NO marca autorizado sin CAE, aunque el estado diga que sí', () => {
+    const r = interpretarRespuestaEmision('fincorp_f1', { estado: 'autorizado', numero: 145 }, CUANDO)
+
+    expect(r.estado).toBe('pendiente')
+    expect(r.cae).toBeUndefined()
+  })
+
+  it('no confunde un CAE vacío con uno presente', () => {
+    expect(interpretarRespuestaEmision('fincorp_f1', { cae: '' }, CUANDO).estado).toBe('pendiente')
+    expect(interpretarRespuestaEmision('fincorp_f1', { cae: null }, CUANDO).estado).toBe('pendiente')
+  })
+
+  it('sobrevive a una respuesta que no es un objeto', () => {
+    for (const basura of [null, undefined, 'ok', 42, []]) {
+      const r = interpretarRespuestaEmision('fincorp_f1', basura, CUANDO)
+      expect(r.estado).toBe('pendiente')
+      expect(r.referenciaExterna).toBe('fincorp_f1')
+    }
+  })
+
+  it('junta los mensajes de ARCA vengan como texto o como lista', () => {
+    expect(interpretarRespuestaEmision('r', { observaciones: 'Revisar el IVA' }, CUANDO).mensajes).toEqual([
+      'Revisar el IVA',
+    ])
+    expect(interpretarRespuestaEmision('r', { mensajes: ['uno', 'dos'] }, CUANDO).mensajes).toEqual(['uno', 'dos'])
+    expect(interpretarRespuestaEmision('r', {}, CUANDO).mensajes).toBeUndefined()
   })
 })

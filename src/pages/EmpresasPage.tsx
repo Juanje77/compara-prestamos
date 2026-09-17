@@ -90,6 +90,8 @@ import {
   type CuentaBancaria,
   type ConceptoPagoSueldos,
   type DatosEmisorFiscal,
+  type DatosReceptor,
+  type ResultadoEmision,
   type DatosEmpleador,
   type Liquidacion,
   type TipoLiquidacion,
@@ -905,6 +907,12 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     setEmpleados((prev) => prev.filter((e) => e.id !== id))
   }
 
+  /** Deja registrada la emisión en la factura: los datos fiscales con los que se emitió y el CAE
+   * que devolvió ARCA. A partir de acá el comprobante no se vuelve a emitir. */
+  function handleFacturaEmitida(id: string, receptor: DatosReceptor, emision: ResultadoEmision) {
+    setFacturas((prev) => prev.map((f) => (f.id === id ? { ...f, receptor, emision } : f)))
+  }
+
   function handleCerrarLiquidacion(mes: string, tipo: TipoLiquidacion) {
     setLiquidaciones((prev) => [...prev, cerrarLiquidacion(empleados, mes, tipo, prev, generarId)])
   }
@@ -1394,6 +1402,8 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
             onImportarVarias={handleImportarFacturas}
             onCambiar={handleCambiarFactura}
             onEliminar={handleEliminarFactura}
+            emisorFiscal={esFull && datosEmisorFiscal.cuit.trim() ? datosEmisorFiscal : undefined}
+            onEmitida={handleFacturaEmitida}
             onVaciar={handleVaciarFacturas}
             onExportarContador={handleExportarContador}
             onDescargarInforme={handleDescargarInformeSalud}
