@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { Receipt, TrendingDown, TrendingUp } from 'lucide-react'
 import { generarComentariosDesvio, type DesvioCategoria, type DesvioVentas } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
@@ -60,7 +61,7 @@ export function PresupuestoVsReal({ desvios, ventas, mes, onCambiarMes, onCambia
         </div>
       </div>
       <p className="mb-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
-        Ventas y gastos de ese mes se completan solos con tus facturas (🧾 auto). Podés pisarlos a mano si hace
+        Ventas y gastos de ese mes se completan solos con tus facturas (<Receipt size={12} className="inline align-text-bottom" aria-hidden="true" /> auto). Podés pisarlos a mano si hace
         falta.
       </p>
 
@@ -83,8 +84,8 @@ export function PresupuestoVsReal({ desvios, ventas, mes, onCambiarMes, onCambia
             </p>
             <div className="flex items-center gap-1.5">
               {ventas.esAutomatico && (
-                <span className="shrink-0 text-xs" title="Completado automáticamente desde tus facturas emitidas">
-                  🧾 auto
+                <span className="inline-flex shrink-0 items-center gap-1 text-xs" title="Completado automáticamente desde tus facturas emitidas">
+                  <Receipt size={12} aria-hidden="true" /> auto
                 </span>
               )}
               <InputMoneda
@@ -138,7 +139,9 @@ export function PresupuestoVsReal({ desvios, ventas, mes, onCambiarMes, onCambia
                 color: 'var(--text-primary)',
               }}
             >
-              <span className="shrink-0">{c.direccion === 'exceso' ? '📈' : '📉'}</span>
+              <span className="shrink-0" style={{ color: c.direccion === 'exceso' ? 'var(--status-warning)' : 'var(--status-good-text)' }}>
+                {c.direccion === 'exceso' ? <TrendingUp size={14} aria-hidden="true" /> : <TrendingDown size={14} aria-hidden="true" />}
+              </span>
               <span>
                 <strong>{c.categoria}:</strong> gastaste {formatoMoneda(Math.abs(c.desvioMonto))}{' '}
                 {c.direccion === 'exceso' ? 'más' : 'menos'} de lo presupuestado ({Math.abs(c.desvioPct).toFixed(0)}%).
@@ -170,8 +173,8 @@ export function PresupuestoVsReal({ desvios, ventas, mes, onCambiarMes, onCambia
                 <td className="py-2 text-right">
                   <div className="flex items-center justify-end gap-1.5">
                     {d.esAutomatico && (
-                      <span className="shrink-0 text-xs" title="Completado automáticamente desde tus facturas clasificadas">
-                        🧾 auto
+                      <span className="inline-flex shrink-0 items-center gap-1 text-xs" title="Completado automáticamente desde tus facturas clasificadas">
+                        <Receipt size={12} aria-hidden="true" /> auto
                       </span>
                     )}
                     <InputMoneda

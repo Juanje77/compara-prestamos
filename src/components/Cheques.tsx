@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Trash2 } from 'lucide-react'
+import { Receipt, Trash2 } from 'lucide-react'
 import type { Cheque, CuentaBancaria, EstadoCheque, Factura, TipoCheque } from '../lib/cfo'
 import { calcularTotalesCheques, estadosChequeDisponibles, etiquetaEstadoCheque, montoNetoCheque } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
@@ -295,11 +295,11 @@ export function Cheques({ cheques, facturas, cuentas, onAgregar, onCambiarEstado
                     {c.contraparte}
                     {c.facturasIds && c.facturasIds.length > 0 && (
                       <span
-                        className="ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+                        className="ml-1.5 inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
                         style={{ background: 'var(--gridline)', color: 'var(--text-muted)' }}
                         title="Facturas que abona este cheque"
                       >
-                        🧾 {c.facturasIds.length}
+                        <Receipt size={10} aria-hidden="true" /> {c.facturasIds.length}
                       </span>
                     )}
                   </span>

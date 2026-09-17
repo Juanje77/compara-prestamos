@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Trash2 } from 'lucide-react'
+import { Check, FileUp, Landmark, Trash2 } from 'lucide-react'
 import type { CuentaBancaria, MovimientoBancario, MovimientoTesoreria } from '../lib/cfo'
 import { MARGEN_DIAS_CONCILIACION, calcularResumenConciliacion, calcularSaldoTotalBancos, deltaDeMovimientoTesoreria, resumenPorCuenta } from '../lib/cfo'
 import { importarExtractoBancario } from '../lib/excelImport'
@@ -132,10 +132,10 @@ function FilaCuenta({
           </button>
           <button
             onClick={() => setConciliando((v) => !v)}
-            className="shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold"
             style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
           >
-            {conciliando ? 'Cerrar' : '🏦 Conciliar'}
+            {conciliando ? 'Cerrar' : (<><Landmark size={14} aria-hidden="true" /> Conciliar</>)}
           </button>
           <IconButton
             icon={Trash2}
@@ -321,10 +321,10 @@ function ImportarExtractoButton({ onImportar }: { onImportar: (e: React.ChangeEv
   }
   return (
     <label
-      className="cursor-pointer rounded-full border px-3 py-1.5 text-xs font-medium"
+      className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium"
       style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
     >
-      {importando ? 'Importando…' : '📄 Importar extracto'}
+      <FileUp size={14} aria-hidden="true" /> {importando ? 'Importando…' : 'Importar extracto'}
       <input type="file" accept=".xlsx,.xls" onChange={handleChange} className="hidden" disabled={importando} />
     </label>
   )
@@ -475,7 +475,7 @@ function PanelConciliacion({
           <ul className="space-y-1">
             {conciliados.map((b) => (
               <li key={b.id} className="flex flex-wrap items-center gap-2 rounded border px-2 py-1 text-xs" style={{ borderColor: 'var(--gridline)' }}>
-                <span style={{ color: 'var(--status-good-text)' }}>✓</span>
+                <Check size={14} className="shrink-0" style={{ color: 'var(--status-good-text)' }} aria-hidden="true" />
                 <span className="tabular shrink-0" style={{ color: 'var(--text-muted)' }}>
                   {new Date(`${b.fecha}T00:00:00`).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}
                 </span>

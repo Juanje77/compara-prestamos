@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Trash2 } from 'lucide-react'
+import { BookOpen, Printer, Trash2 } from 'lucide-react'
 import {
   BASE_DESCUENTO_LABEL,
   CARGAS_SOCIALES_ADICIONALES_PCT_DEFAULT,
@@ -164,7 +164,7 @@ function FilaEmpleado({
             className="rounded-lg border px-2 py-1 text-xs"
             style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
           >
-            🖨
+            <Printer size={14} aria-hidden="true" />
           </button>
           <button
             onClick={() => onActualizar(empleado.id, { activo: !empleado.activo })}
@@ -765,10 +765,10 @@ export function Sueldos({
             </p>
             <button
               onClick={() => imprimirRecibos(empleados.filter((e) => e.activo))}
-              className="rounded-lg border px-3 py-1 text-xs font-semibold"
+              className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1 text-xs font-semibold"
               style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
             >
-              🖨 Imprimir todos los recibos
+              <Printer size={14} aria-hidden="true" /> Imprimir todos los recibos
             </button>
           </div>
           <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:grid-cols-3">
@@ -843,10 +843,10 @@ export function Sueldos({
             </h3>
             <button
               onClick={() => abrirLibroSueldos({ nombreNegocio, empleador: datosEmpleador, liquidaciones })}
-              className="rounded-lg border px-3 py-1 text-xs font-semibold"
+              className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1 text-xs font-semibold"
               style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
             >
-              📖 Ver libro de sueldos
+              <BookOpen size={14} aria-hidden="true" /> Ver libro de sueldos
             </button>
           </div>
           <p className="mb-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
@@ -909,7 +909,7 @@ export function Sueldos({
                       className="rounded-lg border px-2 py-1 text-xs"
                       style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
                     >
-                      🖨
+                      <Printer size={14} aria-hidden="true" />
                     </button>
                   </li>
                 ))}

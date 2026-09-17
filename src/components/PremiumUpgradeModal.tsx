@@ -1,5 +1,7 @@
 import { useEffect } from 'react'
+import { X } from 'lucide-react'
 import { PlanesEmpresa } from './PlanesEmpresa'
+import { IconButton } from './IconButton'
 
 interface Props {
   onCerrar: () => void
@@ -25,14 +27,7 @@ export function PremiumUpgradeModal({ onCerrar }: Props) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-2 flex items-start justify-end">
-          <button
-            onClick={onCerrar}
-            aria-label="Cerrar"
-            className="shrink-0 text-lg"
-            style={{ color: 'var(--text-muted)' }}
-          >
-            ✕
-          </button>
+          <IconButton icon={X} onClick={onCerrar} label="Cerrar" size={18} />
         </div>
         <PlanesEmpresa />
       </div>

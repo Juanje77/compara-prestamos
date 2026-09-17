@@ -1,3 +1,4 @@
+import { Lightbulb } from 'lucide-react'
 import type { Recomendacion } from '../lib/cfo'
 
 interface Props {
@@ -11,8 +12,8 @@ export function Recomendaciones({ recomendaciones }: Props) {
 
   return (
     <section className="mb-6 rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
-      <h2 className="mb-3 text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
-        💡 Qué hacer
+      <h2 className="mb-3 inline-flex items-center gap-1.5 text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
+        <Lightbulb size={16} aria-hidden="true" /> Qué hacer
       </h2>
       <ul className="space-y-2">
         {recomendaciones.map((r) => (

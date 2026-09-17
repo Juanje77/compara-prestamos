@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { BarChart3, Calculator, Cloud, FileDown, Lock } from 'lucide-react'
 import { FlujoDeCaja } from '../components/FlujoDeCaja'
 import { GastosPorCategoria } from '../components/GastosPorCategoria'
 import { KpiCard } from '../components/KpiCard'
@@ -1309,8 +1310,8 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   return (
     <>
       <div className="mb-8">
-        <p className="mt-1 text-sm font-semibold tracking-wide" style={{ color: 'var(--series-blue)' }}>
-          🧮 FinCorp para empresas
+        <p className="mt-1 inline-flex items-center gap-1.5 text-sm font-semibold tracking-wide" style={{ color: 'var(--series-blue)' }}>
+          <Calculator size={14} aria-hidden="true" /> FinCorp para empresas
         </p>
         <h1 className="mt-1 text-3xl font-semibold sm:text-4xl" style={{ color: 'var(--text-primary)' }}>
           Gestioná las finanzas de tu negocio, sin ser financista
@@ -1320,40 +1321,42 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           composición de gastos y proyección de caja.
         </p>
         {user && (
-          <p className="mt-2 text-xs" style={{ color: nubeLista ? 'var(--status-good-text)' : 'var(--text-muted)' }}>
-            {nubeLista ? '☁️ Guardado en tu cuenta' : 'Sincronizando con tu cuenta…'}
+          <p className="mt-2 inline-flex items-center gap-1 text-xs" style={{ color: nubeLista ? 'var(--status-good-text)' : 'var(--text-muted)' }}>
+            {nubeLista ? (<><Cloud size={12} aria-hidden="true" /> Guardado en tu cuenta</>) : 'Sincronizando con tu cuenta…'}
           </p>
         )}
       </div>
 
       <nav className="mb-6 flex flex-wrap gap-2" role="tablist">
-        {SECCIONES.map((s) => (
-          <button
-            key={s.key}
-            role="tab"
-            aria-selected={seccion === s.key}
-            onClick={() => setSeccion(s.key)}
-            className="rounded-full border px-4 py-2 text-sm font-medium transition-colors"
-            style={
-              seccion === s.key
-                ? { background: 'var(--series-blue)', borderColor: 'var(--series-blue)', color: 'white' }
-                : { borderColor: 'var(--border)', color: 'var(--text-secondary)', background: 'var(--surface-1)' }
-            }
-          >
-            {s.label}
-            {SECCIONES_FULL.has(s.key)
-              ? !esFull && ' 🔒'
-              : !esPremium &&
-                (s.key === 'presupuesto' ||
-                  s.key === 'facturas' ||
-                  s.key === 'proveedores' ||
-                  s.key === 'clientes' ||
-                  s.key === 'iva' ||
-                  s.key === 'iibb' ||
-                  s.key === 'patrimonio') &&
-                ' 🔒'}
-          </button>
-        ))}
+        {SECCIONES.map((s) => {
+          const bloqueada = SECCIONES_FULL.has(s.key)
+            ? !esFull
+            : !esPremium &&
+              (s.key === 'presupuesto' ||
+                s.key === 'facturas' ||
+                s.key === 'proveedores' ||
+                s.key === 'clientes' ||
+                s.key === 'iva' ||
+                s.key === 'iibb' ||
+                s.key === 'patrimonio')
+          return (
+            <button
+              key={s.key}
+              role="tab"
+              aria-selected={seccion === s.key}
+              onClick={() => setSeccion(s.key)}
+              className="inline-flex items-center gap-1 rounded-full border px-4 py-2 text-sm font-medium transition-colors"
+              style={
+                seccion === s.key
+                  ? { background: 'var(--series-blue)', borderColor: 'var(--series-blue)', color: 'white' }
+                  : { borderColor: 'var(--border)', color: 'var(--text-secondary)', background: 'var(--surface-1)' }
+              }
+            >
+              {s.label}
+              {bloqueada && <Lock size={12} aria-hidden="true" />}
+            </button>
+          )
+        })}
       </nav>
 
       {seccion === 'ingresosGastos' && (
@@ -1671,7 +1674,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
               className="mb-6 flex w-full items-center gap-2 rounded-lg border p-3 text-left text-sm"
               style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--series-blue)' }}
             >
-              🔒 Con el plan Medio recibís alertas automáticas sobre tu caja, deudas y facturas vencidas
+              <Lock size={14} className="shrink-0" aria-hidden="true" /> Con el plan Medio recibís alertas automáticas sobre tu caja, deudas y facturas vencidas
             </button>
           )}
 
@@ -1715,8 +1718,9 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
               Ingresos y gastos mensuales
             </h2>
             {(usaIngresosReales || usaGastosReales) && (
-              <p className="-mt-2 mb-4 text-xs" style={{ color: 'var(--series-blue)' }}>
-                📊 Ya cargaste ventas o compras en la solapa Comprobantes: los indicadores de abajo usan{' '}
+              <p className="-mt-2 mb-4 inline-flex items-start gap-1 text-xs" style={{ color: 'var(--series-blue)' }}>
+                <BarChart3 size={13} className="mt-0.5 shrink-0" aria-hidden="true" />
+                Ya cargaste ventas o compras en la solapa Comprobantes: los indicadores de abajo usan{' '}
                 {usaIngresosReales && usaGastosReales
                   ? 'el promedio real de esas ventas y compras'
                   : usaIngresosReales
@@ -1868,10 +1872,10 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
             />
             <button
               onClick={handleDescargarPdf}
-              className="shrink-0 rounded-full px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
               style={{ background: 'var(--series-blue)' }}
             >
-              📊 Descargar informe financiero
+              <FileDown size={16} aria-hidden="true" /> Descargar informe financiero
             </button>
           </div>
 

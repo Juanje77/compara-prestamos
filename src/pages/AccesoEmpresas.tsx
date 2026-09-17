@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Calculator, Gift } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 import { usePlanUsuario, pruebaVencida, diasRestantesPrueba } from '../lib/plan'
 import { EmpresasPage } from './EmpresasPage'
@@ -101,8 +102,8 @@ export function AccesoEmpresas() {
   if (user && plan.estado === 'pendiente' && !confirmacionAgotada) {
     return (
       <div className="mx-auto max-w-md py-16 text-center">
-        <p className="text-sm font-semibold tracking-wide" style={{ color: 'var(--series-blue)' }}>
-          🧮 FinCorp para empresas
+        <p className="inline-flex items-center gap-1.5 text-sm font-semibold tracking-wide" style={{ color: 'var(--series-blue)' }}>
+          <Calculator size={14} aria-hidden="true" /> FinCorp para empresas
         </p>
         <h1 className="mt-2 text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
           Confirmando tu pago…
@@ -163,7 +164,7 @@ export function AccesoEmpresas() {
           className="mb-6 flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm"
           style={{ borderColor: 'var(--series-blue)', background: 'var(--surface-1)', color: 'var(--series-blue)' }}
         >
-          🎁 Estás en tu prueba gratis de FinCorp Full — te quedan {diasRestantesPrueba(plan)}{' '}
+          <Gift size={16} className="shrink-0" aria-hidden="true" /> Estás en tu prueba gratis de FinCorp Full — te quedan {diasRestantesPrueba(plan)}{' '}
           {diasRestantesPrueba(plan) === 1 ? 'día' : 'días'}.
         </div>
       )}

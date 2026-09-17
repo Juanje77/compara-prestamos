@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Trash2 } from 'lucide-react'
+import { AlertTriangle, FileUp, Trash2 } from 'lucide-react'
 import type { MovimientoStock, Producto, TipoMovimientoStock } from '../lib/cfo'
 import { calcularValorInventario, listarProductosBajoMinimo } from '../lib/cfo'
 import { importarProductosDesdeExcel } from '../lib/excelImport'
@@ -120,10 +120,10 @@ function ImportarExcelButton({ onImportar }: { onImportar: (e: React.ChangeEvent
   }
   return (
     <label
-      className="cursor-pointer rounded-full border px-3 py-1.5 text-xs font-medium"
+      className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium"
       style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
     >
-      {importando ? 'Importando…' : '📄 Importar desde Excel'}
+      <FileUp size={14} aria-hidden="true" /> {importando ? 'Importando…' : 'Importar desde Excel'}
       <input type="file" accept=".xlsx,.xls" onChange={handleChange} className="hidden" disabled={importando} />
     </label>
   )
@@ -183,8 +183,10 @@ function FilaProducto({
           style={{ color: bajoMinimo ? 'var(--status-critical)' : 'var(--text-primary)' }}
           title={bajoMinimo ? `Stock mínimo: ${producto.stockMinimo}` : undefined}
         >
-          {producto.stockActual}
-          {bajoMinimo && ' ⚠️'}
+          <span className="inline-flex items-center gap-1">
+            {producto.stockActual}
+            {bajoMinimo && <AlertTriangle size={12} aria-hidden="true" />}
+          </span>
         </td>
         <td className="tabular py-2 pr-4 text-right" style={{ color: 'var(--text-secondary)' }}>
           {formatoMoneda(producto.costoUnitario)}

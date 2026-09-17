@@ -49,10 +49,10 @@ const SECCIONES: SeccionAyuda[] = [
     descripcion: 'Tus facturas, notas de crédito y débito. De acá salen ventas y compras netas, margen bruto, IVA, y qué falta cobrar o pagar.',
     pasos: [
       'Elegí `Emitida (venta)` o `Recibida (compra)` y el tipo de comprobante.',
-      'Cargá cliente o proveedor, monto, IVA y fecha — o traé todo de una con `📄 Importar desde ARCA`.',
+      'Cargá cliente o proveedor, monto, IVA y fecha — o traé todo de una con `Importar desde ARCA`.',
       'Cuando la cobres o la pagues de verdad, tildá `Cobrada` / `Pagada`.',
       'Elegí el medio (Caja, Transferencia o Cheque) y, si ya tenés cuentas cargadas en Tesorería, elegí a cuál entró o salió la plata.',
-      'Usá `📊 Exportar para el contador` cuando necesites mandarle los libros al estudio contable.',
+      'Usá `Exportar para el contador` cuando necesites mandarle los libros al estudio contable.',
     ],
     tip: 'El selector de cuenta solo aparece si ya cargaste al menos una cuenta en Tesorería (plan Full). Sin eso, el tilde de cobrado/pagado funciona igual, solo que no queda registrado en ninguna caja puntual.',
   },
@@ -142,11 +142,11 @@ const SECCIONES: SeccionAyuda[] = [
       'Si tenés sectores creados, repartí el costo de cada empleado entre ellos con un % — sirve para los que hacen varias tareas (60% Metalúrgica, 40% Service).',
       'Cada empleado se ve como una fila con su neto y su costo; tocala para abrir el detalle y editarlo.',
       'Cuando la liquidación del mes está lista, tocá `Cerrar liquidación del mes`: eso congela los números de ese período y le asigna a cada recibo su numeración correlativa. Hasta entonces los recibos salen marcados como BORRADOR sin numerar.',
-      'Con `🖨` imprimís el recibo de un empleado, o `🖨 Imprimir todos los recibos` para toda la nómina, uno por hoja. La constancia del último depósito de aportes se completa sola con el pago de cargas sociales que hayas registrado del mes anterior.',
-      'En `📖 Ver libro de sueldos` tenés el registro del art. 52 de la LCT con todos los períodos cerrados, un asiento por recibo y los totales acumulados.',
+      'Con el ícono de la impresora imprimís el recibo de un empleado, o `Imprimir todos los recibos` para toda la nómina, uno por hoja. La constancia del último depósito de aportes se completa sola con el pago de cargas sociales que hayas registrado del mes anterior.',
+      'En `Ver libro de sueldos` tenés el registro del art. 52 de la LCT con todos los períodos cerrados, un asiento por recibo y los totales acumulados.',
       'Dado de baja un empleado con `Dar de baja` en vez de borrarlo, para no perder el historial.',
     ],
-    tip: 'En cuanto cargás al menos un empleado activo, el costo total de la nómina pasa a ser el valor automático (🧾 auto) de la categoría "Sueldos" en Presupuesto vs. Real y en el gráfico de Composición de gastos del Dashboard, en vez del estimado que cargaste a mano. Ojo con cerrar la liquidación: si después reabrís el período, los números de recibo ya usados no se reciclan — la numeración sigue siempre hacia adelante, como corresponde. Y el libro de sueldos, para tener validez legal, tiene que estar rubricado por la autoridad del trabajo de tu jurisdicción.',
+    tip: 'En cuanto cargás al menos un empleado activo, el costo total de la nómina pasa a ser el valor automático (marcado "auto") de la categoría "Sueldos" en Presupuesto vs. Real y en el gráfico de Composición de gastos del Dashboard, en vez del estimado que cargaste a mano. Ojo con cerrar la liquidación: si después reabrís el período, los números de recibo ya usados no se reciclan — la numeración sigue siempre hacia adelante, como corresponde. Y el libro de sueldos, para tener validez legal, tiene que estar rubricado por la autoridad del trabajo de tu jurisdicción.',
   },
   {
     id: 'stock',
@@ -171,7 +171,7 @@ const SECCIONES: SeccionAyuda[] = [
       'Cargá cada cuenta con su nombre y su saldo inicial.',
       'A partir de ahí, no se edita el saldo a mano: sube o baja solo con lo que marqués como cobrado/pagado en Comprobantes, Cuentas corrientes, Cheques y Remitos.',
       'Usá `± Ajustar` solo para lo que no viene de ahí — un gasto bancario, un retiro de caja.',
-      'Para conciliar contra el banco: tocá `🏦 Conciliar`, subí el extracto (Excel), y se empareja solo lo que tiene el mismo monto y hasta 3 días de diferencia de fecha.',
+      'Para conciliar contra el banco: tocá `Conciliar`, subí el extracto (Excel), y se empareja solo lo que tiene el mismo monto y hasta 3 días de diferencia de fecha.',
       'Lo que no matchea se resuelve a mano: `Vincular a…` si es algo que ya tenías cargado con otra fecha, o `+ Ajuste` si es algo nuevo que el banco cobró sin que lo supieras (una comisión, un débito automático).',
       'Mirá la diferencia entre el saldo del sistema y el del extracto — tiene que ir bajando a $0 a medida que conciliás.',
     ],
@@ -265,7 +265,7 @@ const SECCIONES: SeccionAyuda[] = [
     tier: 'medio',
     descripcion: 'Un Excel prolijo, listo para mandar al estudio contable o importar en su sistema.',
     pasos: [
-      'Desde Comprobantes, tocá `📊 Exportar para el contador`.',
+      'Desde Comprobantes, tocá `Exportar para el contador`.',
       'Se descarga un Excel con las hojas "IVA Ventas" e "IVA Compras" — disponible desde el plan Medio.',
       'Con el plan Full, el mismo archivo trae además "Cuentas por Cobrar", "Cuentas por Pagar", "Cheques", "Resumen de cuentas" y "Movimientos Tesorería".',
     ],
@@ -277,7 +277,7 @@ const FLUJO = [
   { titulo: 'Cargá la factura en Comprobantes', detalle: 'Emitida, a tu cliente, con el monto de la venta.' },
   { titulo: 'Tildá "Cobrada"', detalle: 'Elegí el medio (por ejemplo Transferencia) y esa misma cuenta, "Banco Nación".' },
   { titulo: 'Andá a Tesorería', detalle: 'El saldo de "Banco Nación" ya subió, exacto por ese monto — sin tocar nada más.' },
-  { titulo: 'Cuando llegue el resumen del banco', detalle: 'Tesorería → esa cuenta → "🏦 Conciliar" → subís el extracto y confirmás que coincide con lo cargado.' },
+  { titulo: 'Cuando llegue el resumen del banco', detalle: 'Tesorería → esa cuenta → "Conciliar" → subís el extracto y confirmás que coincide con lo cargado.' },
 ]
 
 const PLANES_TABLA: { label: string; basico: boolean; medio: boolean; full: boolean }[] = [

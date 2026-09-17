@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { BarChart3, Lock } from 'lucide-react'
 import { Bar, BarChart, Cell, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { formatoMoneda } from '../lib/finance'
 import { proyectarFlujoCaja, proyectarFlujoCajaEscenarios, type FilaProyeccion } from '../lib/cfo'
@@ -114,8 +115,8 @@ export function FlujoDeCaja({
             Proyección de flujo de caja
           </h3>
           {(usaIngresosReales || usaGastosReales) && (
-            <p className="text-xs" style={{ color: 'var(--series-blue)' }}>
-              📊 Usando el promedio real de{' '}
+            <p className="inline-flex items-center gap-1 text-xs" style={{ color: 'var(--series-blue)' }}>
+              <BarChart3 size={13} aria-hidden="true" /> Usando el promedio real de{' '}
               {usaIngresosReales && usaGastosReales
                 ? 'tus ventas y compras cargadas'
                 : usaIngresosReales
@@ -159,7 +160,7 @@ export function FlujoDeCaja({
           </label>
         ) : (
           <button onClick={onQuierePremium} className="flex items-center gap-1.5" style={{ color: 'var(--series-blue)' }}>
-            🔒 Con el plan Medio podés proyectar con una tasa de crecimiento mensual
+            <Lock size={13} className="shrink-0" aria-hidden="true" /> Con el plan Medio podés proyectar con una tasa de crecimiento mensual
           </button>
         )}
       </div>

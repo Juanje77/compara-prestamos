@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Trash2 } from 'lucide-react'
+import { AlertTriangle, Check, Cloud, FileDown, FileUp, Landmark, Receipt, Trash2, Users } from 'lucide-react'
 import {
   agregarMovimiento,
   agregarMovimientos,
@@ -136,10 +136,10 @@ function ImportarExcelButton({
 }) {
   return (
     <label
-      className="cursor-pointer rounded-full border px-3 py-1.5 text-xs font-medium"
+      className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium"
       style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
     >
-      {activo ? 'Importando…' : '📄 Importar Excel'}
+      <FileUp size={14} aria-hidden="true" /> {activo ? 'Importando…' : 'Importar Excel'}
       <input type="file" accept=".xlsx,.xls" onChange={onImportar} className="hidden" disabled={activo} />
     </label>
   )
@@ -210,7 +210,7 @@ function FilaMovimiento({
         title={deSueldo ? 'El pago de la nómina se registra desde la solapa Sueldos' : undefined}
       />
       <span
-        className="flex-1 truncate"
+        className="flex flex-1 items-center gap-1 truncate"
         style={{
           color: 'var(--text-primary)',
           textDecoration: m.cumplido ? 'line-through' : 'none',
@@ -225,10 +225,10 @@ function FilaMovimiento({
                 : undefined
         }
       >
-        {deFactura && '🧾 '}
-        {deCheque && '🏦 '}
-        {deSueldo && '👥 '}
-        {m.concepto}
+        {deFactura && <Receipt size={13} className="shrink-0" aria-hidden="true" />}
+        {deCheque && <Landmark size={13} className="shrink-0" aria-hidden="true" />}
+        {deSueldo && <Users size={13} className="shrink-0" aria-hidden="true" />}
+        <span className="truncate">{m.concepto}</span>
       </span>
       <span className="tabular shrink-0 text-xs" style={{ color: 'var(--text-muted)' }}>
         {new Date(`${m.fecha}T00:00:00`).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}
@@ -408,10 +408,10 @@ function ColumnaMovimientos({
               </span>
               <button
                 onClick={() => handleMarcarSeleccionados(true)}
-                className="rounded-full px-3 py-1 font-semibold text-white transition-opacity hover:opacity-90"
+                className="inline-flex items-center gap-1 rounded-full px-3 py-1 font-semibold text-white transition-opacity hover:opacity-90"
                 style={{ background: 'var(--status-good)' }}
               >
-                ✓ Marcar como {tituloCumplido}
+                <Check size={13} aria-hidden="true" /> Marcar como {tituloCumplido}
               </button>
               <button
                 onClick={() => handleMarcarSeleccionados(false)}
@@ -726,18 +726,18 @@ export function CobranzasPagosSemanal({
               Resumen semanal — ingresos y gastos por semana
             </h2>
             {user && (
-              <p className="text-xs" style={{ color: nubeLista ? 'var(--status-good-text)' : 'var(--text-muted)' }}>
-                {nubeLista ? '☁️ Guardado en tu cuenta' : 'Sincronizando con tu cuenta…'}
+              <p className="inline-flex items-center gap-1 text-xs" style={{ color: nubeLista ? 'var(--status-good-text)' : 'var(--text-muted)' }}>
+                {nubeLista ? (<><Cloud size={12} aria-hidden="true" /> Guardado en tu cuenta</>) : 'Sincronizando con tu cuenta…'}
               </p>
             )}
           </div>
           <div className="flex gap-2">
             <button
               onClick={() => descargarPdfCobranzasSemanal(agrupacion, todosMovimientos)}
-              className="rounded-full border px-4 py-1.5 text-xs font-medium"
+              className="inline-flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-xs font-medium"
               style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
             >
-              📄 Descargar / Imprimir PDF
+              <FileDown size={14} aria-hidden="true" /> Descargar / Imprimir PDF
             </button>
             <button
               onClick={handleVaciar}
@@ -793,8 +793,8 @@ export function CobranzasPagosSemanal({
         {(agrupacion.vencidos.length > 0 || agrupacion.aFuturo.length > 0) && (
           <div className="mt-3 flex flex-wrap gap-4 text-xs" style={{ color: 'var(--text-muted)' }}>
             {agrupacion.vencidos.length > 0 && (
-              <span>
-                ⚠️ Vencido (antes de esta semana):{' '}
+              <span className="inline-flex items-center gap-1">
+                <AlertTriangle size={12} aria-hidden="true" /> Vencido (antes de esta semana):{' '}
                 <span className="tabular font-semibold" style={{ color: 'var(--status-critical)' }}>
                   {formatoMoneda(totalVencidos)}
                 </span>{' '}
@@ -863,7 +863,7 @@ export function CobranzasPagosSemanal({
         {facturas.length > 0 && (
           <>
             {' '}
-            Los ítems marcados con 🧾 vienen de tus facturas cargadas en "Comprobantes" — tildarlos acá
+            Los ítems marcados con <Receipt size={12} className="inline align-text-bottom" aria-hidden="true" /> vienen de tus facturas cargadas en "Comprobantes" — tildarlos acá
             marca la factura como cobrada/pagada, y no se pueden borrar desde acá (se gestionan desde esa
             pestaña).
           </>
@@ -871,7 +871,7 @@ export function CobranzasPagosSemanal({
         {cheques.length > 0 && (
           <>
             {' '}
-            Los ítems marcados con 🏦 vienen de tus cheques cargados en "Cheques" — tildarlos acá lo marca
+            Los ítems marcados con <Landmark size={12} className="inline align-text-bottom" aria-hidden="true" /> vienen de tus cheques cargados en "Cheques" — tildarlos acá lo marca
             como cobrado/pagado. Si un cheque tiene facturas asociadas, esas facturas no se listan por
             separado (el cheque las representa a todas juntas).
           </>

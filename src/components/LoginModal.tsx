@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
+import { X } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 import { mensajeErrorAuth } from '../lib/authErrors'
+import { IconButton } from './IconButton'
 
 interface Props {
   onCerrar: () => void
@@ -70,14 +72,7 @@ export function LoginModal({ onCerrar }: Props) {
           <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
             {modo === 'login' ? 'Iniciar sesión' : 'Crear cuenta'}
           </h3>
-          <button
-            onClick={onCerrar}
-            aria-label="Cerrar"
-            className="shrink-0 text-lg"
-            style={{ color: 'var(--text-muted)' }}
-          >
-            ✕
-          </button>
+          <IconButton icon={X} onClick={onCerrar} label="Cerrar" size={18} />
         </div>
 
         {!habilitado ? (

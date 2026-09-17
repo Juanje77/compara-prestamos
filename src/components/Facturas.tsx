@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Trash2 } from 'lucide-react'
+import { AlertTriangle, FileDown, FileSpreadsheet, FileUp, Search, Trash2 } from 'lucide-react'
 import { Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type {
   CuentaBancaria,
@@ -127,10 +127,10 @@ function BotonExportarContador({ onExportar }: { onExportar: Props['onExportarCo
     <button
       onClick={handleClick}
       disabled={exportando}
-      className="shrink-0 rounded-full border px-4 py-1.5 text-xs font-medium disabled:opacity-60"
+      className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-4 py-1.5 text-xs font-medium disabled:opacity-60"
       style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
     >
-      {exportando ? 'Exportando…' : '📊 Exportar para el contador'}
+      <FileSpreadsheet size={14} aria-hidden="true" /> {exportando ? 'Exportando…' : 'Exportar para el contador'}
     </button>
   )
 }
@@ -247,10 +247,10 @@ export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarV
               <BotonExportarContador onExportar={onExportarContador} />
               <button
                 onClick={onDescargarInforme}
-                className="shrink-0 rounded-full border px-4 py-1.5 text-xs font-medium"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-4 py-1.5 text-xs font-medium"
                 style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
               >
-                📊 Descargar informe en PDF
+                <FileDown size={14} aria-hidden="true" /> Descargar informe en PDF
               </button>
             </div>
           )}
@@ -266,10 +266,10 @@ export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarV
           style={{ borderColor: 'var(--border)' }}
         >
           <label
-            className="cursor-pointer rounded-full border px-3 py-1.5 text-xs font-medium"
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium"
             style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
           >
-            {importando ? 'Importando…' : '📄 Importar desde ARCA'}
+            <FileUp size={14} aria-hidden="true" /> {importando ? 'Importando…' : 'Importar desde ARCA'}
             <input type="file" accept=".xlsx,.xls" onChange={handleImportarArca} className="hidden" disabled={importando} />
           </label>
           <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
@@ -432,8 +432,9 @@ export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarV
           </section>
 
           {margenTotal.margenBruto < 0 && (
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              ⚠️ Compraste más de lo que facturaste en el período. Esto no implica necesariamente un quiebre de
+            <p className="inline-flex items-start gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+              <AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
+              Compraste más de lo que facturaste en el período. Esto no implica necesariamente un quiebre de
               caja: si cargaste esas compras con la cantidad de cuotas en las que las estás pagando, el
               Dashboard ya reparte el impacto real mes a mes en vez de contarlo todo de una vez — mirá el
               runway y la proyección de caja para tu situación real.
@@ -710,14 +711,17 @@ export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarV
                 Comprobantes cargados
               </h3>
               <div className="flex flex-wrap items-center gap-2">
-                <input
-                  type="search"
-                  placeholder="🔍 Buscar por cliente/proveedor o número…"
-                  value={busqueda}
-                  onChange={(e) => setBusqueda(e.target.value)}
-                  className="w-56 rounded-full border px-3 py-1 text-xs"
-                  style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
-                />
+                <div className="relative">
+                  <Search size={13} className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} aria-hidden="true" />
+                  <input
+                    type="search"
+                    placeholder="Buscar por cliente/proveedor o número…"
+                    value={busqueda}
+                    onChange={(e) => setBusqueda(e.target.value)}
+                    className="w-56 rounded-full border py-1 pr-3 pl-7 text-xs"
+                    style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+                  />
+                </div>
                 {(['todas', 'emitida', 'recibida'] as const).map((f) => (
                   <button
                     key={f}

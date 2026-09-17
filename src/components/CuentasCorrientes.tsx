@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Trash2 } from 'lucide-react'
+import { Check, Trash2 } from 'lucide-react'
 import type { CuentaBancaria, CuentaCorrienteContraparte, MedioPago, Pago, TipoDocumentoAnticipo, TipoFactura } from '../lib/cfo'
 import { MEDIOS_PAGO_LABEL } from '../lib/cfo'
 
@@ -218,7 +218,7 @@ function TarjetaContraparte({
                   className="flex flex-wrap items-center gap-2 rounded border px-2 py-1"
                   style={{ borderColor: 'var(--gridline)' }}
                 >
-                  <span style={{ color: 'var(--status-good-text)' }}>✓</span>
+                  <Check size={14} className="shrink-0" style={{ color: 'var(--status-good-text)' }} aria-hidden="true" />
                   <span className="tabular shrink-0" style={{ color: 'var(--text-muted)' }}>
                     {new Date(`${p.fecha}T00:00:00`).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}
                   </span>

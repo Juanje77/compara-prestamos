@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Calculator, Check } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 import { formatoMoneda } from '../lib/finance'
 import type { PlanTier } from '../lib/plan'
@@ -110,8 +111,8 @@ export function PlanesEmpresa({ motivoVencimiento }: Props) {
   return (
     <>
       <div className="mb-8 text-center">
-        <p className="text-sm font-semibold tracking-wide" style={{ color: 'var(--series-blue)' }}>
-          🧮 FinCorp para empresas
+        <p className="inline-flex items-center gap-1.5 text-sm font-semibold tracking-wide" style={{ color: 'var(--series-blue)' }}>
+          <Calculator size={14} aria-hidden="true" /> FinCorp para empresas
         </p>
         <h1 className="mt-1 text-3xl font-semibold sm:text-4xl" style={{ color: 'var(--text-primary)' }}>
           {motivoVencimiento === 'prueba'
@@ -156,7 +157,7 @@ export function PlanesEmpresa({ motivoVencimiento }: Props) {
             <ul className="mt-4 flex-1 space-y-2 text-sm">
               {p.features.map((f) => (
                 <li key={f} className="flex items-start gap-2" style={{ color: 'var(--text-secondary)' }}>
-                  <span style={{ color: 'var(--status-good-text)' }}>✓</span>
+                  <Check size={16} className="mt-0.5 shrink-0" style={{ color: 'var(--status-good-text)' }} aria-hidden="true" />
                   {f}
                 </li>
               ))}

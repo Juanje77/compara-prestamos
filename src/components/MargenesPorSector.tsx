@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Trash2 } from 'lucide-react'
+import { AlertTriangle, Trash2 } from 'lucide-react'
 import type { MargenSector } from '../lib/cfo'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
 import { IconButton } from './IconButton'
@@ -99,8 +99,9 @@ function TarjetaMargen({ margen }: { margen: MargenSector }) {
       </div>
 
       {margen.remitosSinLineas > 0 && (
-        <p className="mt-3 text-[11px]" style={{ color: 'var(--text-muted)' }}>
-          ⚠️ {margen.remitosSinLineas} remito{margen.remitosSinLineas === 1 ? '' : 's'} emitido
+        <p className="mt-3 inline-flex items-start gap-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+          <AlertTriangle size={12} className="mt-0.5 shrink-0" aria-hidden="true" />
+          {margen.remitosSinLineas} remito{margen.remitosSinLineas === 1 ? '' : 's'} emitido
           {margen.remitosSinLineas === 1 ? '' : 's'} de este sector no tiene{margen.remitosSinLineas === 1 ? '' : 'n'} líneas
           cargadas: su ganancia queda sobrestimada acá porque no hay forma de separar su costo del monto facturado.
         </p>

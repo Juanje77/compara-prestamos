@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Lock } from 'lucide-react'
 
 interface Props {
   activo: boolean
@@ -21,8 +22,8 @@ export function PremiumLock({ activo, titulo, descripcion, nivelRequerido = 'med
       className="rounded-xl border p-8 text-center"
       style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}
     >
-      <p className="text-sm font-semibold tracking-wide" style={{ color: 'var(--series-blue)' }}>
-        🔒 Función {nombrePlan}
+      <p className="inline-flex items-center gap-1.5 text-sm font-semibold tracking-wide" style={{ color: 'var(--series-blue)' }}>
+        <Lock size={14} aria-hidden="true" /> Función {nombrePlan}
       </p>
       <h3 className="mt-1 text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
         {titulo}

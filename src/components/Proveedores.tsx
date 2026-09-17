@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Trash2 } from 'lucide-react'
+import { AlertTriangle, Trash2 } from 'lucide-react'
 import type { ProveedorResumen } from '../lib/cfo'
 import { CATEGORIAS_GASTO } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
@@ -39,10 +39,11 @@ export function Proveedores({ proveedores, onClasificar, onAgregarManual, onElim
 
       {sinClasificar.length > 0 && (
         <p
-          className="mb-4 rounded-lg border px-3 py-2 text-xs"
+          className="mb-4 inline-flex items-start gap-1.5 rounded-lg border px-3 py-2 text-xs"
           style={{ borderColor: 'var(--status-warning)', color: 'var(--status-warning)', background: 'var(--surface-1)' }}
         >
-          ⚠️ Tenés {sinClasificar.length} proveedor{sinClasificar.length === 1 ? '' : 'es'} con facturas sin
+          <AlertTriangle size={13} className="mt-0.5 shrink-0" aria-hidden="true" />
+          Tenés {sinClasificar.length} proveedor{sinClasificar.length === 1 ? '' : 'es'} con facturas sin
           clasificar: {sinClasificar.map((p) => p.proveedor).join(', ')}.
         </p>
       )}
