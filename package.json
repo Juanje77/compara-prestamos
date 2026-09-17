@@ -26,6 +26,9 @@
     "recharts": "^3.10.1",
     "write-excel-file": "^4.1.1"
   },
+  "overrides": {
+    "jose": "^4.15.9"
+  },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^24.13.3",

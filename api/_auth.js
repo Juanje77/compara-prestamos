@@ -15,7 +15,8 @@ export async function uidAutenticado(req) {
   if (!idToken) return null
 
   try {
-    const decodificado = await obtenerAuthAdmin().verifyIdToken(idToken)
+    const auth = await obtenerAuthAdmin()
+    const decodificado = await auth.verifyIdToken(idToken)
     return decodificado.uid
   } catch {
     // Token vencido, de otro proyecto o directamente inventado: no distinguimos, todos son 401.
