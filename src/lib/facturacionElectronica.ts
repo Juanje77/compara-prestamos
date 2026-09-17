@@ -6,7 +6,7 @@
 // versionar sin red, que es también lo que después consume ese backend.
 //
 // Todo lo de acá está verificado contra el contrato OpenAPI 3.0.3 de la API, que vive en
-// `api/openapi-sistemas360.json`. Cuando algo cambie del lado del proveedor, se actualiza ese
+// `docs/openapi-sistemas360.json`. Cuando algo cambie del lado del proveedor, se actualiza ese
 // archivo primero y después este módulo: el diff del contrato dice exactamente qué tocar.
 
 import type {
