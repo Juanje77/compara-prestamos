@@ -141,10 +141,12 @@ const SECCIONES: SeccionAyuda[] = [
       'En junio y diciembre aparecen además las dos cuotas del aguinaldo (SAC), calculadas como medio sueldo bruto por empleado con sus mismos aportes y contribuciones.',
       'Si tenés sectores creados, repartí el costo de cada empleado entre ellos con un % — sirve para los que hacen varias tareas (60% Metalúrgica, 40% Service).',
       'Cada empleado se ve como una fila con su neto y su costo; tocala para abrir el detalle y editarlo.',
+      'Cuando la liquidación del mes está lista, tocá `Cerrar liquidación del mes`: eso congela los números de ese período y le asigna a cada recibo su numeración correlativa. Hasta entonces los recibos salen marcados como BORRADOR sin numerar.',
       'Con `🖨` imprimís el recibo de un empleado, o `🖨 Imprimir todos los recibos` para toda la nómina, uno por hoja. La constancia del último depósito de aportes se completa sola con el pago de cargas sociales que hayas registrado del mes anterior.',
+      'En `📖 Ver libro de sueldos` tenés el registro del art. 52 de la LCT con todos los períodos cerrados, un asiento por recibo y los totales acumulados.',
       'Dado de baja un empleado con `Dar de baja` en vez de borrarlo, para no perder el historial.',
     ],
-    tip: 'En cuanto cargás al menos un empleado activo, el costo total de la nómina pasa a ser el valor automático (🧾 auto) de la categoría "Sueldos" en Presupuesto vs. Real y en el gráfico de Composición de gastos del Dashboard, en vez del estimado que cargaste a mano.',
+    tip: 'En cuanto cargás al menos un empleado activo, el costo total de la nómina pasa a ser el valor automático (🧾 auto) de la categoría "Sueldos" en Presupuesto vs. Real y en el gráfico de Composición de gastos del Dashboard, en vez del estimado que cargaste a mano. Ojo con cerrar la liquidación: si después reabrís el período, los números de recibo ya usados no se reciclan — la numeración sigue siempre hacia adelante, como corresponde. Y el libro de sueldos, para tener validez legal, tiene que estar rubricado por la autoridad del trabajo de tu jurisdicción.',
   },
   {
     id: 'stock',

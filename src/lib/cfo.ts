@@ -1380,6 +1380,143 @@ export function mesTieneAguinaldo(mesISO: string): boolean {
   return MESES_AGUINALDO.includes(Number(mesISO.split('-')[1]))
 }
 
+// ---------------------------------------------------------------------------
+// Liquidaciones cerradas y libro de sueldos (art. 52 LCT)
+// ---------------------------------------------------------------------------
+//
+// Cerrar la liquidación de un mes congela lo liquidado: cada empleado queda con una copia de sus
+// haberes, descuentos y datos personales tal como estaban ese mes, y recibe su número de recibo.
+// Sin esto no habría libro posible — la nómina que se edita es siempre la vigente, así que un
+// libro armado sobre ella mostraría el sueldo de hoy en los meses de hace un año. La numeración
+// es correlativa por empresa y no se reasigna nunca, ni siquiera si se borra una liquidación.
+
+export type TipoLiquidacion = 'mensual' | 'aguinaldo'
+
+export const TIPO_LIQUIDACION_LABEL: Record<TipoLiquidacion, string> = {
+  mensual: 'Mensual',
+  aguinaldo: 'Aguinaldo (SAC)',
+}
+
+/** Copia congelada de lo que se le liquidó a un empleado en un mes. */
+export interface ReciboLiquidado {
+  empleadoId: string
+  numeroRecibo: number
+  nombre: string
+  cuil?: string
+  legajo?: string
+  categoria?: string
+  fechaIngreso?: string
+  sueldoBasico: number
+  conceptos: ConceptoHaber[]
+  remunerativo: number
+  noRemunerativo: number
+  descuentos: DescuentoCalculado[]
+  totalDescuentos: number
+  neto: number
+  contribucionesPatronales: number
+  cargasSocialesAdicionales: number
+  costoEmpresa: number
+}
+
+export interface Liquidacion {
+  id: string
+  /** Período liquidado, "YYYY-MM". */
+  mes: string
+  tipo: TipoLiquidacion
+  /** Cuándo se cerró — no es la fecha de pago, es cuándo se congelaron los números. */
+  fechaCierre: string
+  recibos: ReciboLiquidado[]
+}
+
+/** El próximo número libre: siempre por encima del mayor ya emitido, así borrar una liquidación
+ * no hace que un número se reutilice en otro recibo. */
+export function proximoNumeroRecibo(liquidaciones: Liquidacion[]): number {
+  const emitidos = liquidaciones.flatMap((l) => l.recibos.map((r) => r.numeroRecibo))
+  return emitidos.length === 0 ? 1 : Math.max(...emitidos) + 1
+}
+
+export function buscarLiquidacion(liquidaciones: Liquidacion[], mes: string, tipo: TipoLiquidacion): Liquidacion | undefined {
+  return liquidaciones.find((l) => l.mes === mes && l.tipo === tipo)
+}
+
+/** Convierte a un empleado en su recibo del período, con el costo ya calculado. */
+function reciboDeEmpleadoLiquidado(empleado: Empleado, numeroRecibo: number): ReciboLiquidado {
+  const costo = calcularCostoEmpleado(empleado)
+  return {
+    empleadoId: empleado.id,
+    numeroRecibo,
+    nombre: empleado.nombre,
+    cuil: empleado.cuil,
+    legajo: empleado.legajo,
+    categoria: empleado.categoria,
+    fechaIngreso: empleado.fechaIngreso,
+    sueldoBasico: empleado.sueldoBruto,
+    conceptos: empleado.conceptos ?? [],
+    remunerativo: costo.remunerativo,
+    noRemunerativo: costo.noRemunerativo,
+    descuentos: costo.descuentos,
+    totalDescuentos: costo.totalDescuentos,
+    neto: costo.sueldoNeto,
+    contribucionesPatronales: costo.contribucionesPatronales,
+    cargasSocialesAdicionales: costo.cargasSocialesAdicionales,
+    costoEmpresa: costo.costoEmpresa,
+  }
+}
+
+/** Para el aguinaldo se liquida medio sueldo, igual que en calcularAguinaldo. */
+function mitadDeSueldo(e: Empleado): Empleado {
+  return {
+    ...e,
+    sueldoBruto: e.sueldoBruto / 2,
+    conceptos: (e.conceptos ?? []).filter((c) => c.remunerativo).map((c) => ({ ...c, monto: c.monto / 2 })),
+  }
+}
+
+/** Cierra la liquidación del período: congela a cada empleado activo y le asigna su número. */
+export function cerrarLiquidacion(
+  empleados: Empleado[],
+  mes: string,
+  tipo: TipoLiquidacion,
+  liquidacionesPrevias: Liquidacion[],
+  generarId: () => string,
+  hoy = new Date().toISOString().slice(0, 10),
+): Liquidacion {
+  let numero = proximoNumeroRecibo(liquidacionesPrevias)
+  const recibos = empleados
+    .filter((e) => e.activo)
+    .map((e) => reciboDeEmpleadoLiquidado(tipo === 'aguinaldo' ? mitadDeSueldo(e) : e, numero++))
+  return { id: generarId(), mes, tipo, fechaCierre: hoy, recibos }
+}
+
+export interface TotalesLiquidacion {
+  remunerativo: number
+  noRemunerativo: number
+  descuentos: number
+  neto: number
+  contribuciones: number
+  costoEmpresa: number
+}
+
+export function totalesDeLiquidacion(recibos: ReciboLiquidado[]): TotalesLiquidacion {
+  return {
+    remunerativo: recibos.reduce((s, r) => s + r.remunerativo, 0),
+    noRemunerativo: recibos.reduce((s, r) => s + r.noRemunerativo, 0),
+    descuentos: recibos.reduce((s, r) => s + r.totalDescuentos, 0),
+    neto: recibos.reduce((s, r) => s + r.neto, 0),
+    contribuciones: recibos.reduce((s, r) => s + r.contribucionesPatronales + r.cargasSocialesAdicionales, 0),
+    costoEmpresa: recibos.reduce((s, r) => s + r.costoEmpresa, 0),
+  }
+}
+
+/** Vista previa de un período todavía sin cerrar: mismos números, pero sin numeración asignada
+ * (numeroRecibo 0 = borrador). */
+export function previsualizarLiquidacion(empleados: Empleado[], mes: string, tipo: TipoLiquidacion): Liquidacion {
+  const recibos = empleados
+    .filter((e) => e.activo)
+    .map((e) => reciboDeEmpleadoLiquidado(tipo === 'aguinaldo' ? mitadDeSueldo(e) : e, 0))
+  return { id: 'borrador', mes, tipo, fechaCierre: '', recibos }
+}
+
 /** El aguinaldo es la mitad de la remuneración de cada empleado, con sus mismos descuentos y
  * contribuciones. Las sumas no remunerativas no entran en el cálculo del SAC. */
 export function calcularAguinaldo(empleados: Empleado[]): NominaTotal {

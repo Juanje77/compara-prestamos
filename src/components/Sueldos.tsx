@@ -6,13 +6,19 @@ import {
   CONCEPTO_PAGO_SUELDOS_LABEL,
   CONTRIBUCIONES_PATRONALES_PCT_DEFAULT,
   calcularCostoEmpleado,
+  TIPO_LIQUIDACION_LABEL,
+  buscarLiquidacion,
   calcularPagosSueldos,
   idOrigenPagoSueldos,
+  previsualizarLiquidacion,
+  totalesDeLiquidacion,
   type BaseDescuento,
   type ConceptoHaber,
   type ConceptoPagoSueldos,
   type CuentaBancaria,
   type DatosEmpleador,
+  type Liquidacion,
+  type TipoLiquidacion,
   type DescuentoEmpleado,
   type Empleado,
   type MovimientoTesoreria,
@@ -21,13 +27,16 @@ import {
   type Sector,
 } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
-import { abrirRecibosSueldo } from '../lib/htmlReport'
+import { abrirLibroSueldos, abrirRecibosSueldo } from '../lib/htmlReport'
 import { InputMoneda } from './InputMoneda'
 
 interface Props {
   nombreNegocio: string
   datosEmpleador: DatosEmpleador
   onCambiarDatosEmpleador: (datos: DatosEmpleador) => void
+  liquidaciones: Liquidacion[]
+  onCerrarLiquidacion: (mes: string, tipo: TipoLiquidacion) => void
+  onReabrirLiquidacion: (id: string) => void
   empleados: Empleado[]
   nomina: NominaTotal
   /** Medio sueldo por empleado con sus cargas — solo se paga en junio y diciembre. */
@@ -621,6 +630,9 @@ export function Sueldos({
   nombreNegocio,
   datosEmpleador,
   onCambiarDatosEmpleador,
+  liquidaciones,
+  onCerrarLiquidacion,
+  onReabrirLiquidacion,
   empleados,
   nomina,
   aguinaldo,
@@ -636,9 +648,14 @@ export function Sueldos({
   const [nombre, setNombre] = useState('')
   const [sueldoBruto, setSueldoBruto] = useState(0)
 
-  function imprimirRecibos(deQuienes: Empleado[]) {
+  function imprimirRecibos(deQuienes: Empleado[], tipo: TipoLiquidacion = 'mensual') {
     if (deQuienes.length === 0) return
     const mes = mesActualISO()
+    const cerrada = buscarLiquidacion(liquidaciones, mes, tipo)
+    // Si el mes está cerrado se imprime lo congelado (con su número); si no, un borrador.
+    const idsPedidos = new Set(deQuienes.map((e) => e.id))
+    const completa = cerrada ?? previsualizarLiquidacion(deQuienes, mes, tipo)
+    const liquidacion = { ...completa, recibos: completa.recibos.filter((r) => idsPedidos.has(r.empleadoId)) }
     const buscarPago = (mesBuscado: string, concepto: 'netos' | 'cargas') =>
       movimientosTesoreria.find(
         (m) => m.origen === 'sueldo' && m.origenId === idOrigenPagoSueldos(mesBuscado, concepto),
@@ -653,8 +670,7 @@ export function Sueldos({
     abrirRecibosSueldo({
       nombreNegocio,
       empleador: datosEmpleador,
-      mes,
-      empleados: deQuienes,
+      liquidacion,
       fechaPago: buscarPago(mes, 'netos')?.fecha,
       depositoAportes: pagoCargas
         ? { periodo: mesAnterior, fecha: pagoCargas.fecha, entidad: cuentaDelPago?.nombre ?? 'cuenta registrada' }
@@ -831,6 +847,89 @@ export function Sueldos({
           onPagar={onPagar}
           onDeshacerPago={onDeshacerPago}
         />
+      )}
+
+      {empleados.some((e) => e.activo) && (
+        <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+          <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
+              Liquidaciones y libro de sueldos
+            </h3>
+            <button
+              onClick={() => abrirLibroSueldos({ nombreNegocio, empleador: datosEmpleador, liquidaciones })}
+              className="rounded-lg border px-3 py-1 text-xs font-semibold"
+              style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
+            >
+              📖 Ver libro de sueldos
+            </button>
+          </div>
+          <p className="mb-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
+            Cerrar el período congela lo liquidado y le asigna a cada recibo su número correlativo. Hasta que no lo
+            cierres, los recibos salen como borrador sin numerar y el mes no entra al libro.
+          </p>
+
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            {(['mensual', 'aguinaldo'] as TipoLiquidacion[]).map((tipo) => {
+              const cerrada = buscarLiquidacion(liquidaciones, mesActualISO(), tipo)
+              return (
+                <button
+                  key={tipo}
+                  onClick={() => (cerrada ? onReabrirLiquidacion(cerrada.id) : onCerrarLiquidacion(mesActualISO(), tipo))}
+                  className="rounded-lg border px-3 py-1.5 text-sm font-semibold"
+                  style={
+                    cerrada
+                      ? { borderColor: 'var(--border)', color: 'var(--text-secondary)' }
+                      : { borderColor: 'var(--series-blue)', background: 'var(--series-blue)', color: 'white' }
+                  }
+                >
+                  {cerrada ? `Reabrir ${TIPO_LIQUIDACION_LABEL[tipo].toLowerCase()} de este mes` : `Cerrar liquidación ${tipo === 'aguinaldo' ? 'de aguinaldo' : 'del mes'}`}
+                </button>
+              )
+            })}
+          </div>
+
+          {liquidaciones.length === 0 ? (
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+              Todavía no cerraste ningún período.
+            </p>
+          ) : (
+            <ul className="space-y-1.5">
+              {[...liquidaciones]
+                .sort((a, b) => b.mes.localeCompare(a.mes))
+                .map((l) => (
+                  <li
+                    key={l.id}
+                    className="flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2 text-sm"
+                    style={{ borderColor: 'var(--gridline)' }}
+                  >
+                    <span className="min-w-[150px] flex-1 font-medium" style={{ color: 'var(--text-primary)' }}>
+                      {etiquetaMes(l.mes)}
+                      <span className="ml-2 text-xs font-normal" style={{ color: 'var(--text-muted)' }}>
+                        {TIPO_LIQUIDACION_LABEL[l.tipo]}
+                      </span>
+                    </span>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      Recibos {String(l.recibos[0]?.numeroRecibo ?? 0).padStart(6, '0')}–
+                      {String(l.recibos[l.recibos.length - 1]?.numeroRecibo ?? 0).padStart(6, '0')}
+                    </span>
+                    <span className="tabular shrink-0 font-semibold" style={{ color: 'var(--status-good-text)' }}>
+                      {formatoMoneda(totalesDeLiquidacion(l.recibos).neto)}
+                    </span>
+                    <button
+                      onClick={() =>
+                        abrirRecibosSueldo({ nombreNegocio, empleador: datosEmpleador, liquidacion: l })
+                      }
+                      title="Imprimir los recibos de este período"
+                      className="rounded-lg border px-2 py-1 text-xs"
+                      style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
+                    >
+                      🖨
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          )}
+        </section>
       )}
 
       {ordenados.length === 0 ? (

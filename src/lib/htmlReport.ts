@@ -17,7 +17,7 @@ import type {
   Recomendacion,
   TendenciaMensual,
 } from './cfo'
-import { calcularCostoEmpleado, type DatosEmpleador, type Empleado } from './cfo'
+import { TIPO_LIQUIDACION_LABEL, totalesDeLiquidacion, type DatosEmpleador, type Liquidacion, type ReciboLiquidado } from './cfo'
 
 // ---------------------------------------------------------------------------
 // Paleta — misma que src/index.css (modo claro), fijada en hexadecimal porque
@@ -679,9 +679,8 @@ export function abrirInformeSaludFinanciera(datos: InformeSaludFinancieraData) {
 export interface ReciboSueldoData {
   nombreNegocio: string
   empleador: DatosEmpleador
-  /** Mes liquidado, en formato "YYYY-MM". */
-  mes: string
-  empleados: Empleado[]
+  /** La liquidación a imprimir. Si viene sin cerrar, los recibos salen marcados como borrador. */
+  liquidacion: Liquidacion
   /** Fecha en que se abonaron los netos, si ya se registró el pago en Tesorería. */
   fechaPago?: string
   /** Constancia del último depósito de aportes (art. 140 inc. g LCT), tomada del pago de cargas
@@ -703,13 +702,15 @@ function celdaMonto(valor: number): string {
   return valor === 0 ? '<td class="num" style="color:' + COLOR.textoMuted + '">—</td>' : `<td class="num">${formatoMoneda(valor)}</td>`
 }
 
-function reciboDeEmpleado(empleado: Empleado, datos: ReciboSueldoData): string {
-  const { nombreNegocio, empleador, mes } = datos
-  const costo = calcularCostoEmpleado(empleado)
-  const conceptos = empleado.conceptos ?? []
+function reciboDeEmpleado(costo: ReciboLiquidado, datos: ReciboSueldoData): string {
+  const { nombreNegocio, empleador } = datos
+  const mes = datos.liquidacion.mes
+  const empleado = costo
+  const conceptos = costo.conceptos
+  const esBorrador = costo.numeroRecibo === 0
 
   const filasHaberes = [
-    `<tr><td>Sueldo básico</td><td class="num">${formatoMoneda(empleado.sueldoBruto)}</td>${celdaMonto(0)}</tr>`,
+    `<tr><td>Sueldo básico</td><td class="num">${formatoMoneda(costo.sueldoBasico)}</td>${celdaMonto(0)}</tr>`,
     ...conceptos.map(
       (c) =>
         `<tr><td>${escapeHtml(c.descripcion || 'Sin descripción')}</td>` +
@@ -736,10 +737,14 @@ function reciboDeEmpleado(empleado: Empleado, datos: ReciboSueldoData): string {
             <span class="logo">F</span>
             <span class="marca-nombre">Fin<span>Corp</span></span>
           </div>
-          <h1>Recibo de sueldo</h1>
+          <h1>Recibo de sueldo${datos.liquidacion.tipo === 'aguinaldo' ? ' — Aguinaldo (SAC)' : ''}</h1>
           <p style="margin:0;color:${COLOR.textoSecundario};font-size:13px">${escapeHtml(nombreNegocio)} — ${escapeHtml(etiquetaMesLargo(mes))}</p>
         </div>
-        <p class="meta">Generado el<br>${escapeHtml(new Date().toLocaleDateString('es-AR'))}</p>
+        <p class="meta">${
+          esBorrador
+            ? `<span class="borrador">BORRADOR — sin numerar</span><br>Cerrá la liquidación<br>para emitirlo`
+            : `Recibo N.º<br><strong style="font-size:18px;color:${COLOR.navy}">${String(costo.numeroRecibo).padStart(6, '0')}</strong>`
+        }</p>
       </div>
 
       <table class="datos-empleado">
@@ -780,14 +785,14 @@ function reciboDeEmpleado(empleado: Empleado, datos: ReciboSueldoData): string {
 
       <div class="neto">
         <span>Neto a cobrar</span>
-        <strong>${formatoMoneda(costo.sueldoNeto)}</strong>
+        <strong>${formatoMoneda(costo.neto)}</strong>
       </div>
 
       <table class="tabla costo-empresa">
         <thead><tr><th colspan="2">Costo para la empresa (no forma parte del recibo del empleado)</th></tr></thead>
         <tbody>
-          <tr><td>Haberes totales</td><td class="num">${formatoMoneda(costo.brutoTotal)}</td></tr>
-          <tr><td>Contribuciones patronales (${formatoPorcentaje(empleado.contribucionesPatronalesPct)} s/ remunerativo)</td><td class="num">${formatoMoneda(costo.contribucionesPatronales)}</td></tr>
+          <tr><td>Haberes totales</td><td class="num">${formatoMoneda(costo.remunerativo + costo.noRemunerativo)}</td></tr>
+          <tr><td>Contribuciones patronales s/ remunerativo</td><td class="num">${formatoMoneda(costo.contribucionesPatronales)}</td></tr>
           <tr><td>Cargas sociales adicionales — ART, seguro de vida, sindicato</td><td class="num">${formatoMoneda(costo.cargasSocialesAdicionales)}</td></tr>
         </tbody>
         <tfoot><tr><td>Costo total</td><td class="num">${formatoMoneda(costo.costoEmpresa)}</td></tr></tfoot>
@@ -833,6 +838,7 @@ const ESTILO_RECIBO = `
   .neto { display: flex; align-items: center; justify-content: space-between; gap: 16px; border: 2px solid ${COLOR.navy}; border-radius: 8px; padding: 12px 16px; margin: 0 0 22px; }
   .neto span { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: ${COLOR.textoSecundario}; }
   .neto strong { font-size: 22px; color: ${COLOR.navy}; font-variant-numeric: tabular-nums; }
+  .borrador { display:inline-block; background:${COLOR.advertencia}; color:white; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:700; letter-spacing:.04em; }
   .legales td:first-child { color: ${COLOR.textoSecundario}; }
   .legales .num { text-align: right; font-weight: 500; }
   .costo-empresa thead th { background: ${COLOR.fondo}; color: ${COLOR.textoMuted}; font-weight: 500; }
@@ -847,7 +853,7 @@ const ESTILO_RECIBO = `
  * como PDF con el diálogo del navegador. */
 export function abrirRecibosSueldo(datos: ReciboSueldoData) {
   const tituloNegocio = datos.nombreNegocio.trim() || 'Tu negocio'
-  const cuerpo = datos.empleados.map((e) => reciboDeEmpleado(e, { ...datos, nombreNegocio: tituloNegocio })).join('')
+  const cuerpo = datos.liquidacion.recibos.map((r) => reciboDeEmpleado(r, { ...datos, nombreNegocio: tituloNegocio })).join('')
   const pie =
     'Duplicado del recibo de haberes emitido por el empleador. Los importes surgen de los datos cargados en FinCorp; ' +
     'verificá la liquidación con tu asesor contable antes de firmarlo. Elaborado con FinCorp · Juan Costantini, ' +
@@ -855,6 +861,136 @@ export function abrirRecibosSueldo(datos: ReciboSueldoData) {
   const html = documentoBase('Recibo de sueldo', tituloNegocio, cuerpo, pie).replace(
     '</style>',
     `${ESTILO_RECIBO}</style>`,
+  )
+  abrirDocumentoHtml(html)
+}
+
+// ---------------------------------------------------------------------------
+// Libro de sueldos (art. 52 LCT)
+// ---------------------------------------------------------------------------
+//
+// El registro de todas las liquidaciones cerradas, en orden cronológico, con una fila por recibo
+// emitido y los totales de cada período. Solo entra lo cerrado: un mes en borrador no es un
+// asiento del libro.
+
+export interface LibroSueldosData {
+  nombreNegocio: string
+  empleador: DatosEmpleador
+  liquidaciones: Liquidacion[]
+}
+
+function periodoDelLibro(liquidacion: Liquidacion): string {
+  const totales = totalesDeLiquidacion(liquidacion.recibos)
+  const filas = liquidacion.recibos
+    .map(
+      (r) => `
+        <tr>
+          <td class="num">${String(r.numeroRecibo).padStart(6, '0')}</td>
+          <td>${escapeHtml(r.nombre)}</td>
+          <td>${escapeHtml(r.cuil || '—')}</td>
+          <td>${escapeHtml(fechaCorta(r.fechaIngreso))}</td>
+          <td>${escapeHtml(r.categoria || '—')}</td>
+          <td class="num">${formatoMoneda(r.remunerativo)}</td>
+          <td class="num">${formatoMoneda(r.noRemunerativo)}</td>
+          <td class="num">${formatoMoneda(r.totalDescuentos)}</td>
+          <td class="num"><strong>${formatoMoneda(r.neto)}</strong></td>
+        </tr>`,
+    )
+    .join('')
+
+  return `
+    <section class="periodo">
+      <h2>${escapeHtml(etiquetaMesLargo(liquidacion.mes))} — ${escapeHtml(TIPO_LIQUIDACION_LABEL[liquidacion.tipo])}
+        <span class="cerrada">Cerrada el ${escapeHtml(fechaCorta(liquidacion.fechaCierre))}</span>
+      </h2>
+      <table class="tabla">
+        <thead>
+          <tr>
+            <th class="num">Recibo</th><th>Apellido y nombre</th><th>CUIL</th><th>Ingreso</th><th>Categoría</th>
+            <th class="num">Remunerativo</th><th class="num">No remun.</th><th class="num">Descuentos</th><th class="num">Neto</th>
+          </tr>
+        </thead>
+        <tbody>${filas}</tbody>
+        <tfoot>
+          <tr>
+            <td colspan="5">Totales del período (${liquidacion.recibos.length} recibo${liquidacion.recibos.length === 1 ? '' : 's'})</td>
+            <td class="num">${formatoMoneda(totales.remunerativo)}</td>
+            <td class="num">${formatoMoneda(totales.noRemunerativo)}</td>
+            <td class="num">${formatoMoneda(totales.descuentos)}</td>
+            <td class="num">${formatoMoneda(totales.neto)}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </section>
+  `
+}
+
+const ESTILO_LIBRO = `
+  .hoja { max-width: 1120px; }
+  .periodo .tabla { font-size: 11px; table-layout: fixed; }
+  .periodo .tabla th, .periodo .tabla td { padding: 5px 7px; overflow-wrap: anywhere; }
+  .periodo .tabla th:nth-child(1), .periodo .tabla td:nth-child(1) { width: 62px; }
+  .periodo .tabla th:nth-child(3), .periodo .tabla td:nth-child(3) { width: 110px; }
+  .periodo .tabla th:nth-child(4), .periodo .tabla td:nth-child(4) { width: 78px; }
+  .periodo .tabla th:nth-child(5), .periodo .tabla td:nth-child(5) { width: 150px; }
+  @page { size: A4 landscape; margin: 12mm; }
+  .periodo { margin-bottom: 30px; }
+  .periodo h2 { display:flex; align-items:baseline; gap:10px; font-size:15px; margin:0 0 10px; }
+  .cerrada { font-size: 11px; font-weight: 400; color: ${COLOR.textoMuted}; }
+  .libro-totales { border:2px solid ${COLOR.navy}; border-radius:8px; padding:12px 16px; margin-top:24px; }
+  .libro-totales h3 { margin:0 0 8px; font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:${COLOR.textoSecundario}; }
+  .libro-totales div { display:flex; justify-content:space-between; font-size:13px; padding:3px 0; }
+  .libro-totales strong { font-variant-numeric: tabular-nums; }
+`
+
+export function abrirLibroSueldos(datos: LibroSueldosData) {
+  const tituloNegocio = datos.nombreNegocio.trim() || 'Tu negocio'
+  const primerNumero = (l: Liquidacion) => l.recibos[0]?.numeroRecibo ?? 0
+  const ordenadas = [...datos.liquidaciones].sort((a, b) => a.mes.localeCompare(b.mes) || primerNumero(a) - primerNumero(b))
+
+  if (ordenadas.length === 0) {
+    const vacio = `
+      ${encabezadoDocumento(`Libro de sueldos y jornales — ${tituloNegocio}`, 'Art. 52 de la Ley de Contrato de Trabajo')}
+      <p style="color:${COLOR.textoMuted}">Todavía no cerraste ninguna liquidación, así que el libro está vacío.</p>
+    `
+    abrirDocumentoHtml(documentoBase('Libro de sueldos', tituloNegocio, vacio))
+    return
+  }
+
+  const acumulado = totalesDeLiquidacion(ordenadas.flatMap((l) => l.recibos))
+  const cuerpo = `
+    ${encabezadoDocumento(`Libro de sueldos y jornales — ${tituloNegocio}`, 'Art. 52 de la Ley de Contrato de Trabajo')}
+    <table class="datos-empleado">
+      <tr>
+        <td><span>Empleador</span><strong>${escapeHtml(tituloNegocio)}</strong></td>
+        <td><span>CUIT</span><strong>${escapeHtml(datos.empleador.cuit || '—')}</strong></td>
+        <td><span>Domicilio</span><strong>${escapeHtml(datos.empleador.domicilio || '—')}</strong></td>
+      </tr>
+      <tr>
+        <td><span>Períodos registrados</span><strong>${ordenadas.length}</strong></td>
+        <td><span>Desde</span><strong>${escapeHtml(etiquetaMesLargo(ordenadas[0].mes))}</strong></td>
+        <td><span>Hasta</span><strong>${escapeHtml(etiquetaMesLargo(ordenadas[ordenadas.length - 1].mes))}</strong></td>
+      </tr>
+    </table>
+    ${ordenadas.map(periodoDelLibro).join('')}
+    <div class="libro-totales">
+      <h3>Acumulado de todos los períodos</h3>
+      <div><span>Remuneraciones</span><strong>${formatoMoneda(acumulado.remunerativo)}</strong></div>
+      <div><span>Sumas no remunerativas</span><strong>${formatoMoneda(acumulado.noRemunerativo)}</strong></div>
+      <div><span>Descuentos al personal</span><strong>${formatoMoneda(acumulado.descuentos)}</strong></div>
+      <div><span>Neto abonado</span><strong>${formatoMoneda(acumulado.neto)}</strong></div>
+      <div><span>Contribuciones y cargas a cargo del empleador</span><strong>${formatoMoneda(acumulado.contribuciones)}</strong></div>
+      <div><span>Costo laboral total</span><strong>${formatoMoneda(acumulado.costoEmpresa)}</strong></div>
+    </div>
+  `
+
+  const pie =
+    'Libro de sueldos y jornales generado con FinCorp a partir de las liquidaciones cerradas. Para tener validez legal ' +
+    'debe estar rubricado por la autoridad administrativa del trabajo que corresponda a la jurisdicción. ' +
+    'Juan Costantini, Contador Público (MP: T20F94).'
+  const html = documentoBase('Libro de sueldos', tituloNegocio, cuerpo, pie).replace(
+    '</style>',
+    `${ESTILO_RECIBO}${ESTILO_LIBRO}</style>`,
   )
   abrirDocumentoHtml(html)
 }
