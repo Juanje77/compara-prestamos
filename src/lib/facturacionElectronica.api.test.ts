@@ -22,9 +22,13 @@ import {
 // autorizaciones que quedan sin confirmar— que en el estudio de factibilidad figuraban como
 // imposibles de ensayar antes de producción. Resulta que sí se pueden.
 
-const TOKEN = process.env.SISTEMAS360_TOKEN
-const BASE_URL = (process.env.SISTEMAS360_BASE_URL ?? 'https://api.sistemas360.ar').replace(/\/$/, '')
-const EMISOR_ID = process.env.SISTEMAS360_EMISOR_ID
+// El tsconfig de la app no incluye los tipos de Node, y no vale la pena agregarlos por esto: el
+// resto del código corre en el navegador y tenerlos habilitaría usar APIs de Node por error.
+const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {}
+
+const TOKEN = env.SISTEMAS360_TOKEN
+const BASE_URL = (env.SISTEMAS360_BASE_URL ?? 'https://api.sistemas360.ar').replace(/\/$/, '')
+const EMISOR_ID = env.SISTEMAS360_EMISOR_ID
 
 /** Sufijo único por corrida: las referencias externas son idempotentes dentro del emisor, así que
  * sin esto la segunda corrida devolvería los comprobantes de la primera. */
