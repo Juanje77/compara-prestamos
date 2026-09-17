@@ -115,6 +115,7 @@ import {
   type TipoMovimientoStock,
 } from '../lib/cfo'
 import { Card } from '../components/Card'
+import { Button } from '../components/Button'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
 import { exportarParaContador } from '../lib/contadorExport'
 import { abrirInformeFinanciero, abrirInformeSaludFinanciera } from '../lib/htmlReport'
@@ -1871,13 +1872,9 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
               className="min-w-[220px] flex-1 rounded-lg border px-3 py-2 text-sm sm:flex-none"
               style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
             />
-            <button
-              onClick={handleDescargarPdf}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-              style={{ background: 'var(--series-blue)' }}
-            >
-              <FileDown size={16} aria-hidden="true" /> Descargar informe financiero
-            </button>
+            <Button onClick={handleDescargarPdf} variante="primario" pill icono={<FileDown size={16} aria-hidden="true" />}>
+              Descargar informe financiero
+            </Button>
           </div>
 
           <section

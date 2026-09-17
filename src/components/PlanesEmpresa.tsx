@@ -4,6 +4,8 @@ import { useAuth } from '../lib/AuthContext'
 import { formatoMoneda } from '../lib/finance'
 import type { PlanTier } from '../lib/plan'
 import { LoginModal } from './LoginModal'
+import { Card } from './Card'
+import { Button } from './Button'
 
 interface PlanConfig {
   key: PlanTier
@@ -133,14 +135,7 @@ export function PlanesEmpresa({ motivoVencimiento }: Props) {
 
       <div className="mx-auto mb-8 grid max-w-5xl grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {PLANES.map((p) => (
-          <div
-            key={p.key}
-            className="flex flex-col rounded-xl border p-6"
-            style={{
-              borderColor: p.key === 'full' ? 'var(--series-blue)' : 'var(--border)',
-              background: p.key === 'full' ? 'color-mix(in srgb, var(--series-blue) 4%, var(--surface-1))' : 'var(--surface-1)',
-            }}
-          >
+          <Card key={p.key} padding="lg" destacada={p.key === 'full'} className="flex flex-col">
             <h2 className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>
               {p.nombre}
             </h2>
@@ -162,15 +157,10 @@ export function PlanesEmpresa({ motivoVencimiento }: Props) {
                 </li>
               ))}
             </ul>
-            <button
-              onClick={() => suscribirse(p.key)}
-              disabled={cargando !== null}
-              className="mt-6 rounded-full px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-              style={{ background: 'var(--series-blue)' }}
-            >
+            <Button onClick={() => suscribirse(p.key)} disabled={cargando !== null} variante="primario" pill className="mt-6">
               {cargando === p.key ? 'Redirigiendo a Mercado Pago…' : `Suscribirme al ${p.nombre}`}
-            </button>
-          </div>
+            </Button>
+          </Card>
         ))}
       </div>
 

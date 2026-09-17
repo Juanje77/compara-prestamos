@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react'
 import { Lock } from 'lucide-react'
+import { Card } from './Card'
+import { Button } from './Button'
 
 interface Props {
   activo: boolean
@@ -18,10 +20,7 @@ export function PremiumLock({ activo, titulo, descripcion, nivelRequerido = 'med
   const nombrePlan = nivelRequerido === 'full' ? 'Full' : 'Medio'
 
   return (
-    <div
-      className="rounded-xl border p-8 text-center"
-      style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}
-    >
+    <Card padding="lg" className="text-center">
       <p className="inline-flex items-center gap-1.5 text-sm font-semibold tracking-wide" style={{ color: 'var(--series-blue)' }}>
         <Lock size={14} aria-hidden="true" /> Función {nombrePlan}
       </p>
@@ -31,13 +30,9 @@ export function PremiumLock({ activo, titulo, descripcion, nivelRequerido = 'med
       <p className="mx-auto mt-2 max-w-md text-sm" style={{ color: 'var(--text-secondary)' }}>
         {descripcion}
       </p>
-      <button
-        onClick={onQuieroPremium}
-        className="mt-5 rounded-full px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-        style={{ background: 'var(--series-blue)' }}
-      >
+      <Button onClick={onQuieroPremium} variante="primario" pill className="mt-5">
         Actualizar a {nombrePlan}
-      </button>
-    </div>
+      </Button>
+    </Card>
   )
 }
