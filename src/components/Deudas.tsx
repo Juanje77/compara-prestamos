@@ -1,7 +1,9 @@
 import { useState } from 'react'
+import { Trash2 } from 'lucide-react'
 import type { Deuda } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
+import { IconButton } from './IconButton'
 
 interface Props {
   deudas: Deuda[]
@@ -106,14 +108,7 @@ export function Deudas({ deudas, onAgregar, onEliminar }: Props) {
               <span className="tabular shrink-0 font-medium" style={{ color: 'var(--text-primary)' }}>
                 {formatoMoneda(d.montoAdeudado)}
               </span>
-              <button
-                onClick={() => onEliminar(d.id)}
-                aria-label="Eliminar deuda"
-                className="shrink-0 text-xs"
-                style={{ color: 'var(--text-muted)' }}
-              >
-                🗑
-              </button>
+              <IconButton icon={Trash2} onClick={() => onEliminar(d.id)} label="Eliminar deuda" className="shrink-0" />
             </li>
           ))}
         </ul>

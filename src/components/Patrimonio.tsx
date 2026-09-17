@@ -1,7 +1,9 @@
 import { useState } from 'react'
+import { Trash2 } from 'lucide-react'
 import { TIPOS_BIEN_LABEL, type Bien, type TipoBien } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
+import { IconButton } from './IconButton'
 
 interface Props {
   bienes: Bien[]
@@ -97,14 +99,7 @@ export function Patrimonio({ bienes, runwayExtendido, onAgregar, onEliminar }: P
               <span className="tabular shrink-0 font-medium" style={{ color: 'var(--text-primary)' }}>
                 {formatoMoneda(b.valorEstimado)}
               </span>
-              <button
-                onClick={() => onEliminar(b.id)}
-                aria-label="Eliminar bien"
-                className="shrink-0 text-xs"
-                style={{ color: 'var(--text-muted)' }}
-              >
-                🗑
-              </button>
+              <IconButton icon={Trash2} onClick={() => onEliminar(b.id)} label="Eliminar bien" className="shrink-0" />
             </li>
           ))}
         </ul>

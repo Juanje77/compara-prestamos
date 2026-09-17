@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import { Trash2 } from 'lucide-react'
 import type { MargenSector } from '../lib/cfo'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
+import { IconButton } from './IconButton'
 
 interface Props {
   sectores: { id: string; nombre: string }[]
@@ -186,13 +188,7 @@ export function MargenesPorSector({ sectores, margenes, mes, onCambiarMes, onAgr
                 style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
               >
                 {s.nombre}
-                <button
-                  onClick={() => onEliminarSector(s.id)}
-                  aria-label={`Eliminar sector ${s.nombre}`}
-                  style={{ color: 'var(--text-muted)' }}
-                >
-                  🗑
-                </button>
+                <IconButton icon={Trash2} onClick={() => onEliminarSector(s.id)} label={`Eliminar sector ${s.nombre}`} />
               </li>
             ))}
           </ul>

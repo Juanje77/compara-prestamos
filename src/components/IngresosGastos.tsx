@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react'
+import { Trash2 } from 'lucide-react'
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 import type { MedioCobro, MovimientoDiario, TipoMovimientoDiario } from '../lib/cfo'
 import { MEDIOS_COBRO_LABEL, calcularResumenMovimientosDiarios, calcularTotalesPorMedioCobro } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
+import { IconButton } from './IconButton'
 
 interface Props {
   movimientos: MovimientoDiario[]
@@ -268,14 +270,7 @@ export function IngresosGastos({ movimientos, onAgregar, onEliminar }: Props) {
                     {m.tipo === 'gasto' ? '-' : ''}
                     {formatoMoneda(m.monto)}
                   </span>
-                  <button
-                    onClick={() => onEliminar(m.id)}
-                    aria-label="Eliminar movimiento"
-                    className="shrink-0 text-xs"
-                    style={{ color: 'var(--text-muted)' }}
-                  >
-                    🗑
-                  </button>
+                  <IconButton icon={Trash2} onClick={() => onEliminar(m.id)} label="Eliminar movimiento" className="shrink-0" />
                 </li>
               ))}
             </ul>

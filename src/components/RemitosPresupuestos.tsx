@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import { Trash2 } from 'lucide-react'
 import type { CuentaBancaria, Factura, LineaProducto, MedioPago, Producto, RemitoConSaldo, Sector, TipoDocumentoAnticipo, TipoFactura } from '../lib/cfo'
 import { MEDIOS_PAGO_LABEL, calcularMontoDesdeLineas } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
+import { IconButton } from './IconButton'
 
 interface Props {
   remitosCobrar: RemitoConSaldo[]
@@ -109,9 +111,7 @@ function TarjetaRemito({
             </span>
           )}
         </p>
-        <button onClick={() => onEliminar(remito.id)} aria-label="Eliminar" className="shrink-0 text-xs" style={{ color: 'var(--text-muted)' }}>
-          🗑
-        </button>
+        <IconButton icon={Trash2} onClick={() => onEliminar(remito.id)} label="Eliminar" className="shrink-0" />
       </div>
       <p className="mt-0.5 text-xs" style={{ color: 'var(--text-muted)' }}>
         {new Date(`${remito.fecha}T00:00:00`).toLocaleDateString('es-AR')} · Total {formatoMoneda(remito.monto)} · Anticipado{' '}
@@ -554,14 +554,7 @@ export function RemitosPresupuestos({
                       <span className="tabular shrink-0 font-semibold" style={{ color: 'var(--text-primary)' }}>
                         {formatoMoneda(l.cantidad * l.precioUnitario)}
                       </span>
-                      <button
-                        onClick={() => handleEliminarLinea(i)}
-                        aria-label="Quitar línea"
-                        className="shrink-0"
-                        style={{ color: 'var(--text-muted)' }}
-                      >
-                        🗑
-                      </button>
+                      <IconButton icon={Trash2} onClick={() => handleEliminarLinea(i)} label="Quitar línea" className="shrink-0" />
                     </li>
                   )
                 })}

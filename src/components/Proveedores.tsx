@@ -1,7 +1,9 @@
 import { useState } from 'react'
+import { Trash2 } from 'lucide-react'
 import type { ProveedorResumen } from '../lib/cfo'
 import { CATEGORIAS_GASTO } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
+import { IconButton } from './IconButton'
 
 interface Props {
   proveedores: ProveedorResumen[]
@@ -124,14 +126,7 @@ export function Proveedores({ proveedores, onClasificar, onAgregarManual, onElim
                   </td>
                   <td className="py-2 text-right">
                     {p.cantidad === 0 && (
-                      <button
-                        onClick={() => onEliminarManual(p.proveedor)}
-                        aria-label="Eliminar proveedor"
-                        className="shrink-0 text-xs"
-                        style={{ color: 'var(--text-muted)' }}
-                      >
-                        🗑
-                      </button>
+                      <IconButton icon={Trash2} onClick={() => onEliminarManual(p.proveedor)} label="Eliminar proveedor" className="shrink-0" />
                     )}
                   </td>
                 </tr>

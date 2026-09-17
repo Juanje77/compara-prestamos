@@ -1,9 +1,11 @@
 import { useState } from 'react'
+import { Trash2 } from 'lucide-react'
 import type { MovimientoStock, Producto, TipoMovimientoStock } from '../lib/cfo'
 import { calcularValorInventario, listarProductosBajoMinimo } from '../lib/cfo'
 import { importarProductosDesdeExcel } from '../lib/excelImport'
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
+import { IconButton } from './IconButton'
 
 interface Props {
   productos: Producto[]
@@ -201,17 +203,15 @@ function FilaProducto({
           >
             {expandido ? 'Cerrar' : '± Ajustar'}
           </button>
-          <button
+          <IconButton
+            icon={Trash2}
             onClick={() => {
               if (movimientosDelProducto.length > 0 && !window.confirm(`"${producto.nombre}" tiene movimientos cargados. ¿Eliminarlo igual? También se borra su historial.`)) return
               onEliminarProducto(producto.id)
             }}
-            aria-label="Eliminar producto"
-            className="ml-2 text-xs"
-            style={{ color: 'var(--text-muted)' }}
-          >
-            🗑
-          </button>
+            label="Eliminar producto"
+            className="ml-2"
+          />
         </td>
       </tr>
       {expandido && (
@@ -308,14 +308,7 @@ function FilaProducto({
                         </span>
                       )}
                       {!m.remitoId && (
-                        <button
-                          onClick={() => onEliminarMovimiento(m.id)}
-                          aria-label="Eliminar movimiento"
-                          className="ml-auto shrink-0"
-                          style={{ color: 'var(--text-muted)' }}
-                        >
-                          🗑
-                        </button>
+                        <IconButton icon={Trash2} onClick={() => onEliminarMovimiento(m.id)} label="Eliminar movimiento" className="ml-auto shrink-0" />
                       )}
                     </li>
                   ))}

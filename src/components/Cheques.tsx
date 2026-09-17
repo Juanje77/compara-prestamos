@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import { Trash2 } from 'lucide-react'
 import type { Cheque, CuentaBancaria, EstadoCheque, Factura, TipoCheque } from '../lib/cfo'
 import { calcularTotalesCheques, estadosChequeDisponibles, etiquetaEstadoCheque, montoNetoCheque } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
+import { IconButton } from './IconButton'
 
 interface Props {
   cheques: Cheque[]
@@ -367,14 +369,7 @@ export function Cheques({ cheques, facturas, cuentas, onAgregar, onCambiarEstado
                       {formatoMoneda(c.monto)}
                     </span>
                   )}
-                  <button
-                    onClick={() => onEliminar(c.id)}
-                    aria-label="Eliminar cheque"
-                    className="shrink-0 text-xs"
-                    style={{ color: 'var(--text-muted)' }}
-                  >
-                    🗑
-                  </button>
+                  <IconButton icon={Trash2} onClick={() => onEliminar(c.id)} label="Eliminar cheque" className="shrink-0" />
                 </li>
               ))}
             </ul>

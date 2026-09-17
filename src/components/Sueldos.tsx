@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Trash2 } from 'lucide-react'
 import {
   BASE_DESCUENTO_LABEL,
   CARGAS_SOCIALES_ADICIONALES_PCT_DEFAULT,
@@ -29,6 +30,7 @@ import {
 import { formatoMoneda } from '../lib/finance'
 import { abrirLibroSueldos, abrirRecibosSueldo } from '../lib/htmlReport'
 import { InputMoneda } from './InputMoneda'
+import { IconButton } from './IconButton'
 
 interface Props {
   nombreNegocio: string
@@ -171,9 +173,7 @@ function FilaEmpleado({
           >
             {empleado.activo ? 'Dar de baja' : 'Reactivar'}
           </button>
-          <button onClick={() => onEliminar(empleado.id)} aria-label="Eliminar" className="shrink-0 text-xs" style={{ color: 'var(--text-muted)' }}>
-            🗑
-          </button>
+          <IconButton icon={Trash2} onClick={() => onEliminar(empleado.id)} label="Eliminar" className="shrink-0" />
         </div>
       </div>
 
@@ -312,14 +312,7 @@ function FilaEmpleado({
               <option value="rem">Remunerativo</option>
               <option value="norem">No remunerativo</option>
             </select>
-            <button
-              onClick={() => cambiarConceptos(conceptos.filter((_, j) => j !== i))}
-              aria-label="Quitar haber"
-              className="shrink-0 text-xs"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              🗑
-            </button>
+            <IconButton icon={Trash2} onClick={() => cambiarConceptos(conceptos.filter((_, j) => j !== i))} label="Quitar haber" className="shrink-0" />
           </div>
         ))}
       </div>
@@ -376,14 +369,7 @@ function FilaEmpleado({
             <span className="tabular w-32 shrink-0 text-right text-sm" style={{ color: 'var(--text-secondary)' }}>
               {formatoMoneda(d.monto)}
             </span>
-            <button
-              onClick={() => cambiarDescuentos(descuentos.filter((_, j) => j !== i))}
-              aria-label="Quitar descuento"
-              className="shrink-0 text-xs"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              🗑
-            </button>
+            <IconButton icon={Trash2} onClick={() => cambiarDescuentos(descuentos.filter((_, j) => j !== i))} label="Quitar descuento" className="shrink-0" />
           </div>
         ))}
       </div>

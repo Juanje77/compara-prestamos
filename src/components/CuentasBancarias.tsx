@@ -1,7 +1,9 @@
 import { useState } from 'react'
+import { Trash2 } from 'lucide-react'
 import type { CuentaBancaria } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
+import { IconButton } from './IconButton'
 
 interface Props {
   cuentas: CuentaBancaria[]
@@ -95,14 +97,7 @@ export function CuentasBancarias({ cuentas, onAgregar, onCambiarSaldo, onElimina
                   color: c.saldo < 0 ? 'var(--status-critical)' : 'var(--text-primary)',
                 }}
               />
-              <button
-                onClick={() => onEliminar(c.id)}
-                aria-label="Eliminar cuenta"
-                className="shrink-0 text-xs"
-                style={{ color: 'var(--text-muted)' }}
-              >
-                🗑
-              </button>
+              <IconButton icon={Trash2} onClick={() => onEliminar(c.id)} label="Eliminar cuenta" className="shrink-0" />
             </li>
           ))}
         </ul>

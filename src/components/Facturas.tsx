@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Trash2 } from 'lucide-react'
 import { Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type {
   CuentaBancaria,
@@ -31,6 +32,7 @@ import { InfoTooltip } from './InfoTooltip'
 import { identificarComprobante } from '../lib/facturacionElectronica'
 import { EmitirComprobante } from './EmitirComprobante'
 import { NuevaNota } from './NuevaNota'
+import { IconButton } from './IconButton'
 
 interface Props {
   facturas: Factura[]
@@ -732,10 +734,10 @@ export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarV
                 ))}
                 <button
                   onClick={handleVaciar}
-                  className="rounded-full border px-3 py-1 text-xs font-medium"
+                  className="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium"
                   style={{ borderColor: 'var(--status-critical)', color: 'var(--status-critical)' }}
                 >
-                  🗑 Borrar todo
+                  <Trash2 size={12} aria-hidden="true" /> Borrar todo
                 </button>
               </div>
             </div>
@@ -887,14 +889,7 @@ export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarV
                           </button>
                         )
                       ))}
-                    <button
-                      onClick={() => onEliminar(f.id)}
-                      aria-label="Eliminar comprobante"
-                      className="shrink-0 text-xs"
-                      style={{ color: 'var(--text-muted)' }}
-                    >
-                      🗑
-                    </button>
+                    <IconButton icon={Trash2} onClick={() => onEliminar(f.id)} label="Eliminar comprobante" className="shrink-0" />
                   </li>
                 ))}
               </ul>

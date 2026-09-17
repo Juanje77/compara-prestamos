@@ -1,6 +1,8 @@
+import { Trash2 } from 'lucide-react'
 import type { SimulacionGuardada } from '../lib/history'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
 import { descargarPdfHistorial, descargarPdfSimulacion } from '../lib/pdf'
+import { IconButton } from './IconButton'
 
 const NOMBRE_TIPO: Record<SimulacionGuardada['tipo'], string> = {
   personal: 'Personal',
@@ -87,14 +89,7 @@ export function HistoryPanel({ historial, onEliminar }: Props) {
                     >
                       PDF
                     </button>
-                    <button
-                      onClick={() => onEliminar(sim.id)}
-                      aria-label="Eliminar simulación"
-                      className="text-xs"
-                      style={{ color: 'var(--text-muted)' }}
-                    >
-                      🗑
-                    </button>
+                    <IconButton icon={Trash2} onClick={() => onEliminar(sim.id)} label="Eliminar simulación" />
                   </td>
                 </tr>
               )

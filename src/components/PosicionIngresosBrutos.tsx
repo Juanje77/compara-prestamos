@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import { Trash2 } from 'lucide-react'
 import type { IngresosBrutosManualMes, PosicionIngresosBrutosMes } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
 import { InfoTooltip } from './InfoTooltip'
+import { IconButton } from './IconButton'
 
 interface Props {
   posicion: PosicionIngresosBrutosMes[]
@@ -194,15 +196,7 @@ export function PosicionIngresosBrutos({ posicion, onCambiarManual, onEliminarMe
                     )}
                   </td>
                   <td className="py-2 text-right">
-                    <button
-                      onClick={() => handleEliminarMes(p.mes)}
-                      aria-label={`Eliminar ${mesLegible(p.mes)}`}
-                      title="Eliminar mes"
-                      className="shrink-0 text-xs"
-                      style={{ color: 'var(--text-muted)' }}
-                    >
-                      🗑
-                    </button>
+                    <IconButton icon={Trash2} onClick={() => handleEliminarMes(p.mes)} label={`Eliminar ${mesLegible(p.mes)}`} className="shrink-0" />
                   </td>
                 </tr>
               ))}

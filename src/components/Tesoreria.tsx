@@ -1,9 +1,11 @@
 import { useState } from 'react'
+import { Trash2 } from 'lucide-react'
 import type { CuentaBancaria, MovimientoBancario, MovimientoTesoreria } from '../lib/cfo'
 import { MARGEN_DIAS_CONCILIACION, calcularResumenConciliacion, calcularSaldoTotalBancos, deltaDeMovimientoTesoreria, resumenPorCuenta } from '../lib/cfo'
 import { importarExtractoBancario } from '../lib/excelImport'
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
+import { IconButton } from './IconButton'
 
 interface Props {
   cuentas: CuentaBancaria[]
@@ -135,17 +137,15 @@ function FilaCuenta({
           >
             {conciliando ? 'Cerrar' : '🏦 Conciliar'}
           </button>
-          <button
+          <IconButton
+            icon={Trash2}
             onClick={() => {
               if (movimientos.length > 0 && !window.confirm(`"${cuenta.nombre}" tiene movimientos cargados. ¿Eliminarla igual? También se borra su historial.`)) return
               onEliminarCuenta(cuenta.id)
             }}
-            aria-label="Eliminar cuenta"
-            className="shrink-0 text-xs"
-            style={{ color: 'var(--text-muted)' }}
-          >
-            🗑
-          </button>
+            label="Eliminar cuenta"
+            className="shrink-0"
+          />
         </div>
       </div>
 
@@ -217,14 +217,7 @@ function FilaCuenta({
                     </span>
                   )}
                   {m.origen === 'manual' && (
-                    <button
-                      onClick={() => onEliminarMovimiento(m.id)}
-                      aria-label="Eliminar movimiento"
-                      className="ml-auto shrink-0"
-                      style={{ color: 'var(--text-muted)' }}
-                    >
-                      🗑
-                    </button>
+                    <IconButton icon={Trash2} onClick={() => onEliminarMovimiento(m.id)} label="Eliminar movimiento" className="ml-auto shrink-0" />
                   )}
                 </li>
               ))}
@@ -311,14 +304,7 @@ function FilaBancario({
       >
         + Ajuste
       </button>
-      <button
-        onClick={() => onEliminarMovimientoBancario(bancario.id)}
-        aria-label="Descartar fila del extracto"
-        className="shrink-0"
-        style={{ color: 'var(--text-muted)' }}
-      >
-        🗑
-      </button>
+      <IconButton icon={Trash2} onClick={() => onEliminarMovimientoBancario(bancario.id)} label="Descartar fila del extracto" className="shrink-0" />
     </li>
   )
 }

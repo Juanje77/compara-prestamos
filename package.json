@@ -19,6 +19,7 @@
     "firebase": "^12.19.0",
     "firebase-admin": "^14.4.0",
     "jspdf": "^4.2.1",
+    "lucide-react": "^1.47.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.3",

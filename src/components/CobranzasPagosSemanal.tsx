@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Trash2 } from 'lucide-react'
 import {
   agregarMovimiento,
   agregarMovimientos,
@@ -29,6 +30,7 @@ import {
   type PagoSueldos,
 } from '../lib/cfo'
 import { InputMoneda } from './InputMoneda'
+import { IconButton } from './IconButton'
 
 /** Los movimientos generados a partir de una factura llevan este prefijo en el id, para poder
  * distinguirlos de los cargados a mano (que no se pueden borrar ni editar desde acá). */
@@ -279,14 +281,7 @@ function FilaMovimiento({
         {formatoMoneda(m.monto)}
       </span>
       {!deFactura && !deCheque && (
-        <button
-          onClick={() => onEliminar(m.id)}
-          aria-label="Eliminar"
-          className="shrink-0 text-xs"
-          style={{ color: 'var(--text-muted)' }}
-        >
-          🗑
-        </button>
+        <IconButton icon={Trash2} onClick={() => onEliminar(m.id)} label="Eliminar" className="shrink-0" />
       )}
     </li>
   )

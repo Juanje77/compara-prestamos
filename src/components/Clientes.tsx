@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import { Trash2 } from 'lucide-react'
 import type { ClienteResumen } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
+import { IconButton } from './IconButton'
 
 interface Props {
   clientes: ClienteResumen[]
@@ -76,14 +78,7 @@ export function Clientes({ clientes, onAgregarManual, onEliminarManual }: Props)
                   </td>
                   <td className="py-2 text-right">
                     {c.cantidad === 0 && (
-                      <button
-                        onClick={() => onEliminarManual(c.cliente)}
-                        aria-label="Eliminar cliente"
-                        className="shrink-0 text-xs"
-                        style={{ color: 'var(--text-muted)' }}
-                      >
-                        🗑
-                      </button>
+                      <IconButton icon={Trash2} onClick={() => onEliminarManual(c.cliente)} label="Eliminar cliente" className="shrink-0" />
                     )}
                   </td>
                 </tr>

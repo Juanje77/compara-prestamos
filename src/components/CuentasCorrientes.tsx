@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Trash2 } from 'lucide-react'
 import type { CuentaBancaria, CuentaCorrienteContraparte, MedioPago, Pago, TipoDocumentoAnticipo, TipoFactura } from '../lib/cfo'
 import { MEDIOS_PAGO_LABEL } from '../lib/cfo'
 
@@ -8,6 +9,7 @@ const DOCUMENTO_LABEL: Record<TipoDocumentoAnticipo, string> = {
 }
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
+import { IconButton } from './IconButton'
 
 interface Props {
   cuentasCobrar: CuentaCorrienteContraparte[]
@@ -224,9 +226,7 @@ function TarjetaContraparte({
                     {formatoMoneda(p.monto)}
                   </span>
                   {p.medioPago && <span style={{ color: 'var(--text-muted)' }}>{MEDIOS_PAGO_LABEL[p.medioPago]}</span>}
-                  <button onClick={() => onEliminarPago(p.id)} aria-label="Eliminar pago" style={{ color: 'var(--text-muted)' }}>
-                    🗑
-                  </button>
+                  <IconButton icon={Trash2} onClick={() => onEliminarPago(p.id)} label="Eliminar pago" />
                 </li>
               ))}
             </ul>
