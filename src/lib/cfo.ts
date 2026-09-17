@@ -456,6 +456,9 @@ export interface DatosEmisorFiscal {
   /** Punto de venta habilitado para **web services** — es un tipo distinto del que se usa en
    * Comprobantes en Línea, y usar el equivocado hace que ARCA rechace la emisión. */
   puntoVenta: string
+  /** Id que la API fiscal le dio a este CUIT dentro de la cuenta de FinCorp. Lo devuelve el alta y
+   * viaja en cada emisión para decir de quién es la factura. El cliente nunca lo ve. */
+  emisorId?: number
   /** Ids de las etapas del circuito de ARCA ya completadas — ver ETAPAS_HABILITACION. */
   etapasCompletadas: string[]
 }

@@ -1,19 +1,39 @@
-// Cliente de los endpoints propios de facturación (api/guardar-token-fiscal.js y
-// api/emitir-comprobante.js).
+// Cliente de los endpoints propios de facturación.
 //
-// Todo pasa por el backend: el token de emisión nunca se descarga al navegador, y esta capa no
-// tiene forma de leerlo. Lo único que viaja de vuelta es si está configurado y su pista.
+// El token de la API fiscal es de FinCorp y vive en el servidor: el navegador no lo ve ni puede
+// pedirlo. Desde acá se piden acciones —dar de alta un CUIT, consultar el padrón, emitir— y el
+// backend decide con qué credencial y con qué emisor las ejecuta.
 import { auth } from './firebase'
 import type { PayloadComprobante } from './facturacionElectronica'
 
-export type AmbienteFiscal = 'pruebas' | 'produccion'
+/** Lo que devuelve el alta del CUIT ante la API fiscal. */
+export interface EmisorFiscal {
+  emisor_id: number
+  cuit: string
+  razon_social: string
+  condicion_iva?: string | null
+  estado_emisor: string
+  estado_configuracion: string
+  situacion_arca: string
+}
 
-export interface EstadoTokenFiscal {
-  configurado: boolean
-  /** Últimos cuatro caracteres, enmascarados — nunca el token entero. */
-  pista: string | null
-  ambiente: AmbienteFiscal | null
-  actualizadoEn: string | null
+/** Datos del receptor tal como los normaliza el padrón de ARCA. */
+export interface ClienteSugerido {
+  documento_tipo: string
+  documento_numero: string
+  razon_social: string
+  condicion_iva_receptor_id: number
+  direccion?: string
+  localidad?: string
+  provincia?: string
+}
+
+export interface Contribuyente {
+  cuit: string
+  razon_social: string
+  condicion_iva?: string
+  estado_clave?: string
+  cliente_sugerido?: ClienteSugerido
 }
 
 export interface ResultadoEmisionApi {
@@ -73,19 +93,15 @@ async function pedir<T>(ruta: string, opciones: RequestInit = {}): Promise<T> {
   return cuerpo as T
 }
 
-export function consultarTokenFiscal(): Promise<EstadoTokenFiscal> {
-  return pedir<EstadoTokenFiscal>('/api/guardar-token-fiscal')
+/** Da de alta el CUIT del cliente como emisor. Idempotente del lado de la API: repetirlo con el
+ * mismo CUIT devuelve el emisor que ya existe. */
+export function darDeAltaEmisor(cuit: string, razonSocial?: string): Promise<{ emisor: EmisorFiscal | null }> {
+  return pedir('/api/alta-emisor', { method: 'POST', body: JSON.stringify({ cuit, razonSocial }) })
 }
 
-export function guardarTokenFiscal(token: string, ambiente: AmbienteFiscal): Promise<EstadoTokenFiscal> {
-  return pedir<EstadoTokenFiscal>('/api/guardar-token-fiscal', {
-    method: 'POST',
-    body: JSON.stringify({ token, ambiente }),
-  })
-}
-
-export function revocarTokenFiscal(): Promise<EstadoTokenFiscal> {
-  return pedir<EstadoTokenFiscal>('/api/guardar-token-fiscal', { method: 'DELETE' })
+/** Datos fiscales de un CUIT, para completar el receptor de una factura sin tipearlos. */
+export function consultarCuit(cuit: string): Promise<{ contribuyente: Contribuyente | null }> {
+  return pedir(`/api/consultar-cuit?cuit=${encodeURIComponent(cuit.replace(/\D/g, ''))}`)
 }
 
 export function emitirComprobante(payload: PayloadComprobante): Promise<ResultadoEmisionApi> {

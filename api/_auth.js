@@ -36,10 +36,18 @@ export function planHabilitaEmitir(datosPlan, ahora = new Date()) {
   return true
 }
 
-/** Documento donde vive el token de emisión de un usuario. El SDK del navegador no puede leerlo:
- * las reglas de Firestore cierran la colección entera y sólo entra el Admin SDK. */
-export function refTokenFiscal(db, uid) {
-  return db.collection('users').doc(uid).collection('secretos').doc('fiscal')
+/**
+ * El CUIT emisor del usuario, tal como quedó registrado ante la API fiscal. Sale de Firestore y
+ * NUNCA de lo que manda el navegador: si el cliente pudiera elegir el `emisor_id`, podría emitir
+ * facturas con el CUIT de otro contribuyente de la misma cuenta.
+ *
+ * Devuelve `null` cuando el usuario todavía no dio de alta su CUIT, o cuando el token configurado
+ * es de un solo emisor y por lo tanto no hace falta.
+ */
+export async function emisorIdDe(db, uid) {
+  const snap = await db.collection('users').doc(uid).get()
+  const id = snap.data()?.negocioData?.datosEmisorFiscal?.emisorId
+  return Number.isInteger(id) && id > 0 ? id : null
 }
 
 export function refPlan(db, uid) {

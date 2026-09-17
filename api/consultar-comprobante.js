@@ -7,10 +7,8 @@
 //
 // Volver a emitir sería el error grave acá, y por eso este endpoint existe aparte del de emisión.
 import { obtenerFirestoreAdmin } from './_firebaseAdmin.js'
-import { planHabilitaEmitir, refPlan, refTokenFiscal, uidAutenticado } from './_auth.js'
-
-const BASE_URL = (process.env.SISTEMAS360_BASE_URL ?? 'https://api.sistemas360.ar').replace(/\/$/, '')
-const TIMEOUT_MS = Number(process.env.SISTEMAS360_TIMEOUT_MS ?? 15000)
+import { planHabilitaEmitir, refPlan, uidAutenticado } from './_auth.js'
+import { llamarApiFiscal } from './_sistemas360.js'
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store')
@@ -32,19 +30,12 @@ export default async function handler(req, res) {
     return
   }
 
-  let token
   try {
     const db = obtenerFirestoreAdmin()
-    const [planSnap, tokenSnap] = await Promise.all([refPlan(db, uid).get(), refTokenFiscal(db, uid).get()])
+    const planSnap = await refPlan(db, uid).get()
 
     if (!planHabilitaEmitir(planSnap.data())) {
       res.status(403).json({ error: 'La facturación electrónica es parte del plan Full.' })
-      return
-    }
-
-    token = tokenSnap.data()?.token
-    if (!token) {
-      res.status(409).json({ error: 'Todavía no cargaste el token de emisión.' })
       return
     }
   } catch {
@@ -52,26 +43,15 @@ export default async function handler(req, res) {
     return
   }
 
-  const control = new AbortController()
-  const reloj = setTimeout(() => control.abort(), TIMEOUT_MS)
   try {
     // Sin body ni cabecera de escenario, según el contrato.
-    const respuesta = await fetch(`${BASE_URL}/api/comprobantes/${comprobanteId}/reintentar`, {
+    const { status, cuerpo } = await llamarApiFiscal(`/api/comprobantes/${comprobanteId}/reintentar`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
-      signal: control.signal,
     })
 
-    let cuerpo = null
-    try {
-      cuerpo = await respuesta.json()
-    } catch {
-      cuerpo = null
-    }
-
     // 409 significa que sigue sin confirmarse: no es un error del integrador, es "seguí esperando".
-    if (!respuesta.ok && respuesta.status !== 409) {
-      res.status(respuesta.status).json({
+    if (status !== 200 && status !== 409) {
+      res.status(status).json({
         error: 'No se pudo confirmar el estado del comprobante.',
         comprobanteId,
         consultable: true,
@@ -80,14 +60,12 @@ export default async function handler(req, res) {
       return
     }
 
-    res.status(200).json({ comprobanteId, sinConfirmar: respuesta.status === 409, respuesta: cuerpo })
+    res.status(200).json({ comprobanteId, sinConfirmar: status === 409, respuesta: cuerpo })
   } catch {
     res.status(504).json({
       error: 'La consulta tardó demasiado. El comprobante sigue sin confirmarse.',
       comprobanteId,
       consultable: true,
     })
-  } finally {
-    clearTimeout(reloj)
   }
 }

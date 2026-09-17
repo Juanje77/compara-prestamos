@@ -1,20 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { CONDICIONES_EMISOR, type DatosEmisorFiscal } from '../lib/cfo'
 import { esCuitValido, limpiarCuit } from '../lib/cuit'
-import {
-  consultarTokenFiscal,
-  guardarTokenFiscal,
-  revocarTokenFiscal,
-  type AmbienteFiscal,
-  type EstadoTokenFiscal,
-} from '../lib/facturacionApi'
+import { darDeAltaEmisor, ErrorFacturacion } from '../lib/facturacionApi'
 
 // Circuito de habilitación para emitir con CAE. Los pasos de ARCA salen del instructivo oficial de
 // Sistemas 360; los de la API, de su documentación pública.
 //
-// Esta pantalla NO emite y NO guarda el token: el token es una credencial de emisión y no puede
-// vivir en localStorage ni en el bundle. Lo que hace es dejar al contribuyente en condiciones de
-// generarlo, y guardar los datos fiscales —que no son secretos— que después necesita el mapeo.
+// Esta pantalla no maneja credenciales. El token de la API fiscal es de FinCorp y vive en el
+// servidor: el cliente nunca abre una cuenta en el proveedor ni copia un token. Lo que hace acá es
+// el trámite que sí es suyo e indelegable —el circuito de ARCA sobre su propio CUIT— y dar de alta
+// ese CUIT como emisor, que es una llamada por detrás y no una cuenta más.
 
 interface Paso {
   titulo: string
@@ -101,15 +96,17 @@ const ETAPAS: Etapa[] = [
   },
   {
     id: 'panel',
-    titulo: 'Cargar la configuración en el panel y validar',
-    resumen: 'Último tramo, ya fuera de ARCA.',
+    titulo: 'Entregar el certificado para dejarlo operativo',
+    resumen: 'Último tramo, ya fuera de ARCA y sin cuentas nuevas que crear.',
     pasos: [
-      { titulo: 'Entrar al panel de la API con el CUIT emisor cargado.' },
-      { titulo: 'Abrir "Configurar facturación" del contribuyente que corresponda.' },
-      { titulo: 'Completar punto de venta, certificado .crt y clave privada .key.' },
+      { titulo: 'Tener a mano el certificado .crt y la clave privada .key generados arriba.' },
       {
-        titulo: 'Guardar y presionar "Validar con ARCA".',
-        detalle: 'Recién con estado OK generar el token de producción.',
+        titulo: 'Confirmar el punto de venta habilitado para web services.',
+        detalle: 'Es el que cargaste más arriba en los datos del contribuyente.',
+      },
+      {
+        titulo: 'Escribinos para coordinar la entrega del certificado.',
+        detalle: 'Es el único paso que todavía se hace a mano; estamos viendo cómo evitarlo del todo.',
       },
     ],
     ojo: 'El punto de venta tiene que estar habilitado para web services. El que se usa en Comprobantes en Línea es de otro tipo y ARCA rechaza la emisión.',
@@ -121,151 +118,81 @@ interface Props {
   onCambiar: (datos: DatosEmisorFiscal) => void
 }
 
-/** Carga y revocación del token de emisión. El token sale de este componente hacia el backend y no
- * vuelve nunca: lo único que se muestra después es su pista. */
-function PanelToken() {
-  const [estado, setEstado] = useState<EstadoTokenFiscal | null>(null)
-  const [cargando, setCargando] = useState(true)
-  const [token, setToken] = useState('')
-  const [ambiente, setAmbiente] = useState<AmbienteFiscal>('pruebas')
-  const [guardando, setGuardando] = useState(false)
+/** Alta del CUIT como emisor. No crea ninguna cuenta para el cliente: es un registro dentro de la
+ * cuenta de FinCorp, y la API lo verifica contra el padrón de ARCA antes de aceptarlo. */
+function PanelEmisor({ datos, onCambiar }: Props) {
+  const [dando, setDando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    let vigente = true
-    consultarTokenFiscal()
-      .then((e) => {
-        if (vigente) setEstado(e)
-      })
-      .catch((e: Error) => {
-        if (vigente) setError(e.message)
-      })
-      .finally(() => {
-        if (vigente) setCargando(false)
-      })
-    return () => {
-      vigente = false
-    }
-  }, [])
+  const cuit = limpiarCuit(datos.cuit)
+  const listo = esCuitValido(cuit)
 
-  async function handleGuardar() {
-    if (!token.trim()) return
-    setGuardando(true)
+  async function handleAlta() {
+    setDando(true)
     setError(null)
     try {
-      setEstado(await guardarTokenFiscal(token.trim(), ambiente))
-      // El token se va del navegador en cuanto el servidor confirma: no queda ni en el input.
-      setToken('')
+      const { emisor } = await darDeAltaEmisor(cuit, datos.razonSocial)
+      if (!emisor?.emisor_id) throw new Error('El alta no devolvió un emisor.')
+      onCambiar({
+        ...datos,
+        emisorId: emisor.emisor_id,
+        // La razón social del padrón manda sobre la tipeada a mano.
+        razonSocial: emisor.razon_social || datos.razonSocial,
+      })
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo guardar el token.')
+      setError(
+        e instanceof ErrorFacturacion && e.status === 403
+          ? 'La facturación electrónica es parte del plan Full.'
+          : e instanceof Error
+            ? e.message
+            : 'No se pudo dar de alta el CUIT.',
+      )
     } finally {
-      setGuardando(false)
+      setDando(false)
     }
   }
 
-  async function handleRevocar() {
-    if (!confirm('¿Borrar el token guardado? Después vas a tener que cargarlo de nuevo para emitir.')) return
-    setGuardando(true)
-    setError(null)
-    try {
-      setEstado(await revocarTokenFiscal())
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo borrar el token.')
-    } finally {
-      setGuardando(false)
-    }
+  if (datos.emisorId) {
+    return (
+      <div
+        className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border p-3"
+        style={{ borderColor: 'var(--gridline)', background: 'var(--surface-2)' }}
+      >
+        <span className="text-sm font-medium" style={{ color: 'var(--status-good-text)' }}>
+          CUIT registrado para facturar
+        </span>
+        <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+          Ya podés emitir desde Comprobantes, una vez completado el circuito de ARCA.
+        </span>
+      </div>
+    )
   }
 
   return (
-    <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
-      <h3 className="mb-1 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-        El token de emisión
-      </h3>
-      <p className="mb-3 text-sm" style={{ color: 'var(--text-secondary)' }}>
-        Terminado el circuito, el panel de la API te da un token. Se guarda del lado del servidor y
-        no vuelve nunca al navegador: es una credencial que habilita a facturar con tu CUIT. Acá vas
-        a ver sólo sus últimos cuatro caracteres.
-      </p>
-
-      {cargando ? (
-        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-          Consultando…
+    <div className="mb-4 rounded-lg border p-3" style={{ borderColor: 'var(--gridline)', background: 'var(--surface-2)' }}>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+          {listo
+            ? 'Tu CUIT todavía no está registrado para facturar.'
+            : 'Completá arriba un CUIT válido para registrarlo.'}
+        </span>
+        <button
+          type="button"
+          onClick={handleAlta}
+          disabled={!listo || dando}
+          className="ml-auto shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium"
+          style={{
+            background: listo ? 'var(--series-blue)' : 'var(--surface-1)',
+            color: listo ? '#fff' : 'var(--text-muted)',
+          }}
+        >
+          {dando ? 'Registrando…' : 'Registrar mi CUIT'}
+        </button>
+      </div>
+      {error && (
+        <p className="mt-2 text-xs" style={{ color: 'var(--status-critical)' }}>
+          {error}
         </p>
-      ) : (
-        <>
-          <div
-            className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border p-3"
-            style={{ borderColor: 'var(--gridline)', background: 'var(--surface-2)' }}
-          >
-            <span
-              className="text-sm font-medium"
-              style={{ color: estado?.configurado ? 'var(--status-good-text)' : 'var(--text-muted)' }}
-            >
-              {estado?.configurado ? `Token cargado ${estado.pista}` : 'Sin token cargado'}
-            </span>
-            {estado?.configurado && (
-              <>
-                <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                  Ambiente de {estado.ambiente === 'produccion' ? 'producción' : 'pruebas'}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleRevocar}
-                  disabled={guardando}
-                  className="ml-auto rounded-md border px-2 py-1 text-xs"
-                  style={{ borderColor: 'var(--border)', color: 'var(--status-critical)', background: 'var(--surface-1)' }}
-                >
-                  Borrar
-                </button>
-              </>
-            )}
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <input
-              type="password"
-              autoComplete="off"
-              placeholder={estado?.configurado ? 'Pegá un token nuevo para reemplazarlo' : 'Pegá acá el token'}
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              className="min-w-[220px] flex-1 rounded-lg border px-3 py-1.5 text-sm"
-              style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
-            />
-            <select
-              value={ambiente}
-              onChange={(e) => setAmbiente(e.target.value as AmbienteFiscal)}
-              className="shrink-0 rounded-lg border px-3 py-1.5 text-sm"
-              style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
-            >
-              <option value="pruebas">Ambiente de pruebas</option>
-              <option value="produccion">Producción</option>
-            </select>
-            <button
-              type="button"
-              onClick={handleGuardar}
-              disabled={guardando || !token.trim()}
-              className="shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium"
-              style={{
-                background: token.trim() ? 'var(--series-blue)' : 'var(--surface-2)',
-                color: token.trim() ? '#fff' : 'var(--text-muted)',
-              }}
-            >
-              {guardando ? 'Guardando…' : 'Guardar'}
-            </button>
-          </div>
-
-          {error && (
-            <p className="mt-2 text-xs" style={{ color: 'var(--status-critical)' }}>
-              {error}
-            </p>
-          )}
-
-          <p className="mt-3 text-xs" style={{ color: 'var(--text-muted)' }}>
-            Empezá siempre por el ambiente de pruebas. Si alguna vez sospechás que el token se
-            filtró, se revoca desde el panel de la API y se genera uno nuevo, sin rehacer nada del
-            circuito de ARCA.
-          </p>
-        </>
       )}
     </div>
   )
@@ -421,8 +348,8 @@ export function FacturacionElectronica({ datos, onCambiar }: Props) {
           Para emitir un comprobante con <strong>CAE</strong> hace falta habilitar el circuito una sola
           vez ante ARCA: adherir el servicio de certificados, generar la clave privada, obtener el
           certificado y autorizar el web service de facturación. Todo eso va sobre{' '}
-          <strong>el CUIT que factura</strong>, no sobre el de FinCorp. Esta pantalla te guía paso a
-          paso y guarda los datos fiscales que después usa la emisión.
+          <strong>el CUIT que factura</strong>, no sobre el de FinCorp. No hace falta que abras
+          cuenta en ningún otro lado: el servicio de facturación lo contratamos nosotros.
         </p>
 
         <div className="mb-4 rounded-lg border p-3" style={{ borderColor: 'var(--gridline)', background: 'var(--surface-2)' }}>
@@ -483,6 +410,8 @@ export function FacturacionElectronica({ datos, onCambiar }: Props) {
           </p>
         </div>
 
+        <PanelEmisor datos={datos} onCambiar={onCambiar} />
+
         <div className="mb-2 flex items-baseline justify-between">
           <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
             Circuito de habilitación
@@ -518,7 +447,6 @@ export function FacturacionElectronica({ datos, onCambiar }: Props) {
         </div>
       </div>
 
-      <PanelToken />
     </div>
   )
 }

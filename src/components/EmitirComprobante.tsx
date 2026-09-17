@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { esCuitValido, limpiarCuit } from '../lib/cuit'
 import {
   CONDICIONES_IVA_RECEPTOR,
   type DatosEmisorFiscal,
@@ -13,7 +14,7 @@ import {
   mapearFacturaAPayload,
   validarFacturaParaEmision,
 } from '../lib/facturacionElectronica'
-import { emitirComprobante, ErrorFacturacion } from '../lib/facturacionApi'
+import { consultarCuit, emitirComprobante, ErrorFacturacion } from '../lib/facturacionApi'
 
 // Diálogo de emisión. Completa los datos fiscales del receptor —que la factura no tenía, porque
 // hasta ahora alcanzaba con el nombre en texto libre— y manda el comprobante.
@@ -61,6 +62,40 @@ export function EmitirComprobante({ factura, facturas, emisor, onEmitida, onCerr
   const [emitiendo, setEmitiendo] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [reintentable, setReintentable] = useState(false)
+  const [buscando, setBuscando] = useState(false)
+  const [avisoPadron, setAvisoPadron] = useState<string | null>(null)
+
+  /** Completa razón social y condición de IVA desde el padrón de ARCA. Evita que el usuario los
+   * tipee —y los tipee mal, que es peor: una condición equivocada cambia la letra del comprobante. */
+  async function buscarEnPadron() {
+    const cuit = limpiarCuit(receptor.documentoNumero)
+    if (!esCuitValido(cuit)) return
+
+    setBuscando(true)
+    setAvisoPadron(null)
+    try {
+      const { contribuyente } = await consultarCuit(cuit)
+      const sugerido = contribuyente?.cliente_sugerido
+      if (!sugerido) {
+        setAvisoPadron('El padrón no devolvió datos para ese CUIT.')
+        return
+      }
+      setReceptor({
+        ...receptor,
+        razonSocial: sugerido.razon_social || receptor.razonSocial,
+        condicionIvaReceptorId:
+          (sugerido.condicion_iva_receptor_id as DatosReceptor['condicionIvaReceptorId']) ??
+          receptor.condicionIvaReceptorId,
+      })
+      if (contribuyente?.estado_clave && contribuyente.estado_clave !== 'ACTIVO') {
+        setAvisoPadron(`Ojo: el padrón marca este CUIT como "${contribuyente.estado_clave}".`)
+      }
+    } catch (e) {
+      setAvisoPadron(e instanceof Error ? e.message : 'No se pudo consultar el padrón.')
+    } finally {
+      setBuscando(false)
+    }
+  }
 
   const candidata: Factura = { ...factura, receptor, detalle: detalle.trim() || undefined }
   const original = factura.comprobanteAsociadoId
@@ -149,11 +184,32 @@ export function EmitirComprobante({ factura, facturas, emisor, onEmitida, onCerr
               placeholder="Número de documento"
               value={receptor.documentoNumero}
               onChange={(e) => setReceptor({ ...receptor, documentoNumero: e.target.value })}
+              onBlur={() => {
+                // Se busca solo al salir del campo: si el CUIT es válido, no hay razón para
+                // hacerle tipear al usuario datos que ARCA ya tiene.
+                if (receptor.documentoTipo === 'cuit' || receptor.documentoTipo === 'cuil') buscarEnPadron()
+              }}
               disabled={receptor.documentoTipo === 'consumidor_final'}
               className="flex-1 rounded-lg border px-3 py-1.5 text-sm"
               style={campo}
             />
+            {(receptor.documentoTipo === 'cuit' || receptor.documentoTipo === 'cuil') && (
+              <button
+                type="button"
+                onClick={buscarEnPadron}
+                disabled={buscando || !esCuitValido(limpiarCuit(receptor.documentoNumero))}
+                className="shrink-0 rounded-lg border px-3 py-1.5 text-sm"
+                style={{ borderColor: 'var(--border)', color: 'var(--series-blue)' }}
+              >
+                {buscando ? 'Buscando…' : 'Buscar en ARCA'}
+              </button>
+            )}
           </div>
+          {avisoPadron && (
+            <p className="text-xs" style={{ color: 'var(--status-critical)' }}>
+              {avisoPadron}
+            </p>
+          )}
           <input
             type="text"
             placeholder="Razón social o nombre"

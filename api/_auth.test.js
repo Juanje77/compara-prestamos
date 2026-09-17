@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { planHabilitaEmitir, refPlan, refTokenFiscal } from './_auth.js'
+import { emisorIdDe, planHabilitaEmitir, refPlan } from './_auth.js'
 
 const AHORA = new Date('2026-09-17T12:00:00Z')
 
@@ -41,7 +41,7 @@ describe('planHabilitaEmitir', () => {
   })
 })
 
-describe('rutas de Firestore', () => {
+describe('refPlan', () => {
   // Doble mínimo: nos importa la ruta que se arma, no Firestore.
   const db = {
     collection: (nombre) => ({
@@ -51,11 +51,33 @@ describe('rutas de Firestore', () => {
     }),
   }
 
-  it('el token vive fuera del alcance del SDK del navegador', () => {
-    expect(refTokenFiscal(db, 'u1')).toBe('users/u1/secretos/fiscal')
-  })
-
   it('el plan sigue donde ya lo leen las otras funciones', () => {
     expect(refPlan(db, 'u1')).toBe('users/u1/meta/plan')
+  })
+})
+
+describe('emisorIdDe', () => {
+  const dbCon = (datos) => ({
+    collection: () => ({ doc: () => ({ get: async () => ({ data: () => datos }) }) }),
+  })
+
+  it('devuelve el emisor guardado del usuario', async () => {
+    const db = dbCon({ negocioData: { datosEmisorFiscal: { emisorId: 123 } } })
+    expect(await emisorIdDe(db, 'u1')).toBe(123)
+  })
+
+  it('devuelve null cuando el usuario todavía no registró su CUIT', async () => {
+    expect(await emisorIdDe(dbCon(undefined), 'u1')).toBeNull()
+    expect(await emisorIdDe(dbCon({}), 'u1')).toBeNull()
+    expect(await emisorIdDe(dbCon({ negocioData: {} }), 'u1')).toBeNull()
+    expect(await emisorIdDe(dbCon({ negocioData: { datosEmisorFiscal: {} } }), 'u1')).toBeNull()
+  })
+
+  it('rechaza un emisorId que no sea un entero positivo', async () => {
+    // Si alguien escribiera basura en su propio documento, no se convierte en un emisor ajeno.
+    for (const basura of ['7', 0, -3, 1.5, true, null, {}]) {
+      const db = dbCon({ negocioData: { datosEmisorFiscal: { emisorId: basura } } })
+      expect(await emisorIdDe(db, 'u1')).toBeNull()
+    }
   })
 })
