@@ -11,7 +11,7 @@ const FEATURES_BASICO = [
 ]
 
 const FEATURES_MEDIO = [
-  { icon: '🧾', titulo: 'Comprobantes', texto: 'Importá tus facturas desde ARCA y mirá ventas, compras, margen y tus principales clientes y proveedores.' },
+  { icon: '📥', titulo: 'Comprobantes', texto: 'Importá tus facturas desde ARCA y mirá ventas, compras, margen y tus principales clientes y proveedores.' },
   { icon: '🎯', titulo: 'Presupuesto vs. Real', texto: 'Comparás lo presupuestado contra lo que realmente gastaste, con el desvío por categoría y comentarios automáticos.' },
   { icon: '📈', titulo: 'Proyección con escenarios', texto: 'Sumá una tasa de crecimiento mensual esperada, con escenarios optimista y pesimista, no solo lineal.' },
   { icon: '🔔', titulo: 'Alertas y recomendaciones', texto: 'Avisos si tu caja se agota, una deuda está por vencer, o tu margen se pone negativo, con qué hacer al respecto.' },
@@ -20,10 +20,15 @@ const FEATURES_MEDIO = [
 ]
 
 const FEATURES_FULL = [
+  { icon: '🧾', titulo: 'Facturación electrónica', texto: 'Emitís facturas A, B y C con CAE sin salir del sistema, y notas de crédito atadas a la factura que corrigen. Te guiamos paso a paso para habilitar tu CUIT ante ARCA.' },
+  { icon: '👷', titulo: 'Sueldos y cargas sociales', texto: 'Recibos numerados con todo lo que exige el art. 140 de la LCT, libro de sueldos, aguinaldo, y cada descuento con la base sobre la que se calcula.' },
   { icon: '📒', titulo: 'Cuentas corrientes', texto: 'Saldo por cliente y proveedor, con pagos parciales que se van imputando solos a la factura más antigua.' },
-  { icon: '📦', titulo: 'Remitos y presupuestos', texto: 'Para trabajos largos: cargá el remito, cobrá un anticipo, y facturá todo junto al terminar.' },
-  { icon: '🏦', titulo: 'Gestión de cheques', texto: 'Vinculados a tus facturas y cuentas corrientes, para armar tu balance contable sin cargar todo dos veces.' },
-  { icon: '⚙️', titulo: 'Todo integrado', texto: 'Un sistema de uso diario: cada cheque o anticipo que cargás actualiza solo tus indicadores de CFO, sin pasos extra.' },
+  { icon: '📋', titulo: 'Remitos y presupuestos', texto: 'Para trabajos largos: cargá el remito, cobrá un anticipo, y facturá todo junto al terminar.' },
+  { icon: '📐', titulo: 'Márgenes por sector', texto: 'Cuánto deja realmente cada división de tu negocio, con el costo de la mano de obra repartido por porcentaje entre las tareas de cada empleado.' },
+  { icon: '💵', titulo: 'Tesorería y conciliación', texto: 'Caja y bancos al día: cada cobro, pago y sueldo impacta en la cuenta, y conciliás contra el extracto que importás del banco.' },
+  { icon: '📦', titulo: 'Stock', texto: 'Catálogo de productos con costo y precio, movimientos de entrada y salida, y aviso cuando algo baja del mínimo.' },
+  { icon: '💳', titulo: 'Gestión de cheques', texto: 'Vinculados a tus facturas y cuentas corrientes, para armar tu balance contable sin cargar todo dos veces.' },
+  { icon: '⚙️', titulo: 'Todo integrado', texto: 'Un sistema de uso diario: cada cheque, sueldo o anticipo que cargás actualiza solo tus indicadores de CFO, sin pasos extra.' },
 ]
 
 export function HomePage() {
@@ -40,8 +45,8 @@ export function HomePage() {
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-base" style={{ color: 'var(--text-secondary)' }}>
           Comparás préstamos de los principales bancos argentinos y gestionás las finanzas de tu empresa —
-          cuentas, deudas, flujo de caja, cobranzas, IVA y mucho más — todo en un solo lugar, con
-          explicaciones simples de cada indicador.
+          cuentas, flujo de caja, cobranzas, sueldos, IVA— y emitís tus facturas con CAE, todo en un solo
+          lugar y con explicaciones simples de cada indicador.
         </p>
         <p
           className="mx-auto mt-4 inline-block max-w-xl rounded-full px-4 py-2 text-sm font-semibold"
@@ -81,8 +86,8 @@ export function HomePage() {
           </h2>
           <p className="mt-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
             Un dashboard financiero para tu negocio: cuentas bancarias, deudas, indicadores clave, flujo de
-            caja proyectado y un organizador semanal de cobranzas y pagos. Todo lo que necesitás para
-            entender la salud financiera de tu empresa, sin ser financista.
+            caja proyectado y un organizador semanal de cobranzas y pagos. En el plan Full, además, liquidás
+            sueldos y emitís tus facturas con CAE sin salir de acá.
           </p>
           <p className="mt-2 text-xs font-medium" style={{ color: 'var(--series-blue)' }}>
             15 días gratis y después elegís tu plan — mirá qué incluye cada uno más abajo
@@ -227,12 +232,13 @@ export function HomePage() {
           </span>
         </h2>
         <p className="mx-auto mt-2 max-w-2xl text-sm" style={{ color: 'var(--text-secondary)' }}>
-          Todo lo del plan Medio, más un sistema de gestión para usar todos los días. Cuanto más lo usás,
-          mejor quedan tus indicadores de CFO — se arman solos con lo que vas cargando.
+          Todo lo del plan Medio, más el sistema de gestión que usás todos los días: facturás, liquidás
+          sueldos, movés stock y llevás la caja. Cuanto más lo usás, mejor quedan tus indicadores de CFO —
+          se arman solos con lo que vas cargando, sin cargar nada dos veces.
         </p>
       </section>
 
-      <section className="mb-16 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="mb-16 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {FEATURES_FULL.map((f) => (
           <div
             key={f.titulo}
@@ -248,6 +254,41 @@ export function HomePage() {
             </p>
           </div>
         ))}
+      </section>
+
+      <section className="mb-6">
+        <p className="mb-2 text-center text-sm font-medium" style={{ color: 'var(--text-muted)' }}>
+          Facturación electrónica: te guiamos para habilitar tu CUIT ante ARCA
+        </p>
+        <div className="overflow-hidden rounded-xl border shadow-sm" style={{ borderColor: 'var(--border)' }}>
+          <img
+            src="/landing-facturacion-electronica.png"
+            alt="Circuito de habilitación para facturar electrónicamente en FinCorp, con los comandos ya armados con el CUIT del contribuyente"
+            className="w-full"
+          />
+        </div>
+        <p className="mx-auto mt-3 max-w-2xl text-center text-sm" style={{ color: 'var(--text-secondary)' }}>
+          El trámite ante ARCA se hace una sola vez y es el que más gente traba. Cada etapa viene con sus
+          pasos, los comandos ya armados con tu CUIT, y el aviso de dónde se equivoca todo el mundo.
+        </p>
+      </section>
+
+      <section className="mb-16">
+        <p className="mb-2 text-center text-sm font-medium" style={{ color: 'var(--text-muted)' }}>
+          Sueldos: de la nómina al recibo y al libro de sueldos
+        </p>
+        <div className="overflow-hidden rounded-xl border shadow-sm" style={{ borderColor: 'var(--border)' }}>
+          <img
+            src="/landing-sueldos.png"
+            alt="Módulo de sueldos de FinCorp: nómina vigente, costo para la empresa, pago de netos y cargas sociales, y libro de sueldos"
+            className="w-full"
+          />
+        </div>
+        <p className="mx-auto mt-3 max-w-2xl text-center text-sm" style={{ color: 'var(--text-secondary)' }}>
+          Cada empleado se arma como su recibo, separando remunerativos de no remunerativos. Cuando cerrás
+          el período, los recibos quedan numerados y el mes entra al libro. Y lo que pagás sale de la cuenta
+          que elijas, así que Tesorería queda al día sola.
+        </p>
       </section>
 
       <section
