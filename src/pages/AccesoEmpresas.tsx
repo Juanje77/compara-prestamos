@@ -27,6 +27,12 @@ export function AccesoEmpresas() {
       .then(async (r) => {
         // `fetch` no rechaza ante un 500: sólo ante un error de red. Sin este chequeo, un endpoint
         // caído dejaba al usuario mirando "Activando tu prueba…" para siempre y en silencio.
+        const tipo = r.headers.get('content-type') ?? ''
+        if (!tipo.includes('application/json')) {
+          // Un 200 que devuelve HTML significa que la ruta de /api/ no se está ejecutando y la cayó
+          // el rewrite de la SPA. Se ve igual que un éxito, pero no escribió nada.
+          throw new Error(`${r.status} · respuesta no-JSON (${tipo.split(';')[0] || 'sin tipo'})`)
+        }
         if (r.ok) return
         const cuerpo = await r.json().catch(() => null)
         throw new Error(`${r.status}${cuerpo?.motivo ? ` · ${cuerpo.motivo}` : ''}`)
@@ -36,6 +42,18 @@ export function AccesoEmpresas() {
         setPruebaFallo(e.message || 'sin respuesta')
       })
   }, [habilitado, user?.uid, cargandoPlan, plan.plan, plan.estado])
+
+  // Red de seguridad: si después de unos segundos el plan sigue sin aparecer, algo salió mal aunque
+  // el pedido no haya dado error. Mejor mostrar una salida que dejar a alguien mirando un cartel
+  // que no avanza nunca.
+  useEffect(() => {
+    if (!habilitado || !user?.uid || cargandoPlan) return
+    if (plan.plan !== null || plan.estado !== null) return
+    if (pruebaFallo !== null) return
+
+    const reloj = setTimeout(() => setPruebaFallo('sin respuesta a tiempo'), 12000)
+    return () => clearTimeout(reloj)
+  }, [habilitado, user?.uid, cargandoPlan, plan.plan, plan.estado, pruebaFallo])
 
   // Respaldo del webhook: si el plan quedó "pendiente" (ya se creó la suscripción pero
   // todavía no se confirmó), consultamos nosotros mismos a Mercado Pago cada pocos segundos
