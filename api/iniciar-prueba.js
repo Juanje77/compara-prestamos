@@ -3,6 +3,7 @@
 // Pago, esto corre con permisos de administrador para que el usuario no pueda reiniciarse la
 // prueba a sí mismo escribiendo directamente en Firestore.
 import { obtenerFirestoreAdmin } from './_firebaseAdmin.js'
+import { datosDePrueba, puedeOtorgarsePrueba } from './_prueba.js'
 
 const DURACION_PRUEBA_DIAS = 15
 
@@ -25,20 +26,16 @@ export default async function handler(req, res) {
     const ref = db.collection('users').doc(uid).collection('meta').doc('plan')
     const snap = await ref.get()
 
-    if (snap.exists) {
-      // Ya tiene (o tuvo alguna vez) un plan registrado — no se reinicia la prueba.
-      res.status(200).json(snap.data())
+    if (!puedeOtorgarsePrueba(snap.data())) {
+      // Ya tuvo su prueba, o tiene una suscripción real: no se reinicia.
+      res.status(200).json(snap.data() ?? {})
       return
     }
 
-    const datos = {
-      plan: 'full',
-      estado: 'activo',
-      esPrueba: true,
-      pruebaFin: new Date(Date.now() + DURACION_PRUEBA_DIAS * 24 * 60 * 60 * 1000).toISOString(),
-      actualizadoEn: new Date().toISOString(),
-    }
-    await ref.set(datos)
+    const datos = datosDePrueba(DURACION_PRUEBA_DIAS)
+    // Con merge, para no borrar un checkout a medias (el id de preapproval sigue sirviendo si el
+    // pago se confirma más tarde: ahí el webhook pisa el plan y la prueba deja de aplicar).
+    await ref.set(datos, { merge: true })
     res.status(200).json(datos)
   } catch {
     res.status(500).json({ error: 'No se pudo iniciar la prueba gratis.' })

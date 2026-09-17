@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../lib/AuthContext'
 import { usePlanUsuario, pruebaVencida, diasRestantesPrueba } from '../lib/plan'
 import { EmpresasPage } from './EmpresasPage'
@@ -8,6 +8,8 @@ export function AccesoEmpresas() {
   const { user, cargando: cargandoAuth, habilitado } = useAuth()
   const { plan, cargando: cargandoPlan } = usePlanUsuario(user?.uid)
   const pruebaIniciada = useRef(false)
+  const [pruebaFallo, setPruebaFallo] = useState(false)
+  const [confirmacionAgotada, setConfirmacionAgotada] = useState(false)
 
   // Un usuario que nunca tuvo ningún plan registrado arranca automáticamente una prueba gratis
   // de 15 días con acceso Full completo — sin que tenga que elegir nada. Se activa en el
@@ -21,9 +23,16 @@ export function AccesoEmpresas() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ uid: user.uid }),
-    }).catch(() => {
-      // Si falla, el usuario simplemente ve la pantalla de planes en el próximo render.
     })
+      .then((r) => {
+        if (!r.ok) throw new Error('no se pudo activar')
+      })
+      .catch(() => {
+        // Sin esto el usuario se quedaba mirando "Activando tu prueba…" para siempre: el ref ya
+        // estaba marcado y no se reintentaba nunca. Lo liberamos y le damos una salida visible.
+        pruebaIniciada.current = false
+        setPruebaFallo(true)
+      })
   }, [habilitado, user?.uid, cargandoPlan, plan.plan, plan.estado])
 
   // Respaldo del webhook: si el plan quedó "pendiente" (ya se creó la suscripción pero
@@ -42,8 +51,13 @@ export function AccesoEmpresas() {
       } catch {
         // se reintenta en el próximo tick
       }
-      if (!cancelado && intentos < 10) {
+      if (cancelado) return
+      if (intentos < 10) {
         setTimeout(verificar, 3000)
+      } else {
+        // Mercado Pago no confirmó nada en 30 segundos: lo más probable es que el checkout se haya
+        // abandonado. Dejarlo en "Confirmando tu pago…" sería encerrarlo.
+        setConfirmacionAgotada(true)
       }
     }
 
@@ -64,7 +78,7 @@ export function AccesoEmpresas() {
     return <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Cargando…</p>
   }
 
-  if (user && plan.estado === 'pendiente') {
+  if (user && plan.estado === 'pendiente' && !confirmacionAgotada) {
     return (
       <div className="mx-auto max-w-md py-16 text-center">
         <p className="text-sm font-semibold tracking-wide" style={{ color: 'var(--series-blue)' }}>
@@ -81,7 +95,7 @@ export function AccesoEmpresas() {
     )
   }
 
-  if (user && plan.plan === null && plan.estado === null) {
+  if (user && plan.plan === null && plan.estado === null && !pruebaFallo) {
     // Recién llegó y no tiene ningún plan registrado: la prueba gratis se está activando en
     // segundo plano (ver el useEffect de arriba) — en cuanto se cree el documento, este mismo
     // componente se vuelve a renderizar solo, gracias al listener en tiempo real de usePlanUsuario.
@@ -89,6 +103,28 @@ export function AccesoEmpresas() {
       <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
         Activando tu prueba gratis de 15 días…
       </p>
+    )
+  }
+
+  if (user && pruebaFallo && plan.plan === null) {
+    return (
+      <div className="mx-auto max-w-md py-16 text-center">
+        <h1 className="text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
+          No pudimos activar tu prueba
+        </h1>
+        <p className="mt-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+          Fue un problema nuestro, no tuyo, y tu prueba gratis sigue disponible. Probá de nuevo; si
+          vuelve a fallar, escribinos y la activamos a mano.
+        </p>
+        <button
+          type="button"
+          onClick={() => setPruebaFallo(false)}
+          className="mt-4 rounded-full px-6 py-2.5 text-sm font-semibold text-white"
+          style={{ background: 'var(--series-blue)' }}
+        >
+          Reintentar
+        </button>
+      </div>
     )
   }
 
