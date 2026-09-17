@@ -118,6 +118,7 @@ import { exportarParaContador } from '../lib/contadorExport'
 import { abrirInformeFinanciero, abrirInformeSaludFinanciera } from '../lib/htmlReport'
 import { cargarNegocioData, guardarNegocioData } from '../lib/negocioData'
 import { cargarDatosUsuario, guardarDatosUsuario } from '../lib/userSync'
+import { numeroComprobanteFormateado } from '../lib/facturacionElectronica'
 import { useAuth } from '../lib/AuthContext'
 
 function generarId(): string {
@@ -910,7 +911,12 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   /** Deja registrada la emisión en la factura: los datos fiscales con los que se emitió y el CAE
    * que devolvió ARCA. A partir de acá el comprobante no se vuelve a emitir. */
   function handleFacturaEmitida(id: string, receptor: DatosReceptor, emision: ResultadoEmision) {
-    setFacturas((prev) => prev.map((f) => (f.id === id ? { ...f, receptor, emision } : f)))
+    // Autorizado el comprobante, el número lo pone ARCA: pisa cualquiera que se hubiera cargado a
+    // mano, para que no queden dos numeraciones distintas sobre la misma factura.
+    const numero = numeroComprobanteFormateado(emision, datosEmisorFiscal.puntoVenta)
+    setFacturas((prev) =>
+      prev.map((f) => (f.id === id ? { ...f, receptor, emision, ...(numero ? { numero } : {}) } : f)),
+    )
   }
 
   function handleCerrarLiquidacion(mes: string, tipo: TipoLiquidacion) {

@@ -5,6 +5,7 @@ import {
   alicuotaIvaDeFactura,
   letraSugerida,
   mapearFacturaAPayload,
+  numeroComprobanteFormateado,
   interpretarRespuestaEmision,
   referenciaExternaDeFactura,
   validarFacturaParaEmision,
@@ -327,5 +328,46 @@ describe('interpretarRespuestaEmision', () => {
     ])
     expect(interpretarRespuestaEmision('r', { mensajes: ['uno', 'dos'] }, CUANDO).mensajes).toEqual(['uno', 'dos'])
     expect(interpretarRespuestaEmision('r', {}, CUANDO).mensajes).toBeUndefined()
+  })
+})
+
+describe('numeroComprobanteFormateado', () => {
+  const autorizada = (extra = {}) => ({
+    comprobanteId: '9001',
+    referenciaExterna: 'fincorp_f1',
+    estado: 'autorizado' as const,
+    cae: '75123456789012',
+    puntoVenta: 3,
+    numeroComprobante: 145,
+    ...extra,
+  })
+
+  it('arma el número oficial con el formato de ARCA', () => {
+    expect(numeroComprobanteFormateado(autorizada())).toBe('0003-00000145')
+  })
+
+  it('usa el punto de venta configurado cuando la respuesta no lo trae', () => {
+    expect(numeroComprobanteFormateado(autorizada({ puntoVenta: undefined }), '3')).toBe('0003-00000145')
+  })
+
+  it('prefiere el punto de venta de la respuesta al configurado', () => {
+    expect(numeroComprobanteFormateado(autorizada({ puntoVenta: 7 }), '3')).toBe('0007-00000145')
+  })
+
+  it('no pisa el número de una factura que no quedó autorizada', () => {
+    expect(numeroComprobanteFormateado(autorizada({ estado: 'pendiente' }))).toBeUndefined()
+    expect(numeroComprobanteFormateado(autorizada({ estado: 'rechazado' }))).toBeUndefined()
+  })
+
+  it('no inventa nada si falta el número o el punto de venta', () => {
+    expect(numeroComprobanteFormateado(autorizada({ numeroComprobante: undefined }))).toBeUndefined()
+    expect(numeroComprobanteFormateado(autorizada({ puntoVenta: undefined }))).toBeUndefined()
+    expect(numeroComprobanteFormateado(autorizada({ puntoVenta: undefined }), 'sin número')).toBeUndefined()
+  })
+
+  it('no recorta un número largo', () => {
+    expect(numeroComprobanteFormateado(autorizada({ puntoVenta: 12345, numeroComprobante: 123456789 }))).toBe(
+      '12345-123456789',
+    )
   })
 })

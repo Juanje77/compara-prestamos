@@ -336,3 +336,24 @@ export function interpretarRespuestaEmision(
     emitidoEl,
   }
 }
+
+/**
+ * Número oficial del comprobante, con el formato argentino `PPPP-NNNNNNNN`. Una vez que ARCA
+ * autoriza, éste es el único número válido y pisa lo que el usuario hubiera escrito a mano.
+ *
+ * Devuelve `undefined` mientras no haya autorización, para no tocar el número de una factura que
+ * todavía no se emitió o que quedó pendiente de revisión. El punto de venta suele venir en la
+ * respuesta; si no viene, se usa el configurado, que es el mismo con el que se emitió.
+ */
+export function numeroComprobanteFormateado(
+  emision: ResultadoEmision,
+  puntoVentaConfigurado?: string,
+): string | undefined {
+  if (emision.estado !== 'autorizado') return undefined
+  if (emision.numeroComprobante === undefined) return undefined
+
+  const punto = emision.puntoVenta ?? Number(puntoVentaConfigurado)
+  if (!Number.isFinite(punto) || punto === undefined) return undefined
+
+  return `${String(punto).padStart(4, '0')}-${String(emision.numeroComprobante).padStart(8, '0')}`
+}
