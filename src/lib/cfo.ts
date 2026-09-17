@@ -437,6 +437,66 @@ export const MEDIOS_PAGO_LABEL: Record<MedioPago, string> = {
   transferencia: 'Transferencia bancaria',
 }
 
+/** Tipo de documento del receptor. Sólo `dni` está confirmado contra el ejemplo oficial de la API;
+ * el resto sale de los comprobantes que ARCA admite y hay que verificarlo contra el contrato
+ * OpenAPI antes de emitir en producción. */
+export type DocumentoTipo = 'cuit' | 'cuil' | 'dni' | 'sin_identificar'
+
+/** Condición frente al IVA del receptor. Los ids son los de la tabla de ARCA (RG 5616/2024), que es
+ * lo que viaja en `condicion_iva_receptor_id`. */
+export type CondicionIvaReceptorId = 1 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 13 | 15 | 16
+
+export const CONDICIONES_IVA_RECEPTOR: { id: CondicionIvaReceptorId; nombre: string }[] = [
+  { id: 1, nombre: 'IVA Responsable Inscripto' },
+  { id: 4, nombre: 'IVA Sujeto Exento' },
+  { id: 5, nombre: 'Consumidor Final' },
+  { id: 6, nombre: 'Responsable Monotributo' },
+  { id: 7, nombre: 'Sujeto No Categorizado' },
+  { id: 8, nombre: 'Proveedor del Exterior' },
+  { id: 9, nombre: 'Cliente del Exterior' },
+  { id: 10, nombre: 'IVA Liberado — Ley N° 19.640' },
+  { id: 13, nombre: 'Monotributista Social' },
+  { id: 15, nombre: 'IVA No Alcanzado' },
+  { id: 16, nombre: 'Monotributo Trabajador Independiente Promovido' },
+]
+
+/** Datos fiscales de la contraparte, necesarios para emitir el comprobante ante ARCA. Hoy una
+ * factura sólo guarda `contraparte` como texto libre, que alcanza para los informes pero no para
+ * emitir: ARCA exige identificar al receptor y su condición de IVA. Se completa a mano o con la
+ * consulta de CUIT contra el Padrón. */
+export interface DatosReceptor {
+  documentoTipo: DocumentoTipo
+  /** Sólo dígitos. Vacío cuando `documentoTipo` es `sin_identificar`. */
+  documentoNumero: string
+  razonSocial: string
+  condicionIvaReceptorId: CondicionIvaReceptorId
+  domicilio?: string
+}
+
+/** Resultado de haber emitido la factura ante ARCA. Lo escribe el backend cuando la emisión vuelve
+ * autorizada; el navegador nunca lo calcula. Su presencia es lo que distingue un comprobante
+ * emitido de uno cargado a mano. */
+export interface ResultadoEmision {
+  /** Id del comprobante del lado de la API, para consultarlo, reintentarlo o bajar el PDF. */
+  comprobanteId: string
+  /** Clave de idempotencia con la que se pidió la emisión — ver `referenciaExternaDeFactura`. */
+  referenciaExterna: string
+  estado: 'autorizado' | 'rechazado' | 'error' | 'pendiente'
+  cae?: string
+  /** Vencimiento del CAE, ISO (YYYY-MM-DD). */
+  caeVencimiento?: string
+  puntoVenta?: number
+  numeroComprobante?: number
+  /** Contenido del QR fiscal, tal como lo devuelve la API. */
+  qr?: string
+  pdfA4?: string
+  pdfTicket?: string
+  /** Mensajes de ARCA (observaciones o motivos del rechazo). */
+  mensajes?: string[]
+  /** Momento de la emisión, ISO completo. */
+  emitidoEl?: string
+}
+
 export interface Factura {
   id: string
   tipo: TipoFactura
@@ -445,6 +505,13 @@ export interface Factura {
   monto: number
   fecha: string
   numero?: string
+  /** Descripción de lo vendido, que va como detalle del ítem al emitir. Si falta, se emite con una
+   * descripción genérica derivada del tipo de comprobante. */
+  detalle?: string
+  /** Datos fiscales del receptor — sólo para facturas emitidas que se vayan a emitir ante ARCA. */
+  receptor?: DatosReceptor
+  /** Devuelto por ARCA al emitir. Una factura con `emision.estado === 'autorizado'` no se toca más. */
+  emision?: ResultadoEmision
   /** Fecha estimada (editable) en la que se espera cobrar/pagar este comprobante — alimenta el
    * calendario semanal de Cobros y Pagos. No afecta el cálculo de ventas/compras netas. */
   fechaEstimadaCobroPago?: string
