@@ -6,7 +6,12 @@ import {
   letraSugerida,
   mapearFacturaAPayload,
   numeroComprobanteFormateado,
+  EMISION_NOTAS_HABILITADA,
+  comprobanteAsociadoDe,
+  identificarComprobante,
   interpretarRespuestaEmision,
+  montoDisponibleParaNota,
+  validarNota,
   referenciaExternaDeFactura,
   validarFacturaParaEmision,
   type OpcionesEmision,
@@ -251,10 +256,10 @@ describe('validarFacturaParaEmision', () => {
     expect(validarFacturaParaEmision(sinIva, MONOTRIBUTO)).toEqual([])
   })
 
-  it('frena una nota de crédito hasta tener el comprobante asociado verificado', () => {
+  it('frena una nota de crédito que no dice qué comprobante corrige', () => {
     const nc = factura({ tipoComprobante: 'nota_credito' })
 
-    expect(validarFacturaParaEmision(nc, RI).some((p) => p.includes('referenciar el comprobante'))).toBe(true)
+    expect(validarFacturaParaEmision(nc, RI).some((p) => p.includes('qué comprobante corrige'))).toBe(true)
   })
 
   it('junta todos los problemas en vez de cortar en el primero', () => {
@@ -369,5 +374,157 @@ describe('numeroComprobanteFormateado', () => {
     expect(numeroComprobanteFormateado(autorizada({ puntoVenta: 12345, numeroComprobante: 123456789 }))).toBe(
       '12345-123456789',
     )
+  })
+})
+
+describe('notas de crédito y débito', () => {
+  const ORIGINAL: Factura = {
+    id: 'orig',
+    tipo: 'emitida',
+    tipoComprobante: 'factura',
+    contraparte: 'Cliente Demo',
+    monto: 12100,
+    iva: 2100,
+    fecha: '2026-09-10',
+    receptor: CONSUMIDOR_FINAL,
+    emision: {
+      comprobanteId: '900',
+      referenciaExterna: 'fincorp_orig',
+      estado: 'autorizado',
+      cae: '75123456789012',
+      puntoVenta: 3,
+      numeroComprobante: 145,
+    },
+  }
+
+  const nota = (extra: Partial<Factura> = {}): Factura => ({
+    ...factura(),
+    id: 'nc1',
+    tipoComprobante: 'nota_credito',
+    comprobanteAsociadoId: 'orig',
+    monto: 6050,
+    iva: 1050,
+    ...extra,
+  })
+
+  describe('identificarComprobante', () => {
+    it('usa el punto de venta y el número de la emisión', () => {
+      expect(identificarComprobante(ORIGINAL)).toEqual({ puntoVenta: 3, numero: 145 })
+    })
+
+    it('parsea el número cargado a mano', () => {
+      const manual = { ...ORIGINAL, emision: undefined, numero: '0007-00001234' }
+      expect(identificarComprobante(manual)).toEqual({ puntoVenta: 7, numero: 1234 })
+    })
+
+    it('no identifica una factura sin número ni emisión autorizada', () => {
+      expect(identificarComprobante({ ...ORIGINAL, emision: undefined, numero: undefined })).toBeNull()
+      expect(identificarComprobante({ ...ORIGINAL, emision: undefined, numero: 'A-15' })).toBeNull()
+      // Una emisión pendiente no sirve como referencia: todavía no hay comprobante ante ARCA.
+      const pendiente = { ...ORIGINAL, emision: { ...ORIGINAL.emision!, estado: 'pendiente' as const } }
+      expect(identificarComprobante({ ...pendiente, numero: undefined })).toBeNull()
+    })
+  })
+
+  describe('comprobanteAsociadoDe', () => {
+    it('arma la referencia con el tipo, el punto de venta y el número del original', () => {
+      expect(comprobanteAsociadoDe(ORIGINAL, 'b')).toEqual({
+        tipo: 'factura_b',
+        punto_venta: 3,
+        numero: 145,
+        fecha: '2026-09-10',
+      })
+    })
+
+    it('devuelve null si el original no se puede identificar', () => {
+      expect(comprobanteAsociadoDe({ ...ORIGINAL, emision: undefined, numero: undefined }, 'b')).toBeNull()
+    })
+  })
+
+  describe('montoDisponibleParaNota', () => {
+    it('sin notas previas queda todo el original', () => {
+      expect(montoDisponibleParaNota(ORIGINAL, [ORIGINAL])).toBe(12100)
+    })
+
+    it('descuenta las notas de crédito ya aplicadas', () => {
+      expect(montoDisponibleParaNota(ORIGINAL, [ORIGINAL, nota()])).toBe(6050)
+      expect(montoDisponibleParaNota(ORIGINAL, [ORIGINAL, nota(), nota({ id: 'nc2', monto: 6050 })])).toBe(0)
+    })
+
+    it('ignora las notas de otro comprobante y las de débito', () => {
+      const deOtro = nota({ id: 'nc3', comprobanteAsociadoId: 'otra' })
+      const debito = nota({ id: 'nd1', tipoComprobante: 'nota_debito' })
+      expect(montoDisponibleParaNota(ORIGINAL, [ORIGINAL, deOtro, debito])).toBe(12100)
+    })
+
+    it('nunca devuelve negativo', () => {
+      expect(montoDisponibleParaNota(ORIGINAL, [ORIGINAL, nota({ monto: 99999 })])).toBe(0)
+    })
+  })
+
+  describe('validarNota', () => {
+    it('acepta una nota bien formada', () => {
+      expect(validarNota(nota(), ORIGINAL, [ORIGINAL])).toEqual([])
+    })
+
+    it('exige indicar el comprobante que corrige', () => {
+      const suelta = nota({ comprobanteAsociadoId: undefined })
+      expect(validarNota(suelta, undefined, [])).toEqual(['La nota tiene que indicar qué comprobante corrige.'])
+    })
+
+    it('avisa cuando el original no aparece', () => {
+      expect(validarNota(nota(), undefined, [])[0]).toMatch(/No se encuentra/)
+    })
+
+    it('no deja acreditar más de lo que queda del original', () => {
+      const previa = nota({ id: 'nc0', monto: 10000 })
+      const problemas = validarNota(nota({ monto: 5000 }), ORIGINAL, [ORIGINAL, previa])
+      expect(problemas.some((p) => p.includes('no puede superar'))).toBe(true)
+    })
+
+    it('al editar una nota no se cuenta a sí misma', () => {
+      const existente = nota({ monto: 12100 })
+      expect(validarNota(existente, ORIGINAL, [ORIGINAL, existente])).toEqual([])
+    })
+
+    it('una nota de débito no está limitada por el monto del original', () => {
+      const debito = nota({ tipoComprobante: 'nota_debito', monto: 99999 })
+      expect(validarNota(debito, ORIGINAL, [ORIGINAL])).toEqual([])
+    })
+
+    it('exige que el original tenga número de ARCA', () => {
+      const sinNumero = { ...ORIGINAL, emision: undefined, numero: undefined }
+      expect(validarNota(nota(), sinNumero, [sinNumero]).some((p) => p.includes('número de ARCA'))).toBe(true)
+    })
+
+    it('no deja corregir una nota con otra nota', () => {
+      const sobreNota = { ...ORIGINAL, tipoComprobante: 'nota_credito' as const }
+      expect(validarNota(nota(), sobreNota, [sobreNota]).some((p) => p.includes('no otra nota'))).toBe(true)
+    })
+
+    it('no mezcla emitidas con recibidas', () => {
+      const recibida = { ...ORIGINAL, tipo: 'recibida' as const }
+      expect(validarNota(nota(), recibida, [recibida]).some((p) => p.includes('los dos emitidos'))).toBe(true)
+    })
+  })
+
+  describe('la emisión de notas está frenada a propósito', () => {
+    it('EMISION_NOTAS_HABILITADA sigue en false mientras no se verifique el contrato', () => {
+      expect(EMISION_NOTAS_HABILITADA).toBe(false)
+    })
+
+    it('la validación frena la emisión aunque la nota sea impecable', () => {
+      const problemas = validarFacturaParaEmision(nota(), { ...RI, original: ORIGINAL, facturas: [ORIGINAL] })
+      expect(problemas.some((p) => p.includes('contrato OpenAPI'))).toBe(true)
+    })
+
+    it('pero el payload ya lleva la referencia bien armada', () => {
+      // Se saltea la validación a propósito, para probar el mapeo que va a correr cuando se habilite.
+      const payload = mapearFacturaAPayload(factura(), RI)
+      expect(payload.comprobantes_asociados).toBeUndefined()
+
+      const asociado = comprobanteAsociadoDe(ORIGINAL, 'b')
+      expect(asociado).not.toBeNull()
+    })
   })
 })

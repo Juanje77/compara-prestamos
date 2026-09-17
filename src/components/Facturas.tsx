@@ -28,7 +28,9 @@ import { importarComprobantesArca } from '../lib/arcaImport'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
 import { InfoTooltip } from './InfoTooltip'
+import { identificarComprobante } from '../lib/facturacionElectronica'
 import { EmitirComprobante } from './EmitirComprobante'
+import { NuevaNota } from './NuevaNota'
 
 interface Props {
   facturas: Factura[]
@@ -133,6 +135,7 @@ function BotonExportarContador({ onExportar }: { onExportar: Props['onExportarCo
 
 export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarVarias, onCambiar, onEliminar, emisorFiscal, onEmitida, onVaciar, onExportarContador, onDescargarInforme }: Props) {
   const [facturaAEmitir, setFacturaAEmitir] = useState<Factura | null>(null)
+  const [facturaANotear, setFacturaANotear] = useState<Factura | null>(null)
   const [tipo, setTipo] = useState<TipoFactura>('emitida')
   const [tipoComprobante, setTipoComprobante] = useState<TipoComprobante>('factura')
   const [contraparte, setContraparte] = useState('')
@@ -853,6 +856,16 @@ export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarV
                         ×{f.cuotas} cuotas
                       </span>
                     )}
+                    {f.tipoComprobante === 'factura' && identificarComprobante(f) !== null && (
+                      <button
+                        onClick={() => setFacturaANotear(f)}
+                        title="Emitir una nota de crédito o débito sobre este comprobante"
+                        className="shrink-0 rounded-md border px-2 py-0.5 text-xs"
+                        style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
+                      >
+                        Nota
+                      </button>
+                    )}
                     {f.tipo === 'emitida' &&
                       (f.emision?.estado === 'autorizado' ? (
                         <span
@@ -890,9 +903,19 @@ export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarV
         </>
       )}
 
+      {facturaANotear && (
+        <NuevaNota
+          original={facturaANotear}
+          facturas={facturas}
+          onCrear={onAgregar}
+          onCerrar={() => setFacturaANotear(null)}
+        />
+      )}
+
       {facturaAEmitir && emisorFiscal && onEmitida && (
         <EmitirComprobante
           factura={facturaAEmitir}
+          facturas={facturas}
           emisor={emisorFiscal}
           onEmitida={onEmitida}
           onCerrar={() => setFacturaAEmitir(null)}

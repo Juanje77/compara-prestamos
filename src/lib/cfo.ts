@@ -543,6 +543,9 @@ export interface Factura {
   receptor?: DatosReceptor
   /** Devuelto por ARCA al emitir. Una factura con `emision.estado === 'autorizado'` no se toca más. */
   emision?: ResultadoEmision
+  /** Id de la factura que esta nota de crédito o débito corrige. ARCA exige que una nota diga a
+   * qué comprobante se aplica, y el importe no puede superar lo que queda vivo de aquél. */
+  comprobanteAsociadoId?: string
   /** Fecha estimada (editable) en la que se espera cobrar/pagar este comprobante — alimenta el
    * calendario semanal de Cobros y Pagos. No afecta el cálculo de ventas/compras netas. */
   fechaEstimadaCobroPago?: string

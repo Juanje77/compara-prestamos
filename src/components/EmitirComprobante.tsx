@@ -28,6 +28,12 @@ const DOCUMENTOS: { id: DocumentoTipo; nombre: string }[] = [
   { id: 'sin_identificar', nombre: 'Sin identificar' },
 ]
 
+const ETIQUETA: Record<Factura['tipoComprobante'], string> = {
+  factura: 'factura',
+  nota_credito: 'nota de crédito',
+  nota_debito: 'nota de débito',
+}
+
 const RECEPTOR_VACIO: DatosReceptor = {
   documentoTipo: 'dni',
   documentoNumero: '',
@@ -37,12 +43,14 @@ const RECEPTOR_VACIO: DatosReceptor = {
 
 interface Props {
   factura: Factura
+  /** Todos los comprobantes: una nota necesita encontrar el que corrige. */
+  facturas: Factura[]
   emisor: DatosEmisorFiscal
   onEmitida: (id: string, receptor: DatosReceptor, emision: ResultadoEmision) => void
   onCerrar: () => void
 }
 
-export function EmitirComprobante({ factura, emisor, onEmitida, onCerrar }: Props) {
+export function EmitirComprobante({ factura, facturas, emisor, onEmitida, onCerrar }: Props) {
   const [receptor, setReceptor] = useState<DatosReceptor>(
     () => factura.receptor ?? { ...RECEPTOR_VACIO, razonSocial: factura.contraparte },
   )
@@ -52,7 +60,10 @@ export function EmitirComprobante({ factura, emisor, onEmitida, onCerrar }: Prop
   const [reintentable, setReintentable] = useState(false)
 
   const candidata: Factura = { ...factura, receptor, detalle: detalle.trim() || undefined }
-  const opciones = { condicionEmisor: emisor.condicion }
+  const original = factura.comprobanteAsociadoId
+    ? facturas.find((f) => f.id === factura.comprobanteAsociadoId)
+    : undefined
+  const opciones = { condicionEmisor: emisor.condicion, original, facturas }
   const problemas = validarFacturaParaEmision(candidata, opciones)
   const letra = letraSugerida(emisor.condicion, receptor).toUpperCase()
 
@@ -100,7 +111,7 @@ export function EmitirComprobante({ factura, emisor, onEmitida, onCerrar }: Prop
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="mb-1 text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
-          Emitir factura {letra}
+          Emitir {ETIQUETA[factura.tipoComprobante]} {letra}
         </h3>
         <p className="mb-4 text-xs" style={{ color: 'var(--text-secondary)' }}>
           {factura.contraparte} · {new Date(`${factura.fecha}T00:00:00`).toLocaleDateString('es-AR')} ·{' '}
@@ -224,7 +235,7 @@ export function EmitirComprobante({ factura, emisor, onEmitida, onCerrar }: Prop
               color: problemas.length === 0 ? '#fff' : 'var(--text-muted)',
             }}
           >
-            {emitiendo ? 'Emitiendo…' : `Emitir factura ${letra}`}
+            {emitiendo ? 'Emitiendo…' : `Emitir ${ETIQUETA[factura.tipoComprobante]} ${letra}`}
           </button>
         </div>
       </div>

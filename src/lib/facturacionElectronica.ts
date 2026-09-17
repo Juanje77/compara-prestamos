@@ -45,6 +45,9 @@ export interface ItemComprobante {
 
 export interface PayloadComprobante {
   tipo_comprobante: string
+  /** Sólo en notas: la referencia al comprobante que corrigen. La clave es
+   * `CAMPO_COMPROBANTES_ASOCIADOS`, todavía pendiente de verificar. */
+  comprobantes_asociados?: ComprobanteAsociado[]
   concepto: ConceptoComprobante
   fecha: string
   referencia_externa: string
@@ -64,6 +67,10 @@ export interface OpcionesEmision {
   concepto?: ConceptoComprobante
   /** Fuerza la letra en vez de derivarla del receptor. */
   letra?: LetraComprobante
+  /** Para una nota de crédito o débito: la factura que corrige. */
+  original?: Factura
+  /** El resto de los comprobantes, para calcular cuánto queda del original sin acreditar. */
+  facturas?: Factura[]
 }
 
 /** Condiciones de IVA del receptor que habilitan una factura A. */
@@ -149,9 +156,12 @@ export function validarFacturaParaEmision(f: Factura, opciones: OpcionesEmision)
   }
 
   if (f.tipoComprobante !== 'factura') {
-    problemas.push(
-      'Las notas de crédito y débito necesitan referenciar el comprobante que corrigen, un campo que todavía no está verificado contra el contrato OpenAPI.',
-    )
+    problemas.push(...validarNota(f, opciones.original, opciones.facturas ?? []))
+    if (!EMISION_NOTAS_HABILITADA) {
+      problemas.push(
+        'Falta verificar contra el contrato OpenAPI cómo se referencia el comprobante original. Hasta entonces la nota se guarda en el sistema pero no se emite.',
+      )
+    }
   }
 
   if (!(f.monto > 0)) {
@@ -221,11 +231,19 @@ export function mapearFacturaAPayload(f: Factura, opciones: OpcionesEmision): Pa
 
   const tipoImpuesto: TipoImpuestoItem = esC ? 'sin_iva' : alicuota > 0 ? 'gravado' : 'exento'
 
+  // Una nota viaja con la referencia al comprobante que corrige. `validarFacturaParaEmision` ya
+  // garantizó que el original existe y es identificable.
+  const asociado =
+    f.tipoComprobante !== 'factura' && opciones.original
+      ? comprobanteAsociadoDe(opciones.original, letra)
+      : null
+
   return {
     tipo_comprobante: `${f.tipoComprobante}_${letra}`,
     concepto: opciones.concepto ?? 'productos',
     fecha: f.fecha,
     referencia_externa: referenciaExternaDeFactura(f),
+    ...(asociado ? { [CAMPO_COMPROBANTES_ASOCIADOS]: [asociado] } : {}),
     cliente: {
       documento_tipo: receptor.documentoTipo,
       documento_numero: limpiarCuit(receptor.documentoNumero),
@@ -356,4 +374,111 @@ export function numeroComprobanteFormateado(
   if (!Number.isFinite(punto) || punto === undefined) return undefined
 
   return `${String(punto).padStart(4, '0')}-${String(emision.numeroComprobante).padStart(8, '0')}`
+}
+
+// --- Notas de crédito y débito ----------------------------------------------------------------
+//
+// ARCA exige que una nota diga a qué comprobante se aplica: sin esa referencia la nota queda
+// legalmente coja. Todo lo de abajo —derivar la referencia, la letra y cuánto queda para acreditar—
+// está resuelto y probado. Lo único que falta es el nombre exacto del campo en el cuerpo del
+// pedido, que sale del contrato OpenAPI y no pudimos abrir.
+//
+// Mientras eso no esté verificado, `EMISION_NOTAS_HABILITADA` queda en false y la validación frena
+// la emisión. El riesgo de no frenarla no es que ARCA rechace la nota: es que la acepte sin la
+// asociación y otorgue un CAE a una nota defectuosa, que ya no se puede deshacer.
+
+/** Poner en true recién cuando el contrato confirme el nombre y la forma del campo. */
+export const EMISION_NOTAS_HABILITADA = false
+
+/** Nombre del campo en el payload. Pendiente de verificar contra `/docs/openapi/download`. */
+export const CAMPO_COMPROBANTES_ASOCIADOS = 'comprobantes_asociados'
+
+export interface ComprobanteAsociado {
+  tipo: string
+  punto_venta: number
+  numero: number
+  fecha: string
+}
+
+/** Punto de venta y número de un comprobante ya emitido, venga de una emisión nuestra o del
+ * número cargado a mano con el formato `PPPP-NNNNNNNN`. */
+export function identificarComprobante(f: Factura): { puntoVenta: number; numero: number } | null {
+  const emision = f.emision
+  if (emision?.estado === 'autorizado' && emision.puntoVenta !== undefined && emision.numeroComprobante !== undefined) {
+    return { puntoVenta: emision.puntoVenta, numero: emision.numeroComprobante }
+  }
+
+  const partes = /^(\d{1,5})-(\d{1,8})$/.exec(f.numero?.trim() ?? '')
+  if (!partes) return null
+  return { puntoVenta: Number(partes[1]), numero: Number(partes[2]) }
+}
+
+/**
+ * Referencia al comprobante que la nota corrige. Devuelve `null` cuando el original no se puede
+ * identificar, que es exactamente cuando no hay que emitir la nota.
+ */
+export function comprobanteAsociadoDe(original: Factura, letra: LetraComprobante): ComprobanteAsociado | null {
+  const identificado = identificarComprobante(original)
+  if (!identificado) return null
+
+  return {
+    tipo: `${original.tipoComprobante}_${letra}`,
+    punto_venta: identificado.puntoVenta,
+    numero: identificado.numero,
+    fecha: original.fecha,
+  }
+}
+
+/**
+ * Cuánto queda del original para acreditar: su monto menos las notas de crédito que ya se le
+ * aplicaron. Una nota de crédito no puede devolver más de lo que se facturó.
+ */
+export function montoDisponibleParaNota(original: Factura, facturas: Factura[]): number {
+  const acreditado = facturas
+    .filter((f) => f.comprobanteAsociadoId === original.id && f.tipoComprobante === 'nota_credito')
+    .reduce((suma, f) => suma + f.monto, 0)
+
+  return redondear(Math.max(0, original.monto - acreditado))
+}
+
+/** Problemas propios de una nota, además de los que ya mira `validarFacturaParaEmision`. */
+export function validarNota(nota: Factura, original: Factura | undefined, facturas: Factura[]): string[] {
+  const problemas: string[] = []
+
+  if (!nota.comprobanteAsociadoId) {
+    problemas.push('La nota tiene que indicar qué comprobante corrige.')
+    return problemas
+  }
+
+  if (!original) {
+    problemas.push('No se encuentra el comprobante que esta nota corrige.')
+    return problemas
+  }
+
+  if (original.tipoComprobante !== 'factura') {
+    problemas.push('Una nota corrige una factura, no otra nota.')
+  }
+
+  if (original.tipo !== nota.tipo) {
+    problemas.push('La nota y el comprobante que corrige tienen que ser los dos emitidos o los dos recibidos.')
+  }
+
+  if (!identificarComprobante(original)) {
+    problemas.push(
+      'El comprobante original no tiene número de ARCA. Cargale el número con el formato 0003-00000145 o emitilo primero.',
+    )
+  }
+
+  if (nota.tipoComprobante === 'nota_credito') {
+    // Se compara contra el disponible sin contar a esta misma nota, para poder editarla.
+    const otras = facturas.filter((f) => f.id !== nota.id)
+    const disponible = montoDisponibleParaNota(original, otras)
+    if (nota.monto > disponible + 0.01) {
+      problemas.push(
+        `La nota de crédito no puede superar lo que queda del original: ${disponible.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}.`,
+      )
+    }
+  }
+
+  return problemas
 }
