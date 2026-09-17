@@ -105,9 +105,17 @@ export default async function handler(req, res) {
   }
 
   if (!respuesta.ok) {
+    // 503 y 504 no son rechazos: son "no sabemos". El contrato dice que ante un 504 el comprobante
+    // puede quedar en pendiente_confirmacion y que se resuelve consultando con /reintentar, nunca
+    // emitiendo de nuevo. Le pasamos al cliente el id para que pueda hacerlo.
+    const incierto = respuesta.status === 503 || respuesta.status === 504
     res.status(respuesta.status).json({
-      error: 'El servicio de facturación rechazó el comprobante.',
+      error: incierto
+        ? 'El servicio fiscal no confirmó la emisión. El comprobante puede haber quedado autorizado.'
+        : 'El servicio de facturación rechazó el comprobante.',
       referenciaExterna,
+      comprobanteId: cuerpo?.data?.id ?? null,
+      consultable: incierto,
       detalle: cuerpo,
     })
     return

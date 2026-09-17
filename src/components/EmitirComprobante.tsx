@@ -25,7 +25,10 @@ const DOCUMENTOS: { id: DocumentoTipo; nombre: string }[] = [
   { id: 'cuit', nombre: 'CUIT' },
   { id: 'cuil', nombre: 'CUIL' },
   { id: 'dni', nombre: 'DNI' },
-  { id: 'sin_identificar', nombre: 'Sin identificar' },
+  { id: 'consumidor_final', nombre: 'Consumidor final (sin identificar)' },
+  { id: 'cdi', nombre: 'CDI' },
+  { id: 'pasaporte', nombre: 'Pasaporte' },
+  { id: 'documento_extranjero', nombre: 'Documento extranjero' },
 ]
 
 const ETIQUETA: Record<Factura['tipoComprobante'], string> = {
@@ -63,7 +66,12 @@ export function EmitirComprobante({ factura, facturas, emisor, onEmitida, onCerr
   const original = factura.comprobanteAsociadoId
     ? facturas.find((f) => f.id === factura.comprobanteAsociadoId)
     : undefined
-  const opciones = { condicionEmisor: emisor.condicion, original, facturas }
+  const opciones = {
+    condicionEmisor: emisor.condicion,
+    puntoVenta: Number(emisor.puntoVenta) || undefined,
+    original,
+    facturas,
+  }
   const problemas = validarFacturaParaEmision(candidata, opciones)
   const letra = letraSugerida(emisor.condicion, receptor).toUpperCase()
 
@@ -141,7 +149,7 @@ export function EmitirComprobante({ factura, facturas, emisor, onEmitida, onCerr
               placeholder="Número de documento"
               value={receptor.documentoNumero}
               onChange={(e) => setReceptor({ ...receptor, documentoNumero: e.target.value })}
-              disabled={receptor.documentoTipo === 'sin_identificar'}
+              disabled={receptor.documentoTipo === 'consumidor_final'}
               className="flex-1 rounded-lg border px-3 py-1.5 text-sm"
               style={campo}
             />

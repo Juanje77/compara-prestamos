@@ -1,0 +1,1138 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "API Sistemas 360",
+    "version": "1.0.0",
+    "description": "API REST/JSON para facturación electrónica en Argentina. El entorno se determina por el token utilizado: los tokens de pruebas simulan la emisión y los tokens de producción autorizan comprobantes ante ARCA.\n\n**Facturación delegada — opción con activación previa**\n\nPodés emitir mediante nuestra API sin gestionar certificados ni claves privadas propios, autorizando a Sistemas 360 en ARCA. Para conocer las condiciones, solicitar la activación y recibir las instrucciones de integración, contactá a soporte@sistemas360.ar.",
+    "termsOfService": "https://api.sistemas360.ar/terminos-y-condiciones",
+    "contact": {
+      "name": "Soporte API Sistemas 360",
+      "email": "soporte@sistemas360.ar",
+      "url": "https://api.sistemas360.ar/documentacion-api"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api.sistemas360.ar",
+      "description": "API Sistemas 360"
+    }
+  ],
+  "externalDocs": {
+    "description": "Guía técnica completa",
+    "url": "https://api.sistemas360.ar/documentacion-api"
+  },
+  "tags": [
+    { "name": "Estado", "description": "Disponibilidad de la API, ARCA y generación de PDF." },
+    { "name": "Conexión", "description": "Validación de credenciales y entorno." },
+    { "name": "Padrón", "description": "Consulta y validación de CUIT." },
+    { "name": "Emisores", "description": "Administración multiemisor con token de cuenta." },
+    { "name": "Comprobantes", "description": "Emisión y consulta de facturas, notas de crédito y notas de débito." },
+    { "name": "PDF", "description": "Representaciones PDF A4 y ticket." }
+  ],
+  "security": [
+    { "bearerAuth": [] }
+  ],
+  "paths": {
+    "/api/health": {
+      "get": {
+        "tags": ["Estado"],
+        "summary": "Consultar estado general",
+        "operationId": "getHealth",
+        "security": [],
+        "responses": {
+          "200": { "$ref": "#/components/responses/HealthOk" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" }
+        }
+      }
+    },
+    "/api/health/arca": {
+      "get": {
+        "tags": ["Estado"],
+        "summary": "Consultar conectividad con ARCA WSFE",
+        "operationId": "getArcaHealth",
+        "security": [],
+        "responses": {
+          "200": { "$ref": "#/components/responses/HealthOk" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" }
+        }
+      }
+    },
+    "/api/health/pdf": {
+      "get": {
+        "tags": ["Estado"],
+        "summary": "Consultar generación de PDF",
+        "operationId": "getPdfHealth",
+        "security": [],
+        "responses": {
+          "200": { "$ref": "#/components/responses/HealthOk" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" }
+        }
+      }
+    },
+    "/api/ping": {
+      "get": {
+        "tags": ["Conexión"],
+        "summary": "Validar token y entorno",
+        "description": "Devuelve información de la cuenta, el tipo de token, el entorno y los límites vigentes.",
+        "operationId": "ping",
+        "responses": {
+          "200": {
+            "description": "Conexión válida.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PingResponse" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/api/puntos-venta": {
+      "get": {
+        "tags": ["Conexión"],
+        "summary": "Consultar puntos de venta",
+        "operationId": "listPointsOfSale",
+        "parameters": [
+          { "$ref": "#/components/parameters/EmitterIdQuery" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Puntos de venta disponibles o comportamiento del entorno de pruebas.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PointsOfSaleResponse" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "422": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/api/cuit/{cuit}": {
+      "get": {
+        "tags": ["Padrón"],
+        "summary": "Consultar CUIT",
+        "description": "Consulta y normaliza información fiscal disponible para el CUIT.",
+        "operationId": "getTaxpayerByCuit",
+        "parameters": [
+          {
+            "name": "cuit",
+            "in": "path",
+            "required": true,
+            "description": "CUIT de 11 dígitos sin guiones.",
+            "schema": { "type": "string", "pattern": "^[0-9]{11}$", "example": "30712345678" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "CUIT validado.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TaxpayerResponse" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "422": { "$ref": "#/components/responses/ValidationError" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" }
+        }
+      }
+    },
+    "/api/emisores": {
+      "get": {
+        "tags": ["Emisores"],
+        "summary": "Listar emisores",
+        "description": "Requiere un token de cuenta.",
+        "operationId": "listEmitters",
+        "parameters": [
+          {
+            "name": "por_pagina",
+            "in": "query",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listado paginado de emisores.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/EmitterListResponse" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      },
+      "post": {
+        "tags": ["Emisores"],
+        "summary": "Crear emisor",
+        "description": "Admite un token de cuenta de pruebas o de producción. La API verifica el CUIT real en el padrón de ARCA y devuelve data.emisor_id. Con un token de pruebas ya podés crear comprobantes para ese emisor, sin certificados ni configuración fiscal. El emisor queda en la cuenta, ocupa un CUIT del plan y se reutiliza al pasar a producción. Ver /documentacion-api#emisores-pruebas.",
+        "operationId": "createEmitter",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/EmitterCreateRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Emisor creado.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/EmitterResponse" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "422": { "$ref": "#/components/responses/ValidationError" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" }
+        }
+      }
+    },
+    "/api/emisores/{emisor}": {
+      "get": {
+        "tags": ["Emisores"],
+        "summary": "Consultar emisor",
+        "operationId": "getEmitter",
+        "parameters": [
+          { "$ref": "#/components/parameters/EmitterIdPath" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detalle del emisor.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/EmitterResponse" } }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "patch": {
+        "tags": ["Emisores"],
+        "summary": "Actualizar emisor",
+        "operationId": "updateEmitter",
+        "parameters": [
+          { "$ref": "#/components/parameters/EmitterIdPath" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/EmitterUpdateRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Emisor actualizado.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/EmitterResponse" } }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "422": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/api/emisores/{emisor}/configuracion-fiscal": {
+      "post": {
+        "tags": ["Emisores"],
+        "summary": "Configurar emisor",
+        "description": "Prepara al emisor para producción: carga el punto de venta y, cuando corresponde, el certificado y la clave privada mediante multipart/form-data. Este paso no es necesario para emitir comprobantes de pruebas.",
+        "operationId": "configureEmitter",
+        "parameters": [
+          { "$ref": "#/components/parameters/EmitterIdPath" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": { "$ref": "#/components/schemas/FiscalConfigurationRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Configuración guardada.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/FiscalStatusResponse" } }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "422": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/api/emisores/{emisor}/validar": {
+      "post": {
+        "tags": ["Emisores"],
+        "summary": "Validar configuración fiscal",
+        "description": "Valida la configuración del emisor antes de operar en producción.",
+        "operationId": "validateEmitter",
+        "parameters": [
+          { "$ref": "#/components/parameters/EmitterIdPath" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Configuración validada.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/FiscalStatusResponse" } }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "422": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/api/emisores/{emisor}/estado-fiscal": {
+      "get": {
+        "tags": ["Emisores"],
+        "summary": "Consultar estado fiscal",
+        "operationId": "getEmitterFiscalStatus",
+        "description": "Consulta el estado fiscal guardado sin disparar una comprobación en ARCA. Cada consulta con un token de producción consume un request del cupo del plan.",
+        "parameters": [
+          { "$ref": "#/components/parameters/EmitterIdPath" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estado de configuración del emisor.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/FiscalStatusResponse" } }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/comprobantes": {
+      "get": {
+        "tags": ["Comprobantes"],
+        "summary": "Listar comprobantes",
+        "operationId": "listReceipts",
+        "parameters": [
+          { "$ref": "#/components/parameters/EmitterIdQuery" },
+          { "name": "estado", "in": "query", "schema": { "type": "string", "example": "autorizado" } },
+          { "name": "tipo_comprobante", "in": "query", "schema": { "$ref": "#/components/schemas/ReceiptType" } },
+          { "name": "referencia_externa", "in": "query", "schema": { "type": "string", "maxLength": 100 } },
+          { "name": "cliente", "in": "query", "description": "Razón social o documento.", "schema": { "type": "string" } },
+          { "name": "per_page", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 50, "default": 15 } },
+          { "name": "page", "in": "query", "schema": { "type": "integer", "minimum": 1, "default": 1 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listado paginado de comprobantes.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ReceiptListResponse" } }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "422": { "$ref": "#/components/responses/ValidationError" }
+        }
+      },
+      "post": {
+        "tags": ["Comprobantes"],
+        "summary": "Emitir comprobante",
+        "description": "Emite o simula una factura, nota de crédito o nota de débito. referencia_externa actúa como clave de idempotencia dentro del emisor. Repetir una solicitud válida con esa referencia conserva HTTP 200 y el comprobante original; si contiene datos distintos, mensaje_api avisa que no se aplicaron. Comparar data con la operación esperada; reutilizar una referencia no modifica el comprobante.",
+        "operationId": "createReceipt",
+        "parameters": [{ "$ref": "#/components/parameters/TestScenario" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ReceiptCreateRequest" },
+              "examples": {
+                "facturaB": {
+                  "summary": "Factura B",
+                  "value": {
+                    "tipo_comprobante": "factura_b",
+                    "concepto": "productos",
+                    "referencia_externa": "venta_1001",
+                    "cliente": {
+                      "documento_tipo": "dni",
+                      "documento_numero": "30111222",
+                      "razon_social": "Cliente Demo",
+                      "condicion_iva_receptor_id": 5
+                    },
+                    "items": [
+                      {
+                        "descripcion": "Producto de ejemplo",
+                        "cantidad": 1,
+                        "precio_unitario": 10000,
+                        "tipo_impuesto": "gravado",
+                        "iva": 21
+                      }
+                    ],
+                    "total": 12100,
+                    "moneda": "PES"
+                  }
+                },
+                "facturaBConTributos": {
+                  "summary": "Factura B con impuesto municipal y percepcion IIBB",
+                  "description": "Ejemplo ilustrativo, no determina aplicabilidad fiscal. Neto 10000 + IVA 2100 + municipal 200 + IIBB 300 = 12600. Usar fecha real y referencia unica. Para una percepcion municipal usar id 8 y su base, alicuota e importe correspondientes.",
+                  "value": {
+                    "tipo_comprobante": "factura_b",
+                    "concepto": "productos",
+                    "referencia_externa": "venta_tributos_1001",
+                    "cliente": {
+                      "documento_tipo": "dni",
+                      "documento_numero": "30111222",
+                      "razon_social": "Cliente Demo",
+                      "condicion_iva_receptor_id": 5
+                    },
+                    "items": [
+                      { "descripcion": "Producto de ejemplo", "cantidad": 1, "precio_unitario": 10000, "tipo_impuesto": "gravado", "iva": 21 }
+                    ],
+                    "tributos": [
+                      { "id": 3, "descripcion": "Tasa municipal - Municipio de ejemplo", "base_imponible": 10000, "alicuota": 2, "importe": 200 },
+                      { "id": 7, "descripcion": "Percepcion IIBB - Provincia de ejemplo", "base_imponible": 10000, "alicuota": 3, "importe": 300 }
+                    ],
+                    "total": 12600,
+                    "moneda": "PES"
+                  }
+                },
+                "facturaC": {
+                  "summary": "Factura C",
+                  "value": {
+                    "tipo_comprobante": "factura_c",
+                    "concepto": "productos",
+                    "referencia_externa": "venta_1002",
+                    "cliente": {
+                      "documento_tipo": "consumidor_final",
+                      "documento_numero": null,
+                      "razon_social": "Consumidor Final",
+                      "condicion_iva_receptor_id": 5
+                    },
+                    "items": [
+                      { "descripcion": "Producto de ejemplo", "cantidad": 1, "precio_unitario": 10000 }
+                    ],
+                    "total": 10000,
+                    "moneda": "PES"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "La referencia externa ya existia; se devuelve el estado guardado del mismo comprobante. ok: true no implica que este autorizado: revisar data.estado y data.cae. Mientras la solicitud original sigue en curso puede devolver pendiente, numero_comprobante: 0 y cae: null. Esperar y consultar el mismo ID con GET; si persiste, usar /reintentar conservando el ID y la referencia.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ReceiptResponse" } }
+            }
+          },
+          "201": {
+            "description": "Comprobante creado o autorizado.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ReceiptResponse" } }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "422": { "$ref": "#/components/responses/ValidationError" },
+          "503": {
+            "description": "Servicio fiscal no disponible. Revisar error.tipo y data.estado, si hay comprobante registrado.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
+          },
+          "504": {
+            "description": "Timeout de ARCA. Si data.estado es pendiente_confirmacion, usar el endpoint de reintento para consultar a ARCA sin emitir otro comprobante.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
+          }
+        }
+      }
+    },
+    "/api/comprobantes/{comprobante}": {
+      "get": {
+        "tags": ["Comprobantes"],
+        "summary": "Consultar comprobante",
+        "description": "Devuelve el estado guardado localmente. Si esta pendiente_confirmacion, usar POST /api/comprobantes/{id}/reintentar para consultar el resultado en ARCA.",
+        "operationId": "getReceipt",
+        "parameters": [
+          { "$ref": "#/components/parameters/ReceiptIdPath" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detalle del comprobante.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ReceiptResponse" } }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/comprobantes/{comprobante}/reintentar": {
+      "post": {
+        "tags": ["Comprobantes"],
+        "summary": "Reintentar comprobante",
+        "description": "Sin body ni cabecera de escenario; requiere token del mismo entorno. Si ya está autorizado o completado en pruebas (simulado), devuelve 200 con el resultado existente, sin volver a emitir. En error reintenta la autorización conservando la fecha original, incluida la asignada al crear si se omitió fecha. Se revalidan las fechas: si ya no son válidas, devuelve 422 con fecha_reintento_invalida y mensaje_api, sin solicitar autorización ni modificar el registro. En producción ARCA valida el orden de fechas; pruebas lo controla antes de asignar número nuevo. Una preparación persistida en pendiente que no llegó a enviarse puede retomarse con los mismos datos y validación de fechas. En pendiente_confirmacion solo consulta la autorización original y verifica sus datos fiscales, aun si pasaron semanas, sin emitir otra vez; devuelve 409 si sigue sin confirmarse o recuperacion_inconsistente si no coincide. En pruebas usa el escenario guardado: pendiente_recuperable completa con estado simulado y pendiente_persistente mantiene 409; los errores técnicos recuperables completan si sus fechas siguen siendo válidas. Conservá el mismo ID y referencia mientras el resultado sea incierto. El integrador inicia los reintentos; no hay webhooks de estado. El resultado fiscal usa mensaje y error_type en el nivel principal, junto con data.estado; las validaciones locales pueden usar error.tipo y error.detalles.",
+        "operationId": "retryReceipt",
+        "parameters": [
+          { "$ref": "#/components/parameters/ReceiptIdPath" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Comprobante autorizado, recuperado o ya completado anteriormente. No se duplica la emisión. Revisar data.estado y data.cae.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ReceiptResponse" } }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": {
+            "description": "Resultado pendiente de confirmación o datos incompatibles con el intento original (recuperacion_inconsistente). No se volvió a emitir; revisar mensaje_api.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ReceiptResponse" } } }
+          },
+          "422": {
+            "description": "Validación local, estado que no admite reintento o rechazo fiscal. fecha_reintento_invalida indica fechas originales no válidas para una nueva autorización; el registro permanece intacto. El rechazo fiscal usa mensaje y data.mensajes_arca.",
+            "content": { "application/json": { "schema": { "anyOf": [
+              { "$ref": "#/components/schemas/ErrorResponse" },
+              { "$ref": "#/components/schemas/ReceiptResponse" }
+            ] } } }
+          },
+          "503": {
+            "description": "Servicio no disponible, respuesta incompleta u operación fiscal en curso. Conservar el comprobante y revisar data.estado y mensaje_api.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ReceiptResponse" } } }
+          },
+          "504": {
+            "description": "ARCA no respondio a tiempo. Revisar data.estado; puede seguir pendiente_confirmacion.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ReceiptResponse" } } }
+          }
+        }
+      }
+    },
+    "/api/comprobantes/{comprobante}/imprimir-a4": {
+      "get": {
+        "tags": ["PDF"],
+        "summary": "Obtener PDF A4",
+        "operationId": "getReceiptA4Pdf",
+        "parameters": [
+          { "$ref": "#/components/parameters/ReceiptIdPath" }
+        ],
+        "responses": {
+          "200": {
+            "description": "PDF A4.",
+            "content": {
+              "application/pdf": { "schema": { "type": "string", "format": "binary" } }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/comprobantes/{comprobante}/imprimir-ticket": {
+      "get": {
+        "tags": ["PDF"],
+        "summary": "Obtener PDF ticket",
+        "operationId": "getReceiptTicketPdf",
+        "parameters": [
+          { "$ref": "#/components/parameters/ReceiptIdPath" }
+        ],
+        "responses": {
+          "200": {
+            "description": "PDF ticket.",
+            "content": {
+              "application/pdf": { "schema": { "type": "string", "format": "binary" } }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "Token API",
+        "description": "Pegá únicamente el token, sin escribir Bearer. Podés generar un token de pruebas desde Panel → Primeros pasos. La credencial permanece solo en la memoria de esta pestaña."
+      }
+    },
+    "parameters": {
+      "TestScenario": {
+        "name": "X-S360-Escenario-Prueba",
+        "in": "header",
+        "required": false,
+        "description": "Solo al crear comprobantes con token de pruebas. La solicitud debe ser válida. El escenario se guarda y se aplica también al reintentar sin cabecera. Cambiar la cabecera con la misma referencia no reinicia el caso. Tokens de producción, valores desconocidos u otros endpoints devuelven 422 antes de emitir. Ver /documentacion-api#entorno-pruebas.",
+        "schema": { "type": "string", "enum": ["servicio_no_disponible","pendiente_recuperable","pendiente_persistente","rechazo_fiscal","rechazo_fecha","rechazo_punto_venta","rechazo_receptor","rechazo_importes","rechazo_asociado","certificado_invalido","numeracion_no_confirmada","aprobado_con_observaciones"] }
+      },
+      "EmitterIdPath": {
+        "name": "emisor",
+        "in": "path",
+        "required": true,
+        "description": "Identificador interno del emisor.",
+        "schema": { "type": "integer", "minimum": 1, "example": 123 }
+      },
+      "EmitterIdQuery": {
+        "name": "emisor_id",
+        "in": "query",
+        "required": false,
+        "description": "Obligatorio cuando se utiliza un token de cuenta; se omite con un token individual de emisor.",
+        "schema": { "type": "integer", "minimum": 1, "example": 123 }
+      },
+      "ReceiptIdPath": {
+        "name": "comprobante",
+        "in": "path",
+        "required": true,
+        "description": "Identificador interno del comprobante.",
+        "schema": { "type": "integer", "minimum": 1, "example": 59 }
+      }
+    },
+    "responses": {
+      "HealthOk": {
+        "description": "Servicio operativo.",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/HealthResponse" } }
+        }
+      },
+      "Unauthorized": {
+        "description": "Token ausente o inválido.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+            "example": {
+              "ok": false,
+              "error": { "codigo": 401, "mensaje": "Token inválido." }
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Cuenta, token, empresa o entorno sin autorización.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+            "example": {
+              "ok": false,
+              "error": { "codigo": 403, "mensaje": "Token inactivo o suspendido." }
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Recurso no encontrado para la cuenta.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+            "example": {
+              "ok": false,
+              "error": { "codigo": 404, "mensaje": "Recurso no encontrado." }
+            }
+          }
+        }
+      },
+      "ValidationError": {
+        "description": "Solicitud inválida o regla fiscal incumplida.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+            "example": {
+              "ok": false,
+              "error": {
+                "codigo": 422,
+                "mensaje": "Datos inválidos.",
+                "detalles": { "emisor_id": ["El emisor es obligatorio."] }
+              }
+            }
+          }
+        }
+      },
+      "TooManyRequests": {
+        "description": "Límite temporal de solicitudes alcanzado.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+            "example": {
+              "ok": false,
+              "error": { "codigo": 429, "mensaje": "Límite temporal de solicitudes alcanzado." }
+            }
+          }
+        }
+      },
+      "ServiceUnavailable": {
+        "description": "Servicio externo o interno temporalmente no disponible.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+            "example": {
+              "ok": false,
+              "error": { "codigo": 503, "mensaje": "No se pudo consultar ARCA en este momento." }
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "ApiMessage": {
+        "type": "string",
+        "nullable": true,
+        "description": "Explicación adicional de Sistemas 360 sobre el resultado y cómo continuar. Puede ser null. Texto para personas: automatizar usando HTTP, estado y códigos, no comparando frases. Los campos y mensajes originales se conservan.",
+        "example": "El resultado está pendiente de confirmación. Esperá y usá el endpoint de reintento con el mismo ID."
+      },
+      "HealthResponse": {
+        "type": "object",
+        "required": ["ok", "service", "status", "timestamp"],
+        "properties": {
+          "ok": { "type": "boolean", "example": true },
+          "service": { "type": "string", "example": "API REST" },
+          "status": { "type": "string", "example": "operational" },
+          "check": { "type": "string", "nullable": true, "example": "wsfe_dummy" },
+          "timestamp": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": ["ok", "error"],
+        "properties": {
+          "mensaje_api": { "$ref": "#/components/schemas/ApiMessage" },
+          "ok": { "type": "boolean", "example": false },
+          "error": {
+            "type": "object",
+            "required": ["codigo", "mensaje"],
+            "properties": {
+              "codigo": { "type": "integer", "example": 422 },
+              "tipo": { "type": "string", "nullable": true, "example": "emisor_requerido" },
+              "mensaje": { "type": "string", "example": "Datos inválidos." },
+              "detalles": {
+                "type": "object",
+                "nullable": true,
+                "additionalProperties": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              }
+            }
+          },
+          "data": { "nullable": true }
+        }
+      },
+      "Pagination": {
+        "type": "object",
+        "required": ["pagina_actual", "por_pagina", "total", "ultima_pagina"],
+        "properties": {
+          "pagina_actual": { "type": "integer", "example": 1 },
+          "por_pagina": { "type": "integer", "example": 20 },
+          "total": { "type": "integer", "example": 2 },
+          "ultima_pagina": { "type": "integer", "example": 1 }
+        }
+      },
+      "PingResponse": {
+        "type": "object",
+        "required": ["ok", "mensaje", "data"],
+        "properties": {
+          "mensaje_api": { "$ref": "#/components/schemas/ApiMessage" },
+          "ok": { "type": "boolean", "example": true },
+          "mensaje": { "type": "string", "example": "Conexión API correcta." },
+          "data": {
+            "type": "object",
+            "properties": {
+              "cuenta_id": { "type": "integer", "nullable": true },
+              "empresa_id": { "type": "integer", "nullable": true },
+              "empresa": { "type": "string", "nullable": true },
+              "cuit": { "type": "string", "nullable": true },
+              "entorno": { "type": "string", "enum": ["pruebas", "produccion"] },
+              "token_tipo": { "type": "string", "enum": ["empresa", "cuenta"] },
+              "emisores": { "type": "integer", "nullable": true },
+              "limite_emisores": { "type": "integer", "nullable": true },
+              "plan": { "type": "string", "nullable": true },
+              "uso_mes_actual": { "type": "integer" },
+              "limite_mensual": { "type": "integer", "nullable": true },
+              "precio_excedente": { "type": "number", "nullable": true },
+              "fecha": { "type": "string", "example": "2026-08-17 15:30:00" }
+            }
+          }
+        }
+      },
+      "PointsOfSaleResponse": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "mensaje_api": { "$ref": "#/components/schemas/ApiMessage" },
+          "ok": { "type": "boolean", "example": true },
+          "mensaje": { "type": "string", "nullable": true },
+          "data": {
+            "type": "object",
+            "properties": {
+              "entorno": { "type": "string", "enum": ["pruebas", "produccion"] },
+              "punto_venta_predeterminado": { "type": "integer", "nullable": true, "example": 9999 },
+              "acepta_cualquier_numero": { "type": "boolean", "nullable": true, "example": true },
+              "sin_limite_plataforma": { "type": "boolean", "nullable": true, "example": true },
+              "puntos_venta": { "type": "array", "items": { "type": "object", "additionalProperties": true } }
+            }
+          }
+        }
+      },
+      "TaxpayerResponse": {
+        "type": "object",
+        "required": ["ok", "mensaje", "data"],
+        "properties": {
+          "mensaje_api": { "$ref": "#/components/schemas/ApiMessage" },
+          "ok": { "type": "boolean", "example": true },
+          "mensaje": { "type": "string", "example": "CUIT validado correctamente." },
+          "data": {
+            "type": "object",
+            "properties": {
+              "cuit": { "type": "string", "example": "30712345678" },
+              "razon_social": { "type": "string", "example": "EMPRESA DEMO SA" },
+              "nombre_fantasia": { "type": "string", "example": "Empresa Demo" },
+              "condicion_iva": { "type": "string", "example": "responsable_inscripto" },
+              "tipo_persona": { "type": "string", "enum": ["fisica", "juridica"] },
+              "direccion": { "type": "string", "example": "Av. Corrientes 1234" },
+              "localidad": { "type": "string", "example": "Ciudad Autónoma de Buenos Aires" },
+              "provincia": { "type": "string", "example": "Ciudad Autónoma de Buenos Aires" },
+              "codigo_postal": { "type": "string", "example": "1043" },
+              "estado_clave": { "type": "string", "example": "ACTIVO" },
+              "condicion_iva_receptor_id": { "type": "integer", "example": 1 },
+              "condicion_iva_receptor_descripcion": { "type": "string", "example": "IVA Responsable Inscripto" },
+              "cliente_sugerido": {
+                "type": "object",
+                "properties": {
+                  "documento_tipo": { "type": "string", "example": "cuit" },
+                  "documento_numero": { "type": "string", "example": "30712345678" },
+                  "razon_social": { "type": "string", "example": "EMPRESA DEMO SA" },
+                  "condicion_iva_receptor_id": { "type": "integer", "example": 1 },
+                  "direccion": { "type": "string", "example": "Av. Corrientes 1234" },
+                  "localidad": { "type": "string", "example": "Ciudad Autónoma de Buenos Aires" },
+                  "provincia": { "type": "string", "example": "Ciudad Autónoma de Buenos Aires" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "EmitterCreateRequest": {
+        "type": "object",
+        "required": ["cuit"],
+        "properties": {
+          "modalidad_comprobantes_a": {"type":"string","nullable":true,"enum":["a_comun","a_cbu_informada","a_sujeta_retencion",null],"description":"Solo RI con emisión A ya autorizada por ARCA. Es un dato declarado; no habilita la emisión. Omitir conserva el valor; null lo borra. Solo B: puede quedar null."},
+          "cuit": { "type": "string", "pattern": "^[0-9]{11}$", "example": "30712345678" },
+          "nombre_fantasia": { "type": "string", "nullable": true, "maxLength": 255, "example": "Tienda Demo" },
+          "email": { "type": "string", "format": "email", "nullable": true },
+          "telefono": { "type": "string", "nullable": true, "maxLength": 50 },
+          "direccion": { "type": "string", "nullable": true, "maxLength": 255 },
+          "localidad": { "type": "string", "nullable": true, "maxLength": 100 },
+          "provincia": { "type": "string", "nullable": true, "maxLength": 100 },
+          "codigo_postal": { "type": "string", "nullable": true, "maxLength": 20 }
+        }
+      },
+      "EmitterUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "modalidad_comprobantes_a": {"type":"string","nullable":true,"enum":["a_comun","a_cbu_informada","a_sujeta_retencion",null],"description":"Solo RI con emisión A ya autorizada por ARCA. Es un dato declarado; no habilita la emisión. Omitir conserva el valor; null lo borra. Solo B: puede quedar null."},
+          "nombre_fantasia": { "type": "string", "nullable": true, "maxLength": 255 },
+          "email": { "type": "string", "format": "email", "nullable": true },
+          "telefono": { "type": "string", "nullable": true, "maxLength": 50 },
+          "direccion": { "type": "string", "nullable": true, "maxLength": 255 },
+          "localidad": { "type": "string", "nullable": true, "maxLength": 100 },
+          "provincia": { "type": "string", "nullable": true, "maxLength": 100 },
+          "codigo_postal": { "type": "string", "nullable": true, "maxLength": 20 },
+          "estado": { "type": "string", "enum": ["activa", "suspendida"] }
+        }
+      },
+      "Emitter": {
+        "type": "object",
+        "required": ["emisor_id", "cuit", "razon_social", "estado_emisor", "estado_configuracion", "situacion_arca"],
+        "properties": {
+          "modalidad_comprobantes_a": {"type":"string","nullable":true,"enum":["a_comun","a_cbu_informada","a_sujeta_retencion",null],"description":"Solo RI con emisión A ya autorizada por ARCA. Es un dato declarado; no habilita la emisión. Omitir conserva el valor; null lo borra. Solo B: puede quedar null."},
+          "modalidad_comprobantes_a_actualizada_at": {"type":"string","format":"date-time","nullable":true},
+          "emisor_id": { "type": "integer", "example": 123 },
+          "cuit": { "type": "string", "example": "30712345678" },
+          "razon_social": { "type": "string", "example": "Vendedor Demo SA" },
+          "nombre_fantasia": { "type": "string", "nullable": true },
+          "condicion_iva": { "type": "string", "nullable": true },
+          "tipo_persona": { "type": "string", "nullable": true },
+          "email": { "type": "string", "format": "email", "nullable": true },
+          "telefono": { "type": "string", "nullable": true },
+          "estado_emisor": { "type": "string", "enum": ["activo", "suspendido", "desconocido"] },
+          "estado_configuracion": { "type": "string", "enum": ["sin_configurar", "incompleta", "pendiente_validacion", "validada", "error", "desconocida"] },
+          "situacion_arca": { "type": "string", "enum": ["activa", "inactiva", "desconocida"] },
+          "arca_verificado_at": { "type": "string", "format": "date-time", "nullable": true }
+        }
+      },
+      "EmitterResponse": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "mensaje_api": { "$ref": "#/components/schemas/ApiMessage" },
+          "ok": { "type": "boolean", "example": true },
+          "mensaje": { "type": "string", "nullable": true },
+          "data": { "$ref": "#/components/schemas/Emitter" }
+        }
+      },
+      "EmitterListResponse": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "mensaje_api": { "$ref": "#/components/schemas/ApiMessage" },
+          "ok": { "type": "boolean", "example": true },
+          "data": {
+            "type": "object",
+            "required": ["items", "paginacion"],
+            "properties": {
+              "items": { "type": "array", "items": { "$ref": "#/components/schemas/Emitter" } },
+              "paginacion": { "$ref": "#/components/schemas/Pagination" }
+            }
+          }
+        }
+      },
+      "FiscalConfigurationRequest": {
+        "type": "object",
+        "required": ["punto_venta"],
+        "properties": {
+          "modalidad_comprobantes_a": {"type":"string","nullable":true,"enum":["a_comun","a_cbu_informada","a_sujeta_retencion",null],"description":"Solo RI con emisión A ya autorizada por ARCA. Es un dato declarado; no habilita la emisión. Omitir conserva el valor; null lo borra. Solo B: puede quedar null."},
+          "punto_venta": { "type": "integer", "minimum": 1, "maximum": 99999, "example": 3 },
+          "certificado": { "type": "string", "format": "binary", "nullable": true },
+          "certificado_vencimiento_at": { "type": "string", "format": "date", "nullable": true },
+          "clave_privada": { "type": "string", "format": "binary", "nullable": true },
+          "clave_privada_password": { "type": "string", "format": "password", "nullable": true, "maxLength": 255 },
+          "observaciones": { "type": "string", "nullable": true, "maxLength": 2000 }
+        }
+      },
+      "FiscalStatus": {
+        "type": "object",
+        "properties": {
+          "modalidad_comprobantes_a": {"type":"string","nullable":true,"enum":["a_comun","a_cbu_informada","a_sujeta_retencion",null],"description":"Solo RI con emisión A ya autorizada por ARCA. Es un dato declarado; no habilita la emisión. Omitir conserva el valor; null lo borra. Solo B: puede quedar null."},
+          "modalidad_comprobantes_a_actualizada_at": {"type":"string","format":"date-time","nullable":true},
+          "emisor_id": { "type": "integer" },
+          "cuit": { "type": "string" },
+          "estado_emisor": { "type": "string" },
+          "estado_configuracion": { "type": "string" },
+          "situacion_arca": { "type": "string" },
+          "arca_verificado_at": { "type": "string", "format": "date-time", "nullable": true },
+          "punto_venta": { "type": "integer", "nullable": true },
+          "certificado_cargado": { "type": "boolean" },
+          "clave_privada_cargada": { "type": "boolean" },
+          "certificado_vencimiento_at": { "type": "string", "format": "date", "nullable": true },
+          "validado_at": { "type": "string", "format": "date-time", "nullable": true },
+          "observaciones": { "type": "string", "nullable": true }
+        }
+      },
+      "FiscalStatusResponse": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "mensaje_api": { "$ref": "#/components/schemas/ApiMessage" },
+          "ok": { "type": "boolean", "example": true },
+          "mensaje": { "type": "string", "nullable": true },
+          "data": { "$ref": "#/components/schemas/FiscalStatus" }
+        }
+      },
+      "ReceiptType": {
+        "type": "string",
+        "enum": [
+          "factura_a", "factura_b", "factura_c",
+          "nota_credito_a", "nota_credito_b", "nota_credito_c",
+          "nota_debito_a", "nota_debito_b", "nota_debito_c"
+        ]
+      },
+      "Customer": {
+        "type": "object",
+        "required": ["documento_tipo", "condicion_iva_receptor_id"],
+        "properties": {
+          "documento_tipo": {
+            "type": "string",
+            "enum": ["cuit", "cuil", "dni", "cdi", "pasaporte", "documento_extranjero", "consumidor_final"]
+          },
+          "documento_numero": { "type": "string", "nullable": true, "maxLength": 20 },
+          "razon_social": { "type": "string", "nullable": true, "maxLength": 255 },
+          "condicion_iva_receptor_id": { "type": "integer", "enum": [1, 4, 5, 6, 7, 8, 9, 10, 13, 15, 16], "description": "Clase A: 1, 6, 13 o 16, con CUIT; monotributistas incluyen leyenda Ley 27.618 en A4 y Ticket. Clase B: 4, 5, 7, 8, 9, 10 o 15. La API valida la clase enviada según emisor y receptor." },
+          "email": { "type": "string", "format": "email", "nullable": true },
+          "telefono": { "type": "string", "nullable": true, "maxLength": 50 },
+          "direccion": { "type": "string", "nullable": true, "maxLength": 255 },
+          "localidad": { "type": "string", "nullable": true, "maxLength": 100 },
+          "provincia": { "type": "string", "nullable": true, "maxLength": 100 }
+        }
+      },
+      "ReceiptItem": {
+        "type": "object",
+        "required": ["descripcion", "cantidad", "precio_unitario"],
+        "properties": {
+          "descripcion": { "type": "string", "maxLength": 255 },
+          "cantidad": { "type": "number", "minimum": 0.01 },
+          "precio_unitario": { "type": "number", "minimum": 0 },
+          "tipo_impuesto": {
+            "type": "string",
+            "enum": ["gravado", "exento", "no_gravado"],
+            "nullable": true,
+            "description": "Obligatorio para clases A/B y no debe enviarse para clase C."
+          },
+          "iva": {
+            "type": "number",
+            "minimum": 0,
+            "nullable": true,
+            "description": "Obligatorio para items gravados de clases A/B. Valores permitidos: 0, 2.5, 5, 10.5, 21, 27. Un porcentaje no soportado devuelve 422 con error.detalles por campo. No enviar para clase C."
+          }
+        }
+      },
+      "Tax": {
+        "type": "object",
+        "description": "Tributo adicional al IVA de los items, solo si corresponde segun el regimen fiscal, la operacion y la jurisdiccion. Confirmar los conceptos, bases y alicuotas con el responsable contable del emisor. El integrador envia los importes calculados; la API los incorpora al comprobante y valida el total.",
+        "required": ["id", "base_imponible", "alicuota", "importe"],
+        "properties": {
+          "id": { "type": "integer", "minimum": 1, "description": "Codigo WSFE del tipo de tributo, no de la jurisdiccion. Habituales: 1 nacionales, 2 provinciales, 3 municipales, 4 internos, 6 percepcion IVA, 7 percepcion IIBB, 8 percepcion municipal, 99 otros tributos aceptados por ARCA. El 99 no admite cargos comerciales arbitrarios." },
+          "descripcion": { "type": "string", "nullable": true, "maxLength": 255, "description": "Texto libre para identificar concepto y jurisdiccion. Para emitir ante ARCA, usar hasta 80 caracteres e informar siempre si id = 99. La validacion local admite hasta 255. Se informa a ARCA y aparece en respuesta y PDF." },
+          "base_imponible": { "type": "number", "minimum": 0, "description": "Base imponible determinada por el integrador." },
+          "alicuota": { "type": "number", "minimum": 0, "description": "Porcentaje: 2 significa 2 %. Enviar 0 si no corresponde una alicuota porcentual." },
+          "importe": { "type": "number", "minimum": 0.01, "description": "Importe calculado por el integrador. Se suma al total; la API no lo calcula desde la base y alicuota." }
+        },
+        "example": { "id": 8, "descripcion": "Percepcion municipal - Municipio de ejemplo", "base_imponible": 10000, "alicuota": 2, "importe": 200 }
+      },
+      "ReceiptCreateRequest": {
+        "type": "object",
+        "required": ["tipo_comprobante", "cliente", "items", "total"],
+        "properties": {
+          "perfil_fiscal_pruebas": {"type":"object","additionalProperties":false,"minProperties":1,"description":"Solo pruebas; producción lo rechaza. Sobrescribe el perfil únicamente para este comprobante, sin modificar el emisor. Omitir campos usa los valores del emisor.","properties":{"condicion_iva":{"type":"string","enum":["responsable_inscripto","monotributo","exento"]},"modalidad_comprobantes_a":{"type":"string","enum":["a_comun","a_cbu_informada","a_sujeta_retencion"]}}},
+          "emisor_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Obligatorio con token de cuenta; se omite con token individual de emisor."
+          },
+          "tipo_comprobante": { "$ref": "#/components/schemas/ReceiptType" },
+          "concepto": { "type": "string", "enum": ["productos", "servicios", "productos_y_servicios"], "default": "productos" },
+          "fecha": { "type": "string", "format": "date", "nullable": true, "description": "Fecha fiscal. Si se omite, se guarda la fecha argentina al crear la operación. Los reintentos conservan esa fecha; nunca la actualizan a hoy. Para solicitar una nueva autorización: productos ±5 días sin superar el mes de presentación; servicios/mixto ±10 días. Se respeta el orden cronológico por emisor, tipo y punto de venta. La consulta de una autorización pendiente conserva su fecha aunque haya pasado ese plazo." },
+          "punto_venta": { "type": "integer", "minimum": 1, "maximum": 99999, "nullable": true },
+          "fecha_servicio_desde": { "type": "string", "format": "date", "nullable": true, "description": "Obligatoria con concepto servicios o productos_y_servicios, junto con fecha_servicio_hasta y fecha_vencimiento_pago." },
+          "fecha_servicio_hasta": { "type": "string", "format": "date", "nullable": true },
+          "fecha_vencimiento_pago": { "type": "string", "format": "date", "nullable": true },
+          "cliente": { "$ref": "#/components/schemas/Customer" },
+          "items": { "type": "array", "minItems": 1, "items": { "$ref": "#/components/schemas/ReceiptItem" } },
+          "tributos": { "type": "array", "nullable": true, "description": "Opcional. Si la operacion no lleva impuestos adicionales ni percepciones, omitir o enviar []. El IVA de las facturas A/B se informa en items. Cuando correspondan tributos adicionales, enviar un objeto por concepto, al mismo nivel que items.", "items": { "$ref": "#/components/schemas/Tax" } },
+          "total": { "type": "number", "minimum": 0.01, "description": "Total final: neto de items + IVA + suma de tributos. Para clase C no se agrega IVA." },
+          "moneda": { "type": "string", "maxLength": 10, "default": "PES", "description": "Pruebas admite PES. Consultar soporte antes de integrar moneda extranjera y cotización." },
+          "observaciones": { "type": "string", "nullable": true, "maxLength": 2000 },
+          "referencia_externa": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 100,
+            "description": "Clave de idempotencia dentro del emisor, incluso entre entornos. Una solicitud válida repetida devuelve el original con HTTP 200. Si cambian los datos, mensaje_api avisa del conflicto sin modificar data ni el registro. El aviso es texto informativo: comparar los datos devueltos, no automatizar decisiones según el texto."
+          },
+          "comprobante_asociado_id": { "type": "integer", "nullable": true },
+          "referencia_externa_asociada": { "type": "string", "nullable": true, "maxLength": 100 }
+        }
+      },
+      "ReceiptSummary": {
+        "type": "object",
+        "properties": {
+          "codigo_tipo_comprobante": {"type":"integer","enum":[1,2,3,6,7,8,11,12,13,51,52,53],"description":"Código ARCA resuelto por la API. A común/CBU: 1,2,3; A retención: 51,52,53. No se envía al crear."},
+          "modalidad_comprobantes_a": {"type":"string","nullable":true,"enum":["a_comun","a_cbu_informada","a_sujeta_retencion",null],"description":"Modalidad guardada al emitir. B/C y registros históricos sin modalidad identificable: null."},
+          "entorno": { "type": "string", "enum": ["pruebas", "produccion"] },
+          "modo_simulacion": { "type": "boolean" },
+          "id": { "type": "integer" },
+          "empresa_id": { "type": "integer" },
+          "tipo_comprobante": { "$ref": "#/components/schemas/ReceiptType" },
+          "categoria": { "type": "string" },
+          "letra": { "type": "string" },
+          "punto_venta": { "type": "integer" },
+          "numero_comprobante": { "type": "integer" },
+          "estado": { "type": "string" },
+          "total": { "type": "string", "example": "12100.00" },
+          "referencia_externa": { "type": "string", "nullable": true },
+          "cliente": { "type": "object", "additionalProperties": true },
+          "imprimir_a4_url": { "type": "string", "format": "uri" },
+          "imprimir_ticket_url": { "type": "string", "format": "uri" },
+          "fecha": { "type": "string", "nullable": true }
+        }
+      },
+      "ReceiptDetail": {
+        "type": "object",
+        "properties": {
+          "codigo_tipo_comprobante": {"type":"integer","enum":[1,2,3,6,7,8,11,12,13,51,52,53],"description":"Código ARCA resuelto por la API. A común/CBU: 1,2,3; A retención: 51,52,53. No se envía al crear."},
+          "modalidad_comprobantes_a": {"type":"string","nullable":true,"enum":["a_comun","a_cbu_informada","a_sujeta_retencion",null],"description":"Modalidad guardada al emitir. B/C y registros históricos sin modalidad identificable: null."},
+          "id": { "type": "integer", "example": 59 },
+          "empresa_id": { "type": "integer", "example": 9 },
+          "empresa": { "type": "string", "nullable": true },
+          "entorno": { "type": "string", "enum": ["pruebas", "produccion"] },
+          "modo_simulacion": { "type": "boolean", "description": "true para todo comprobante de pruebas, también rechazados o pendientes. Es independiente del estado." },
+          "estado": { "type": "string", "example": "autorizado" },
+          "fecha_registro": { "type": "string", "nullable": true },
+          "fecha_autorizacion": { "type": "string", "nullable": true },
+          "tipo_comprobante": { "$ref": "#/components/schemas/ReceiptType" },
+          "punto_venta": { "type": "integer" },
+          "numero_comprobante": { "type": "integer" },
+          "cae": { "type": "string", "nullable": true },
+          "cae_vencimiento": { "type": "string", "format": "date", "nullable": true },
+          "qr": {
+            "type": "object",
+            "properties": { "url": { "type": "string", "format": "uri", "nullable": true } }
+          },
+          "cliente": { "type": "object", "additionalProperties": true },
+          "items": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+          "importes": {
+            "type": "object",
+            "properties": {
+              "subtotal": { "type": "string" },
+              "iva": { "type": "string" },
+              "tributos": { "type": "string" },
+              "total": { "type": "string" }
+            }
+          },
+          "tributos": { "type": "array", "items": { "$ref": "#/components/schemas/Tax" } },
+          "referencia_externa": { "type": "string", "nullable": true },
+          "comprobante_asociado_id": { "type": "integer", "nullable": true },
+          "comprobante_asociado": {"type":"object","nullable":true,"additionalProperties":true,"properties":{"codigo_tipo_comprobante":{"type":"integer","enum":[1,2,3,6,7,8,11,12,13,51,52,53],"description":"Código ARCA resuelto por la API. A común/CBU: 1,2,3; A retención: 51,52,53. No se envía al crear."},"modalidad_comprobantes_a":{"type":"string","nullable":true,"enum":["a_comun","a_cbu_informada","a_sujeta_retencion",null],"description":"Modalidad guardada al emitir. B/C y registros históricos sin modalidad identificable: null."}}},
+          "mensajes_arca": { "type": "array", "description": "Mensajes originales recibidos de ARCA. En escenarios de pruebas permanece vacío; consultar mensaje_api.", "items": { "type": "object", "additionalProperties": true } },
+          "imprimir_a4_url": { "type": "string", "format": "uri" },
+          "imprimir_ticket_url": { "type": "string", "format": "uri" }
+        }
+      },
+      "ReceiptResponse": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "mensaje_api": { "$ref": "#/components/schemas/ApiMessage" },
+          "ok": { "type": "boolean", "example": true },
+          "mensaje": { "type": "string", "nullable": true },
+          "error_type": { "type": "string", "nullable": true, "description": "Tipo de error devuelto por el endpoint de reintento, por ejemplo pendiente_confirmacion o arca_timeout." },
+          "data": { "$ref": "#/components/schemas/ReceiptDetail" }
+        }
+      },
+      "ReceiptListResponse": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "mensaje_api": { "$ref": "#/components/schemas/ApiMessage" },
+          "ok": { "type": "boolean", "example": true },
+          "data": {
+            "type": "object",
+            "required": ["items", "paginacion"],
+            "properties": {
+              "items": { "type": "array", "items": { "$ref": "#/components/schemas/ReceiptSummary" } },
+              "paginacion": { "$ref": "#/components/schemas/Pagination" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

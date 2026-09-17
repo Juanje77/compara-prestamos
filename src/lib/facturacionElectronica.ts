@@ -5,15 +5,15 @@
 // dice la propia documentación del proveedor). Acá queda todo lo que se puede construir, probar y
 // versionar sin red, que es también lo que después consume ese backend.
 //
-// Referencia: https://github.com/Sistemas-360/facturacion-electronica-arca-examples
-// El payload de `POST /api/comprobantes` está tomado del ejemplo oficial en TypeScript. Lo que no
-// aparece verbatim en ese ejemplo queda marcado abajo como pendiente de verificar contra el
-// contrato OpenAPI (`/docs/openapi/download`).
+// Todo lo de acá está verificado contra el contrato OpenAPI 3.0.3 de la API, que vive en
+// `api/openapi-sistemas360.json`. Cuando algo cambie del lado del proveedor, se actualiza ese
+// archivo primero y después este módulo: el diff del contrato dice exactamente qué tocar.
 
 import type {
   CondicionEmisor,
   CondicionIvaReceptorId,
   DatosReceptor,
+  DocumentoTipo,
   Factura,
   ResultadoEmision,
 } from './cfo'
@@ -24,11 +24,9 @@ export type LetraComprobante = 'a' | 'b' | 'c'
 
 export type { CondicionEmisor }
 
-/** Sólo `productos` está confirmado contra el ejemplo oficial. */
 export type ConceptoComprobante = 'productos' | 'servicios' | 'productos_y_servicios'
 
-/** Sólo `gravado` está confirmado contra el ejemplo oficial. */
-export type TipoImpuestoItem = 'gravado' | 'exento' | 'no_gravado' | 'sin_iva'
+export type TipoImpuestoItem = 'gravado' | 'exento' | 'no_gravado'
 
 /** Alícuotas de IVA vigentes en ARCA. */
 export const ALICUOTAS_IVA = [0, 2.5, 5, 10.5, 21, 27] as const
@@ -36,24 +34,28 @@ export const ALICUOTAS_IVA = [0, 2.5, 5, 10.5, 21, 27] as const
 export interface ItemComprobante {
   descripcion: string
   cantidad: number
-  /** Precio unitario NETO, sin IVA — en el ejemplo oficial 10.000 con IVA 21 da un total de 12.100. */
+  /** Precio unitario NETO, sin IVA — 10.000 con IVA 21 da un total de 12.100. */
   precio_unitario: number
-  tipo_impuesto: TipoImpuestoItem
-  /** Alícuota en porcentaje, no el importe. */
-  iva: number
+  /** Obligatorio en A y B; el contrato dice que NO se envía en clase C. */
+  tipo_impuesto?: TipoImpuestoItem
+  /** Alícuota en porcentaje, no el importe. Tampoco se envía en clase C. */
+  iva?: number
 }
 
 export interface PayloadComprobante {
   tipo_comprobante: string
-  /** Sólo en notas: la referencia al comprobante que corrigen. La clave es
-   * `CAMPO_COMPROBANTES_ASOCIADOS`, todavía pendiente de verificar. */
-  comprobantes_asociados?: ComprobanteAsociado[]
   concepto: ConceptoComprobante
   fecha: string
   referencia_externa: string
+  punto_venta?: number
+  /** Sólo en notas: el id que la API le dio al comprobante que la nota corrige. */
+  comprobante_asociado_id?: number
+  /** Alternativa al anterior: la referencia externa con la que se emitió el original. */
+  referencia_externa_asociada?: string
   cliente: {
-    documento_tipo: string
-    documento_numero: string
+    documento_tipo: DocumentoTipo
+    /** null cuando el tipo es `consumidor_final`. */
+    documento_numero: string | null
     razon_social: string
     condicion_iva_receptor_id: CondicionIvaReceptorId
   }
@@ -64,6 +66,10 @@ export interface PayloadComprobante {
 
 export interface OpcionesEmision {
   condicionEmisor: CondicionEmisor
+  /** Punto de venta con el que se emite. Si se omite, la API usa el configurado en el emisor. */
+  puntoVenta?: number
+  /** Para poder validar la fecha contra la ventana que admite ARCA. Inyectable para los tests. */
+  hoy?: Date
   concepto?: ConceptoComprobante
   /** Fuerza la letra en vez de derivarla del receptor. */
   letra?: LetraComprobante
@@ -73,8 +79,17 @@ export interface OpcionesEmision {
   facturas?: Factura[]
 }
 
-/** Condiciones de IVA del receptor que habilitan una factura A. */
-const CONDICIONES_FACTURA_A: CondicionIvaReceptorId[] = [1, 10]
+/** Condiciones de IVA del receptor que reciben comprobante clase A, según el contrato: responsable
+ * inscripto (1), monotributo (6), monotributista social (13) y trabajador independiente promovido
+ * (16). Todos ellos exigen CUIT. El resto recibe clase B. */
+const CONDICIONES_FACTURA_A: CondicionIvaReceptorId[] = [1, 6, 13, 16]
+
+/** Días de tolerancia de la fecha del comprobante, por concepto. */
+const DIAS_TOLERANCIA: Record<ConceptoComprobante, number> = {
+  productos: 5,
+  servicios: 10,
+  productos_y_servicios: 10,
+}
 
 function redondear(valor: number, decimales = 2): number {
   const factor = 10 ** decimales
@@ -134,9 +149,20 @@ function documentoValido(receptor: DatosReceptor): boolean {
       return esCuitValido(numero)
     case 'dni':
       return /^\d{7,8}$/.test(numero)
-    case 'sin_identificar':
+    case 'consumidor_final':
+      // No lleva número: es la forma de emitir sin identificar al receptor.
       return true
+    case 'cdi':
+    case 'pasaporte':
+    case 'documento_extranjero':
+      return receptor.documentoNumero.trim().length > 0
   }
+}
+
+function diasDeDiferencia(fechaISO: string, hoy: Date): number {
+  const fecha = new Date(`${fechaISO}T00:00:00`)
+  const referencia = new Date(`${hoy.toISOString().slice(0, 10)}T00:00:00`)
+  return Math.round((referencia.getTime() - fecha.getTime()) / 86400000)
 }
 
 /**
@@ -157,9 +183,9 @@ export function validarFacturaParaEmision(f: Factura, opciones: OpcionesEmision)
 
   if (f.tipoComprobante !== 'factura') {
     problemas.push(...validarNota(f, opciones.original, opciones.facturas ?? []))
-    if (!EMISION_NOTAS_HABILITADA) {
+    if (opciones.original && !referenciaApiDe(opciones.original)) {
       problemas.push(
-        'Falta verificar contra el contrato OpenAPI cómo se referencia el comprobante original. Hasta entonces la nota se guarda en el sistema pero no se emite.',
+        'El comprobante original no se emitió desde el sistema, así que la API no lo conoce y no se le puede asociar una nota. La nota queda registrada acá, pero hay que emitirla por Comprobantes en Línea.',
       )
     }
   }
@@ -170,6 +196,16 @@ export function validarFacturaParaEmision(f: Factura, opciones: OpcionesEmision)
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(f.fecha)) {
     problemas.push('La fecha del comprobante no es válida.')
+  } else {
+    // ARCA sólo autoriza dentro de una ventana alrededor de hoy: 5 días para productos, 10 para
+    // servicios. Una factura vieja cargada en el sistema ya no se puede emitir con su fecha.
+    const tolerancia = DIAS_TOLERANCIA[opciones.concepto ?? 'productos']
+    const dias = diasDeDiferencia(f.fecha, opciones.hoy ?? new Date())
+    if (Math.abs(dias) > tolerancia) {
+      problemas.push(
+        `ARCA sólo autoriza comprobantes con fecha dentro de los ${tolerancia} días. Éste tiene ${Math.abs(dias)} días de diferencia.`,
+      )
+    }
   }
 
   const receptor = f.receptor
@@ -223,42 +259,38 @@ export function mapearFacturaAPayload(f: Factura, opciones: OpcionesEmision): Pa
   const receptor = f.receptor as DatosReceptor
   const letra = opciones.letra ?? letraSugerida(opciones.condicionEmisor, receptor)
 
-  // En una factura C el precio es el final: no hay IVA que discriminar. En A y B el precio
-  // unitario va neto y el total con IVA, como en el ejemplo oficial.
+  // En una factura C el precio es el final y el contrato prohíbe mandar tipo_impuesto e iva. En A
+  // y B el precio unitario va neto y el total con IVA.
   const esC = letra === 'c'
   const alicuota = esC ? 0 : (alicuotaIvaDeFactura(f) ?? 0)
   const neto = esC ? f.monto : f.monto - (f.iva ?? 0)
 
-  const tipoImpuesto: TipoImpuestoItem = esC ? 'sin_iva' : alicuota > 0 ? 'gravado' : 'exento'
+  const item: ItemComprobante = {
+    descripcion: descripcionItem(f),
+    cantidad: 1,
+    precio_unitario: redondear(neto),
+    ...(esC ? {} : { tipo_impuesto: alicuota > 0 ? ('gravado' as const) : ('exento' as const), iva: alicuota }),
+  }
 
-  // Una nota viaja con la referencia al comprobante que corrige. `validarFacturaParaEmision` ya
-  // garantizó que el original existe y es identificable.
+  // Una nota viaja con la referencia al comprobante que corrige.
   const asociado =
-    f.tipoComprobante !== 'factura' && opciones.original
-      ? comprobanteAsociadoDe(opciones.original, letra)
-      : null
+    f.tipoComprobante !== 'factura' && opciones.original ? referenciaApiDe(opciones.original) : null
 
   return {
     tipo_comprobante: `${f.tipoComprobante}_${letra}`,
     concepto: opciones.concepto ?? 'productos',
     fecha: f.fecha,
     referencia_externa: referenciaExternaDeFactura(f),
-    ...(asociado ? { [CAMPO_COMPROBANTES_ASOCIADOS]: [asociado] } : {}),
+    ...(opciones.puntoVenta ? { punto_venta: opciones.puntoVenta } : {}),
+    ...(asociado ?? {}),
     cliente: {
       documento_tipo: receptor.documentoTipo,
-      documento_numero: limpiarCuit(receptor.documentoNumero),
+      documento_numero:
+        receptor.documentoTipo === 'consumidor_final' ? null : limpiarCuit(receptor.documentoNumero),
       razon_social: receptor.razonSocial.trim(),
       condicion_iva_receptor_id: receptor.condicionIvaReceptorId,
     },
-    items: [
-      {
-        descripcion: descripcionItem(f),
-        cantidad: 1,
-        precio_unitario: redondear(neto),
-        tipo_impuesto: tipoImpuesto,
-        iva: alicuota,
-      },
-    ],
+    items: [item],
     total: redondear(f.monto),
     moneda: 'PES',
   }
@@ -266,18 +298,17 @@ export function mapearFacturaAPayload(f: Factura, opciones: OpcionesEmision): Pa
 
 // --- Lectura de la respuesta -----------------------------------------------------------------
 //
-// La documentación dice que una respuesta autorizada trae estado, tipo y número de comprobante,
-// punto de venta, CAE, vencimiento, importes, QR fiscal y enlaces al PDF, pero no pudimos abrir el
-// contrato OpenAPI para confirmar los nombres exactos de los campos. Así que buscamos por varios
-// nombres plausibles, en la raíz y un nivel adentro.
+// El contrato define la respuesta como `{ ok, mensaje, mensaje_api, error_type, data }`, donde
+// `data` es un ReceiptDetail. Leemos de ahí, con una salvedad que no se negocia: **sin un CAE en la
+// respuesta el comprobante no se marca como autorizado**, diga lo que diga `data.estado`. Mostrar
+// un CAE que no existe es peor que pedir que alguien revise.
 //
-// La regla que no se negocia: sin un CAE en la respuesta, el comprobante NO se marca como
-// autorizado. Es preferible dejarlo pendiente y que alguien lo revise, a mostrar un CAE que no
-// existe. Cuando tengamos el contrato, esto se reemplaza por una lectura directa.
+// `pendiente_confirmacion` merece su propio estado: ARCA no contestó a tiempo y puede haber
+// autorizado igual. Se resuelve consultando con /reintentar, nunca emitiendo de nuevo.
 
 type Diccionario = Record<string, unknown>
 
-const CONTENEDORES = ['comprobante', 'data', 'resultado', 'respuesta']
+const CONTENEDORES = ['data', 'comprobante']
 
 function candidatos(respuesta: unknown): Diccionario[] {
   if (typeof respuesta !== 'object' || respuesta === null) return []
@@ -313,7 +344,7 @@ function numero(respuesta: unknown, claves: string[]): number | undefined {
 }
 
 function mensajes(respuesta: unknown): string[] | undefined {
-  const valor = buscar(respuesta, ['mensajes', 'observaciones', 'errores', 'messages'])
+  const valor = buscar(respuesta, ['mensajes_arca'])
   if (typeof valor === 'string') return [valor]
   if (Array.isArray(valor)) {
     const textos = valor.map((m) => (typeof m === 'string' ? m : JSON.stringify(m)))
@@ -331,25 +362,22 @@ export function interpretarRespuestaEmision(
   respuesta: unknown,
   emitidoEl: string,
 ): ResultadoEmision {
-  const cae = texto(respuesta, ['cae', 'CAE', 'cae_numero', 'numero_cae'])
+  const cae = texto(respuesta, ['cae'])
+  const estadoApi = texto(respuesta, ['estado'])
+  const qr = buscar(respuesta, ['qr'])
 
   return {
-    comprobanteId: texto(respuesta, ['id', 'comprobante_id', 'comprobanteId']) ?? '',
+    comprobanteId: texto(respuesta, ['id']) ?? '',
     referenciaExterna,
-    // Sin CAE no hay autorización, diga lo que diga el campo `estado`.
-    estado: cae ? 'autorizado' : 'pendiente',
+    estado: cae ? 'autorizado' : estadoApi === 'pendiente_confirmacion' ? 'pendiente_confirmacion' : 'pendiente',
     cae,
-    caeVencimiento: texto(respuesta, [
-      'cae_vencimiento',
-      'vencimiento_cae',
-      'fecha_vencimiento_cae',
-      'caeVencimiento',
-    ]),
-    puntoVenta: numero(respuesta, ['punto_venta', 'puntoVenta', 'pto_venta']),
-    numeroComprobante: numero(respuesta, ['numero', 'numero_comprobante', 'comprobante_numero']),
-    qr: texto(respuesta, ['qr', 'qr_url', 'codigo_qr', 'qr_fiscal']),
-    pdfA4: texto(respuesta, ['pdf_a4', 'pdf', 'pdf_url', 'imprimir_a4']),
-    pdfTicket: texto(respuesta, ['pdf_ticket', 'ticket', 'imprimir_ticket']),
+    caeVencimiento: texto(respuesta, ['cae_vencimiento']),
+    puntoVenta: numero(respuesta, ['punto_venta']),
+    numeroComprobante: numero(respuesta, ['numero_comprobante']),
+    // El contrato define el QR como un objeto `{ url }`.
+    qr: typeof qr === 'object' && qr !== null ? texto(qr, ['url']) : texto(respuesta, ['qr']),
+    pdfA4: texto(respuesta, ['imprimir_a4_url']),
+    pdfTicket: texto(respuesta, ['imprimir_ticket_url']),
     mensajes: mensajes(respuesta),
     emitidoEl,
   }
@@ -378,26 +406,35 @@ export function numeroComprobanteFormateado(
 
 // --- Notas de crédito y débito ----------------------------------------------------------------
 //
-// ARCA exige que una nota diga a qué comprobante se aplica: sin esa referencia la nota queda
-// legalmente coja. Todo lo de abajo —derivar la referencia, la letra y cuánto queda para acreditar—
-// está resuelto y probado. Lo único que falta es el nombre exacto del campo en el cuerpo del
-// pedido, que sale del contrato OpenAPI y no pudimos abrir.
+// ARCA exige que una nota diga a qué comprobante se aplica. El contrato lo resuelve más simple de
+// lo que se podía suponer: no hay que armar la referencia fiscal (tipo, punto de venta, número),
+// alcanza con decirle a la API cuál de SUS comprobantes es el original, por su `id` o por la
+// `referencia_externa` con la que se emitió.
 //
-// Mientras eso no esté verificado, `EMISION_NOTAS_HABILITADA` queda en false y la validación frena
-// la emisión. El riesgo de no frenarla no es que ARCA rechace la nota: es que la acepte sin la
-// asociación y otorgue un CAE a una nota defectuosa, que ya no se puede deshacer.
+// La consecuencia práctica importa: sólo se le puede emitir una nota a un comprobante que también
+// se haya emitido desde acá. Una factura vieja cargada a mano no existe para la API, por más que
+// tenga su número de ARCA anotado.
 
-/** Poner en true recién cuando el contrato confirme el nombre y la forma del campo. */
-export const EMISION_NOTAS_HABILITADA = false
+export interface ReferenciaApi {
+  comprobante_asociado_id?: number
+  referencia_externa_asociada?: string
+}
 
-/** Nombre del campo en el payload. Pendiente de verificar contra `/docs/openapi/download`. */
-export const CAMPO_COMPROBANTES_ASOCIADOS = 'comprobantes_asociados'
+/**
+ * Cómo referenciar el comprobante original ante la API. Prefiere el id propio de la API; si no lo
+ * hay, usa la referencia externa con la que se emitió. Devuelve `null` cuando el original no pasó
+ * por la API, que es cuando la nota no se puede emitir desde el sistema.
+ */
+export function referenciaApiDe(original: Factura): ReferenciaApi | null {
+  const emision = original.emision
+  if (!emision) return null
 
-export interface ComprobanteAsociado {
-  tipo: string
-  punto_venta: number
-  numero: number
-  fecha: string
+  const id = Number(emision.comprobanteId)
+  if (Number.isInteger(id) && id > 0) return { comprobante_asociado_id: id }
+
+  if (emision.referenciaExterna) return { referencia_externa_asociada: emision.referenciaExterna }
+
+  return null
 }
 
 /** Punto de venta y número de un comprobante ya emitido, venga de una emisión nuestra o del
@@ -411,22 +448,6 @@ export function identificarComprobante(f: Factura): { puntoVenta: number; numero
   const partes = /^(\d{1,5})-(\d{1,8})$/.exec(f.numero?.trim() ?? '')
   if (!partes) return null
   return { puntoVenta: Number(partes[1]), numero: Number(partes[2]) }
-}
-
-/**
- * Referencia al comprobante que la nota corrige. Devuelve `null` cuando el original no se puede
- * identificar, que es exactamente cuando no hay que emitir la nota.
- */
-export function comprobanteAsociadoDe(original: Factura, letra: LetraComprobante): ComprobanteAsociado | null {
-  const identificado = identificarComprobante(original)
-  if (!identificado) return null
-
-  return {
-    tipo: `${original.tipoComprobante}_${letra}`,
-    punto_venta: identificado.puntoVenta,
-    numero: identificado.numero,
-    fecha: original.fecha,
-  }
 }
 
 /**

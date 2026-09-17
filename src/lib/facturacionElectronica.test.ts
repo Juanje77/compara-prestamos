@@ -6,9 +6,8 @@ import {
   letraSugerida,
   mapearFacturaAPayload,
   numeroComprobanteFormateado,
-  EMISION_NOTAS_HABILITADA,
-  comprobanteAsociadoDe,
   identificarComprobante,
+  referenciaApiDe,
   interpretarRespuestaEmision,
   montoDisponibleParaNota,
   validarNota,
@@ -56,8 +55,11 @@ const RESPONSABLE_INSCRIPTO: DatosReceptor = {
   condicionIvaReceptorId: 1,
 }
 
-const RI: OpcionesEmision = { condicionEmisor: 'responsable_inscripto' }
-const MONOTRIBUTO: OpcionesEmision = { condicionEmisor: 'monotributo' }
+// Las validaciones miran la fecha contra "hoy": se fija para que los tests no caduquen.
+const HOY = new Date('2026-09-17T12:00:00Z')
+
+const RI: OpcionesEmision = { condicionEmisor: 'responsable_inscripto', hoy: HOY }
+const MONOTRIBUTO: OpcionesEmision = { condicionEmisor: 'monotributo', hoy: HOY }
 
 function factura(extra: Partial<Factura> = {}): Factura {
   return {
@@ -103,8 +105,9 @@ describe('mapearFacturaAPayload', () => {
     const payload = mapearFacturaAPayload(factura({ iva: undefined }), MONOTRIBUTO)
 
     expect(payload.tipo_comprobante).toBe('factura_c')
-    expect(payload.items[0].tipo_impuesto).toBe('sin_iva')
-    expect(payload.items[0].iva).toBe(0)
+    // El contrato prohíbe mandar estos dos campos en clase C.
+    expect(payload.items[0]).not.toHaveProperty('tipo_impuesto')
+    expect(payload.items[0]).not.toHaveProperty('iva')
     // En C el precio es el final: no se le descuenta nada al monto.
     expect(payload.items[0].precio_unitario).toBe(12100)
     expect(payload.total).toBe(12100)
@@ -136,6 +139,25 @@ describe('mapearFacturaAPayload', () => {
 
     expect(payload.total).toBe(1000.01)
     expect(payload.items[0].precio_unitario).toBe(826.45)
+  })
+
+  it('manda documento_numero en null para consumidor final, como pide el contrato', () => {
+    const anonimo: DatosReceptor = {
+      documentoTipo: 'consumidor_final',
+      // Aunque quedara un número viejo cargado, no se manda: el contrato lo quiere en null.
+      documentoNumero: '30111222',
+      razonSocial: 'Consumidor Final',
+      condicionIvaReceptorId: 5,
+    }
+    const payload = mapearFacturaAPayload(factura({ receptor: anonimo }), RI)
+
+    expect(payload.cliente.documento_numero).toBeNull()
+    expect(payload.cliente.documento_tipo).toBe('consumidor_final')
+  })
+
+  it('manda el punto de venta cuando está configurado', () => {
+    expect(mapearFacturaAPayload(factura(), { ...RI, puntoVenta: 3 }).punto_venta).toBe(3)
+    expect(mapearFacturaAPayload(factura(), RI).punto_venta).toBeUndefined()
   })
 
   it('se niega a mapear una factura inválida en vez de mandar algo incoherente', () => {
@@ -194,12 +216,16 @@ describe('letraSugerida', () => {
     expect(letraSugerida('monotributo', CONSUMIDOR_FINAL)).toBe('c')
   })
 
-  it('un responsable inscripto emite A sólo a otro inscripto', () => {
-    expect(letraSugerida('responsable_inscripto', RESPONSABLE_INSCRIPTO)).toBe('a')
-    expect(letraSugerida('responsable_inscripto', CONSUMIDOR_FINAL)).toBe('b')
-    // Monotributo (6) y exento (4) reciben B.
-    expect(letraSugerida('responsable_inscripto', { ...CONSUMIDOR_FINAL, condicionIvaReceptorId: 6 })).toBe('b')
-    expect(letraSugerida('responsable_inscripto', { ...CONSUMIDOR_FINAL, condicionIvaReceptorId: 4 })).toBe('b')
+  it('un responsable inscripto emite A a quienes el contrato pone en clase A', () => {
+    // Clase A: responsable inscripto (1), monotributo (6), monotributista social (13) y
+    // trabajador independiente promovido (16). Todos con CUIT.
+    for (const id of [1, 6, 13, 16] as const) {
+      expect(letraSugerida('responsable_inscripto', { ...RESPONSABLE_INSCRIPTO, condicionIvaReceptorId: id })).toBe('a')
+    }
+    // Clase B: el resto, incluido el consumidor final (5) y el exento (4).
+    for (const id of [4, 5, 7, 8, 9, 10, 15] as const) {
+      expect(letraSugerida('responsable_inscripto', { ...CONSUMIDOR_FINAL, condicionIvaReceptorId: id })).toBe('b')
+    }
   })
 })
 
@@ -249,6 +275,24 @@ describe('validarFacturaParaEmision', () => {
     expect(problemas.some((p) => p.includes('no es válido'))).toBe(true)
   })
 
+  it('frena una factura fuera de la ventana de fechas que admite ARCA', () => {
+    // Productos: 5 días. Una factura de hace dos semanas ya no se puede autorizar con su fecha.
+    const vieja = factura({ fecha: '2026-09-01' })
+    const problemas = validarFacturaParaEmision(vieja, RI)
+
+    expect(problemas.some((p) => p.includes('dentro de los 5 días'))).toBe(true)
+    // Dentro de la ventana, incluso a futuro, no molesta.
+    expect(validarFacturaParaEmision(factura({ fecha: '2026-09-14' }), RI)).toEqual([])
+    expect(validarFacturaParaEmision(factura({ fecha: '2026-09-20' }), RI)).toEqual([])
+  })
+
+  it('servicios tiene una ventana más ancha que productos', () => {
+    const f = factura({ fecha: '2026-09-09' })
+
+    expect(validarFacturaParaEmision(f, RI).some((p) => p.includes('5 días'))).toBe(true)
+    expect(validarFacturaParaEmision(f, { ...RI, concepto: 'servicios' })).toEqual([])
+  })
+
   it('exige discriminar el IVA en A y B, pero no en C', () => {
     const sinIva = factura({ iva: undefined })
 
@@ -272,21 +316,27 @@ describe('validarFacturaParaEmision', () => {
 describe('interpretarRespuestaEmision', () => {
   const CUANDO = '2026-09-17T15:00:00.000Z'
 
-  it('lee una respuesta autorizada con los campos en la raíz', () => {
-    const r = interpretarRespuestaEmision(
-      'fincorp_f1',
-      {
-        id: 9001,
-        estado: 'autorizado',
-        cae: '75123456789012',
-        cae_vencimiento: '2026-09-27',
-        punto_venta: 3,
-        numero: 145,
-        qr: 'https://www.arca.gob.ar/fe/qr/?p=abc',
-        pdf_a4: 'https://api.sistemas360.ar/api/comprobantes/9001/imprimir-a4',
-      },
-      CUANDO,
-    )
+  // La respuesta real del contrato: { ok, mensaje, data: ReceiptDetail }.
+  const RESPUESTA_AUTORIZADA = {
+    ok: true,
+    mensaje: 'Comprobante autorizado.',
+    data: {
+      id: 9001,
+      estado: 'autorizado',
+      tipo_comprobante: 'factura_b',
+      punto_venta: 3,
+      numero_comprobante: 145,
+      cae: '75123456789012',
+      cae_vencimiento: '2026-09-27',
+      qr: { url: 'https://www.afip.gob.ar/fe/qr/?p=abc' },
+      imprimir_a4_url: 'https://api.sistemas360.ar/api/comprobantes/9001/imprimir-a4',
+      imprimir_ticket_url: 'https://api.sistemas360.ar/api/comprobantes/9001/imprimir-ticket',
+      mensajes_arca: [],
+    },
+  }
+
+  it('lee la respuesta autorizada tal como la define el contrato', () => {
+    const r = interpretarRespuestaEmision('fincorp_f1', RESPUESTA_AUTORIZADA, CUANDO)
 
     expect(r).toMatchObject({
       comprobanteId: '9001',
@@ -296,27 +346,36 @@ describe('interpretarRespuestaEmision', () => {
       caeVencimiento: '2026-09-27',
       puntoVenta: 3,
       numeroComprobante: 145,
+      qr: 'https://www.afip.gob.ar/fe/qr/?p=abc',
+      pdfA4: 'https://api.sistemas360.ar/api/comprobantes/9001/imprimir-a4',
+      pdfTicket: 'https://api.sistemas360.ar/api/comprobantes/9001/imprimir-ticket',
       emitidoEl: CUANDO,
     })
   })
 
-  it('encuentra los campos un nivel adentro', () => {
-    const r = interpretarRespuestaEmision('fincorp_f1', { comprobante: { cae: '751', numero: '12' } }, CUANDO)
+  it('distingue pendiente_confirmacion, que es el estado peligroso', () => {
+    const r = interpretarRespuestaEmision(
+      'fincorp_f1',
+      { ok: true, data: { id: 9002, estado: 'pendiente_confirmacion', numero_comprobante: 0, cae: null } },
+      CUANDO,
+    )
 
-    expect(r.cae).toBe('751')
-    expect(r.numeroComprobante).toBe(12)
+    // ARCA puede haber autorizado igual: se resuelve consultando, no emitiendo otra vez.
+    expect(r.estado).toBe('pendiente_confirmacion')
+    expect(r.comprobanteId).toBe('9002')
+    expect(r.cae).toBeUndefined()
   })
 
   it('NO marca autorizado sin CAE, aunque el estado diga que sí', () => {
-    const r = interpretarRespuestaEmision('fincorp_f1', { estado: 'autorizado', numero: 145 }, CUANDO)
+    const r = interpretarRespuestaEmision('fincorp_f1', { data: { estado: 'autorizado', numero_comprobante: 145 } }, CUANDO)
 
     expect(r.estado).toBe('pendiente')
     expect(r.cae).toBeUndefined()
   })
 
   it('no confunde un CAE vacío con uno presente', () => {
-    expect(interpretarRespuestaEmision('fincorp_f1', { cae: '' }, CUANDO).estado).toBe('pendiente')
-    expect(interpretarRespuestaEmision('fincorp_f1', { cae: null }, CUANDO).estado).toBe('pendiente')
+    expect(interpretarRespuestaEmision('fincorp_f1', { data: { cae: '' } }, CUANDO).estado).toBe('pendiente')
+    expect(interpretarRespuestaEmision('fincorp_f1', { data: { cae: null } }, CUANDO).estado).toBe('pendiente')
   })
 
   it('sobrevive a una respuesta que no es un objeto', () => {
@@ -327,11 +386,16 @@ describe('interpretarRespuestaEmision', () => {
     }
   })
 
-  it('junta los mensajes de ARCA vengan como texto o como lista', () => {
-    expect(interpretarRespuestaEmision('r', { observaciones: 'Revisar el IVA' }, CUANDO).mensajes).toEqual([
-      'Revisar el IVA',
+  it('trae los mensajes de ARCA, que el contrato define como lista de objetos', () => {
+    const conMensajes = {
+      data: { mensajes_arca: [{ code: 10015, msg: 'Factura autorizada con observaciones' }] },
+    }
+
+    expect(interpretarRespuestaEmision('r', conMensajes, CUANDO).mensajes).toEqual([
+      '{"code":10015,"msg":"Factura autorizada con observaciones"}',
     ])
-    expect(interpretarRespuestaEmision('r', { mensajes: ['uno', 'dos'] }, CUANDO).mensajes).toEqual(['uno', 'dos'])
+    // Una lista vacía no es un mensaje.
+    expect(interpretarRespuestaEmision('r', { data: { mensajes_arca: [] } }, CUANDO).mensajes).toBeUndefined()
     expect(interpretarRespuestaEmision('r', {}, CUANDO).mensajes).toBeUndefined()
   })
 })
@@ -426,18 +490,20 @@ describe('notas de crédito y débito', () => {
     })
   })
 
-  describe('comprobanteAsociadoDe', () => {
-    it('arma la referencia con el tipo, el punto de venta y el número del original', () => {
-      expect(comprobanteAsociadoDe(ORIGINAL, 'b')).toEqual({
-        tipo: 'factura_b',
-        punto_venta: 3,
-        numero: 145,
-        fecha: '2026-09-10',
-      })
+  describe('referenciaApiDe', () => {
+    it('prefiere el id que le dio la API al original', () => {
+      expect(referenciaApiDe(ORIGINAL)).toEqual({ comprobante_asociado_id: 900 })
     })
 
-    it('devuelve null si el original no se puede identificar', () => {
-      expect(comprobanteAsociadoDe({ ...ORIGINAL, emision: undefined, numero: undefined }, 'b')).toBeNull()
+    it('cae a la referencia externa cuando no hay id numérico', () => {
+      const sinId = { ...ORIGINAL, emision: { ...ORIGINAL.emision!, comprobanteId: '' } }
+      expect(referenciaApiDe(sinId)).toEqual({ referencia_externa_asociada: 'fincorp_orig' })
+    })
+
+    it('devuelve null si el original nunca pasó por la API', () => {
+      // Tiene número de ARCA anotado a mano, pero la API no lo conoce: no se le puede asociar nada.
+      const manual = { ...ORIGINAL, emision: undefined, numero: '0007-00001234' }
+      expect(referenciaApiDe(manual)).toBeNull()
     })
   })
 
@@ -508,23 +574,34 @@ describe('notas de crédito y débito', () => {
     })
   })
 
-  describe('la emisión de notas está frenada a propósito', () => {
-    it('EMISION_NOTAS_HABILITADA sigue en false mientras no se verifique el contrato', () => {
-      expect(EMISION_NOTAS_HABILITADA).toBe(false)
+  describe('emisión de notas', () => {
+    const opcionesNota = { ...RI, original: ORIGINAL, facturas: [ORIGINAL] }
+
+    it('una nota sobre un comprobante emitido desde el sistema ya se puede emitir', () => {
+      expect(validarFacturaParaEmision(nota({ fecha: '2026-09-17' }), opcionesNota)).toEqual([])
     })
 
-    it('la validación frena la emisión aunque la nota sea impecable', () => {
-      const problemas = validarFacturaParaEmision(nota(), { ...RI, original: ORIGINAL, facturas: [ORIGINAL] })
-      expect(problemas.some((p) => p.includes('contrato OpenAPI'))).toBe(true)
+    it('el payload lleva el id del comprobante que corrige', () => {
+      const payload = mapearFacturaAPayload(nota({ fecha: '2026-09-17' }), opcionesNota)
+
+      expect(payload.tipo_comprobante).toBe('nota_credito_b')
+      expect(payload.comprobante_asociado_id).toBe(900)
+      expect(payload.referencia_externa).toBe('fincorp_nc1')
     })
 
-    it('pero el payload ya lleva la referencia bien armada', () => {
-      // Se saltea la validación a propósito, para probar el mapeo que va a correr cuando se habilite.
-      const payload = mapearFacturaAPayload(factura(), RI)
-      expect(payload.comprobantes_asociados).toBeUndefined()
+    it('una factura no lleva referencia de asociado', () => {
+      expect(mapearFacturaAPayload(factura(), RI).comprobante_asociado_id).toBeUndefined()
+    })
 
-      const asociado = comprobanteAsociadoDe(ORIGINAL, 'b')
-      expect(asociado).not.toBeNull()
+    it('frena la nota sobre una factura que la API no conoce', () => {
+      const manual = { ...ORIGINAL, emision: undefined, numero: '0007-00001234' }
+      const problemas = validarFacturaParaEmision(nota({ fecha: '2026-09-17' }), {
+        ...RI,
+        original: manual,
+        facturas: [manual],
+      })
+
+      expect(problemas.some((p) => p.includes('no se emitió desde el sistema'))).toBe(true)
     })
   })
 })

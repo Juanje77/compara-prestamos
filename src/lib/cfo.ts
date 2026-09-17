@@ -468,10 +468,15 @@ export const DATOS_EMISOR_FISCAL_VACIOS: DatosEmisorFiscal = {
   etapasCompletadas: [],
 }
 
-/** Tipo de documento del receptor. Sólo `dni` está confirmado contra el ejemplo oficial de la API;
- * el resto sale de los comprobantes que ARCA admite y hay que verificarlo contra el contrato
- * OpenAPI antes de emitir en producción. */
-export type DocumentoTipo = 'cuit' | 'cuil' | 'dni' | 'sin_identificar'
+/** Tipo de documento del receptor, según el enum del contrato OpenAPI de la API fiscal. */
+export type DocumentoTipo =
+  | 'cuit'
+  | 'cuil'
+  | 'dni'
+  | 'cdi'
+  | 'pasaporte'
+  | 'documento_extranjero'
+  | 'consumidor_final'
 
 /** Condición frente al IVA del receptor. Los ids son los de la tabla de ARCA (RG 5616/2024), que es
  * lo que viaja en `condicion_iva_receptor_id`. */
@@ -497,7 +502,7 @@ export const CONDICIONES_IVA_RECEPTOR: { id: CondicionIvaReceptorId; nombre: str
  * consulta de CUIT contra el Padrón. */
 export interface DatosReceptor {
   documentoTipo: DocumentoTipo
-  /** Sólo dígitos. Vacío cuando `documentoTipo` es `sin_identificar`. */
+  /** Sólo dígitos. Vacío cuando `documentoTipo` es `consumidor_final`. */
   documentoNumero: string
   razonSocial: string
   condicionIvaReceptorId: CondicionIvaReceptorId
@@ -512,7 +517,9 @@ export interface ResultadoEmision {
   comprobanteId: string
   /** Clave de idempotencia con la que se pidió la emisión — ver `referenciaExternaDeFactura`. */
   referenciaExterna: string
-  estado: 'autorizado' | 'rechazado' | 'error' | 'pendiente'
+  /** `pendiente_confirmacion` es el estado delicado: ARCA no respondió a tiempo y puede haber
+   * autorizado igual. Se resuelve consultando, nunca volviendo a emitir. */
+  estado: 'autorizado' | 'rechazado' | 'error' | 'pendiente' | 'pendiente_confirmacion'
   cae?: string
   /** Vencimiento del CAE, ISO (YYYY-MM-DD). */
   caeVencimiento?: string
