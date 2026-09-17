@@ -8,7 +8,7 @@ export function AccesoEmpresas() {
   const { user, cargando: cargandoAuth, habilitado } = useAuth()
   const { plan, cargando: cargandoPlan } = usePlanUsuario(user?.uid)
   const pruebaIniciada = useRef(false)
-  const [pruebaFallo, setPruebaFallo] = useState(false)
+  const [pruebaFallo, setPruebaFallo] = useState<string | null>(null)
   const [confirmacionAgotada, setConfirmacionAgotada] = useState(false)
 
   // Un usuario que nunca tuvo ningún plan registrado arranca automáticamente una prueba gratis
@@ -24,14 +24,16 @@ export function AccesoEmpresas() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ uid: user.uid }),
     })
-      .then((r) => {
-        if (!r.ok) throw new Error('no se pudo activar')
+      .then(async (r) => {
+        // `fetch` no rechaza ante un 500: sólo ante un error de red. Sin este chequeo, un endpoint
+        // caído dejaba al usuario mirando "Activando tu prueba…" para siempre y en silencio.
+        if (r.ok) return
+        const cuerpo = await r.json().catch(() => null)
+        throw new Error(`${r.status}${cuerpo?.motivo ? ` · ${cuerpo.motivo}` : ''}`)
       })
-      .catch(() => {
-        // Sin esto el usuario se quedaba mirando "Activando tu prueba…" para siempre: el ref ya
-        // estaba marcado y no se reintentaba nunca. Lo liberamos y le damos una salida visible.
+      .catch((e: Error) => {
         pruebaIniciada.current = false
-        setPruebaFallo(true)
+        setPruebaFallo(e.message || 'sin respuesta')
       })
   }, [habilitado, user?.uid, cargandoPlan, plan.plan, plan.estado])
 
@@ -95,7 +97,7 @@ export function AccesoEmpresas() {
     )
   }
 
-  if (user && plan.plan === null && plan.estado === null && !pruebaFallo) {
+  if (user && plan.plan === null && plan.estado === null && pruebaFallo === null) {
     // Recién llegó y no tiene ningún plan registrado: la prueba gratis se está activando en
     // segundo plano (ver el useEffect de arriba) — en cuanto se cree el documento, este mismo
     // componente se vuelve a renderizar solo, gracias al listener en tiempo real de usePlanUsuario.
@@ -106,7 +108,7 @@ export function AccesoEmpresas() {
     )
   }
 
-  if (user && pruebaFallo && plan.plan === null) {
+  if (user && pruebaFallo !== null && plan.plan === null) {
     return (
       <div className="mx-auto max-w-md py-16 text-center">
         <h1 className="text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
@@ -118,12 +120,15 @@ export function AccesoEmpresas() {
         </p>
         <button
           type="button"
-          onClick={() => setPruebaFallo(false)}
+          onClick={() => setPruebaFallo(null)}
           className="mt-4 rounded-full px-6 py-2.5 text-sm font-semibold text-white"
           style={{ background: 'var(--series-blue)' }}
         >
           Reintentar
         </button>
+        <p className="mt-4 text-xs" style={{ color: 'var(--text-muted)' }}>
+          Si nos escribís, pasanos este dato: {pruebaFallo}
+        </p>
       </div>
     )
   }

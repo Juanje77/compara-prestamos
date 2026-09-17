@@ -37,7 +37,18 @@ export default async function handler(req, res) {
     // pago se confirma más tarde: ahí el webhook pisa el plan y la prueba deja de aplicar).
     await ref.set(datos, { merge: true })
     res.status(200).json(datos)
-  } catch {
-    res.status(500).json({ error: 'No se pudo iniciar la prueba gratis.' })
+  } catch (error) {
+    // El catch mudo de antes convertía cualquier causa —service account ausente, permisos, red—
+    // en el mismo 500 sin pistas, y del lado del usuario en una pantalla que no decía nada. El
+    // `motivo` no expone secretos: sólo dice en qué se trabó.
+    const mensaje = error instanceof Error ? error.message : ''
+    const motivo = mensaje.includes('FIREBASE_SERVICE_ACCOUNT_KEY')
+      ? 'servidor_sin_credenciales'
+      : mensaje.includes('PERMISSION_DENIED') || mensaje.includes('permission')
+        ? 'firestore_sin_permisos'
+        : 'desconocido'
+
+    console.error('[iniciar-prueba]', motivo, mensaje)
+    res.status(500).json({ error: 'No se pudo iniciar la prueba gratis.', motivo })
   }
 }
