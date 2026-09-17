@@ -6,6 +6,7 @@ import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
 import { IconButton } from './IconButton'
 import { Card } from './Card'
+import { Button } from './Button'
 
 interface Props {
   remitosCobrar: RemitoConSaldo[]
@@ -166,13 +167,9 @@ function TarjetaRemito({
             ))}
           </select>
         )}
-        <button
-          type="submit"
-          className="shrink-0 rounded-lg px-3 py-1 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-          style={{ background: 'var(--series-blue)' }}
-        >
+        <Button type="submit" variante="primario">
           Registrar anticipo
-        </button>
+        </Button>
       </form>
 
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3" style={{ borderColor: 'var(--gridline)' }}>
@@ -444,13 +441,9 @@ export function RemitosPresupuestos({
             className="tabular w-36 shrink-0 rounded-lg border px-3 py-1.5 text-sm"
             style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
           />
-          <button
-            type="submit"
-            className="shrink-0 rounded-lg px-4 py-1.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-            style={{ background: 'var(--series-blue)' }}
-          >
+          <Button type="submit" variante="primario">
             Agregar
-          </button>
+          </Button>
         </form>
         <p className="mt-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>
           Al tipear "Cliente / proveedor" te sugiere los que ya tenés cargados en Comprobantes — elegí uno de

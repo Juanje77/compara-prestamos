@@ -6,6 +6,7 @@ import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
 import { IconButton } from './IconButton'
 import { Card } from './Card'
+import { Button } from './Button'
 
 interface Props {
   cheques: Cheque[]
@@ -166,13 +167,9 @@ export function Cheques({ cheques, facturas, cuentas, onAgregar, onCambiarEstado
               style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
             />
           </label>
-          <button
-            type="submit"
-            className="shrink-0 rounded-lg px-4 py-1.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-            style={{ background: 'var(--series-blue)' }}
-          >
+          <Button type="submit" variante="primario">
             Agregar
-          </button>
+          </Button>
         </form>
 
         {facturasElegibles.length > 0 && (

@@ -34,6 +34,7 @@ import { EmitirComprobante } from './EmitirComprobante'
 import { NuevaNota } from './NuevaNota'
 import { IconButton } from './IconButton'
 import { Card } from './Card'
+import { Button } from './Button'
 
 interface Props {
   facturas: Factura[]
@@ -380,13 +381,9 @@ export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarV
             className="tabular w-20 shrink-0 rounded-lg border px-3 py-1.5 text-sm"
             style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
           />
-          <button
-            type="submit"
-            className="shrink-0 rounded-lg px-4 py-1.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-            style={{ background: 'var(--series-blue)' }}
-          >
+          <Button type="submit" variante="primario">
             Agregar
-          </button>
+          </Button>
         </form>
       </Card>
 

@@ -5,6 +5,7 @@ import { CATEGORIAS_GASTO } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
 import { IconButton } from './IconButton'
 import { Card } from './Card'
+import { Button } from './Button'
 
 interface Props {
   proveedores: ProveedorResumen[]
@@ -70,13 +71,9 @@ export function Proveedores({ proveedores, onClasificar, onAgregarManual, onElim
             </option>
           ))}
         </select>
-        <button
-          type="submit"
-          className="shrink-0 rounded-lg px-4 py-1.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-          style={{ background: 'var(--series-blue)' }}
-        >
+        <Button type="submit" variante="primario">
           Agregar
-        </button>
+        </Button>
       </form>
 
       {proveedores.length === 0 ? (

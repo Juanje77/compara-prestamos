@@ -4,6 +4,7 @@ import type { MargenSector } from '../lib/cfo'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
 import { IconButton } from './IconButton'
 import { Card } from './Card'
+import { Button } from './Button'
 
 interface Props {
   sectores: { id: string; nombre: string }[]
@@ -172,13 +173,9 @@ export function MargenesPorSector({ sectores, margenes, mes, onCambiarMes, onAgr
             className="min-w-[200px] flex-1 rounded-lg border px-3 py-1.5 text-sm"
             style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
           />
-          <button
-            type="submit"
-            className="shrink-0 rounded-lg px-4 py-1.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-            style={{ background: 'var(--series-blue)' }}
-          >
+          <Button type="submit" variante="primario">
             Agregar sector
-          </button>
+          </Button>
         </form>
 
         {sectores.length > 0 && (

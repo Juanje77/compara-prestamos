@@ -32,6 +32,7 @@ import {
 import { InputMoneda } from './InputMoneda'
 import { IconButton } from './IconButton'
 import { Card } from './Card'
+import { Button } from './Button'
 
 /** Los movimientos generados a partir de una factura llevan este prefijo en el id, para poder
  * distinguirlos de los cargados a mano (que no se pueden borrar ni editar desde acá). */
@@ -384,13 +385,9 @@ function ColumnaMovimientos({
           className="tabular w-36 shrink-0 rounded-lg border px-3 py-1.5 text-sm"
           style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
         />
-        <button
-          type="submit"
-          className="shrink-0 rounded-lg px-4 py-1.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-          style={{ background: 'var(--series-blue)' }}
-        >
+        <Button type="submit" variante="primario">
           Agregar
-        </button>
+        </Button>
       </form>
 
       {movimientos.length === 0 ? (
@@ -407,13 +404,15 @@ function ColumnaMovimientos({
               <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>
                 {seleccionados.size} seleccionada(s)
               </span>
-              <button
+              <Button
                 onClick={() => handleMarcarSeleccionados(true)}
-                className="inline-flex items-center gap-1 rounded-full px-3 py-1 font-semibold text-white transition-opacity hover:opacity-90"
+                variante="primario"
+                pill
                 style={{ background: 'var(--status-good)' }}
+                icono={<Check size={13} aria-hidden="true" />}
               >
-                <Check size={13} aria-hidden="true" /> Marcar como {tituloCumplido}
-              </button>
+                Marcar como {tituloCumplido}
+              </Button>
               <button
                 onClick={() => handleMarcarSeleccionados(false)}
                 className="rounded-full border px-3 py-1 font-medium"

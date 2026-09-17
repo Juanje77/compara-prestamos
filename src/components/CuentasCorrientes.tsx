@@ -3,6 +3,7 @@ import { Check, Trash2 } from 'lucide-react'
 import type { CuentaBancaria, CuentaCorrienteContraparte, MedioPago, Pago, TipoDocumentoAnticipo, TipoFactura } from '../lib/cfo'
 import { MEDIOS_PAGO_LABEL } from '../lib/cfo'
 import { Card } from './Card'
+import { Button } from './Button'
 
 const DOCUMENTO_LABEL: Record<TipoDocumentoAnticipo, string> = {
   remito: 'Remito',
@@ -125,13 +126,9 @@ function TarjetaContraparte({
             ))}
           </select>
         )}
-        <button
-          type="submit"
-          className="shrink-0 rounded-lg px-3 py-1 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-          style={{ background: 'var(--series-blue)' }}
-        >
+        <Button type="submit" variante="primario">
           Registrar pago
-        </button>
+        </Button>
       </form>
       <p className="mt-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
         Se aplica primero a la factura pendiente más antigua

@@ -7,6 +7,7 @@ import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
 import { IconButton } from './IconButton'
 import { Card } from './Card'
+import { Button } from './Button'
 
 interface Props {
   cuentas: CuentaBancaria[]
@@ -64,13 +65,9 @@ function FormularioAltaCuenta({ onAgregarCuenta }: { onAgregarCuenta: Props['onA
         className="tabular w-32 shrink-0 rounded-lg border px-3 py-1.5 text-sm"
         style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
       />
-      <button
-        type="submit"
-        className="shrink-0 rounded-lg px-4 py-1.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-        style={{ background: 'var(--series-blue)' }}
-      >
+      <Button type="submit" variante="primario">
         Agregar cuenta
-      </button>
+      </Button>
     </form>
   )
 }
@@ -175,13 +172,9 @@ function FilaCuenta({
               className="min-w-[140px] flex-1 rounded-lg border px-2 py-1 text-sm"
               style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
             />
-            <button
-              type="submit"
-              className="shrink-0 rounded-lg px-3 py-1 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-              style={{ background: 'var(--series-blue)' }}
-            >
+            <Button type="submit" variante="primario">
               Registrar
-            </button>
+            </Button>
           </form>
           <p className="mt-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
             Un ajuste suma el monto tal cual — poné un número negativo para restar (ej: un gasto bancario, un
