@@ -1,4 +1,4 @@
-import type { Anticipo, Bien, Cheque, ClasificacionesProveedores, CuentaBancaria, DatosEmpleador, Deuda, Empleado, Factura, IngresosBrutosManualMes, IvaManualMes, Liquidacion, MovimientoBancario, MovimientoDiario, MovimientoStock, MovimientoTesoreria, Pago, Producto, RemitoPresupuesto, Sector } from './cfo'
+import type { Anticipo, Bien, Cheque, ClasificacionesProveedores, CuentaBancaria, DatosEmisorFiscal, DatosEmpleador, Deuda, Empleado, Factura, IngresosBrutosManualMes, IvaManualMes, Liquidacion, MovimientoBancario, MovimientoDiario, MovimientoStock, MovimientoTesoreria, Pago, Producto, RemitoPresupuesto, Sector } from './cfo'
 
 export interface NegocioData {
   ingresos: number
@@ -29,6 +29,9 @@ export interface NegocioData {
   empleados: Empleado[]
   /** CUIT, domicilio y lugar de pago de la empresa, para los recibos de sueldo. */
   datosEmpleador: DatosEmpleador
+  /** Datos del emisor y avance del circuito de habilitación ante ARCA. El token de emisión NO se
+   * guarda acá: es una credencial y esto va a localStorage. */
+  datosEmisorFiscal: DatosEmisorFiscal
   /** Liquidaciones cerradas mes a mes — base del libro de sueldos y de la numeración de recibos. */
   liquidaciones: Liquidacion[]
   /** Anticipos cobrados/pagados contra un remito o presupuesto — ver calcularSaldoRemito. */

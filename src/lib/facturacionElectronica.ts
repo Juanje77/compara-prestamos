@@ -10,15 +10,13 @@
 // aparece verbatim en ese ejemplo queda marcado abajo como pendiente de verificar contra el
 // contrato OpenAPI (`/docs/openapi/download`).
 
-import type { CondicionIvaReceptorId, DatosReceptor, Factura } from './cfo'
+import type { CondicionEmisor, CondicionIvaReceptorId, DatosReceptor, Factura } from './cfo'
 import { esCuitValido, limpiarCuit } from './cuit'
 
 /** Letra del comprobante. La define la condición de IVA del emisor cruzada con la del receptor. */
 export type LetraComprobante = 'a' | 'b' | 'c'
 
-/** Condición del emisor. Un monotributista siempre emite C; un responsable inscripto emite A o B
- * según a quién le venda. */
-export type CondicionEmisor = 'responsable_inscripto' | 'monotributo'
+export type { CondicionEmisor }
 
 /** Sólo `productos` está confirmado contra el ejemplo oficial. */
 export type ConceptoComprobante = 'productos' | 'servicios' | 'productos_y_servicios'

@@ -25,6 +25,7 @@ import { CuentasCorrientes } from '../components/CuentasCorrientes'
 import { RemitosPresupuestos } from '../components/RemitosPresupuestos'
 import { MargenesPorSector } from '../components/MargenesPorSector'
 import { Sueldos } from '../components/Sueldos'
+import { FacturacionElectronica } from '../components/FacturacionElectronica'
 import { Stock } from '../components/Stock'
 import { Tesoreria } from '../components/Tesoreria'
 import {
@@ -44,6 +45,7 @@ import {
   calcularMargenBrutoTotal,
   calcularMargenOperativo,
   calcularMargenPorSector,
+  DATOS_EMISOR_FISCAL_VACIOS,
   DATOS_EMPLEADOR_VACIOS,
   calcularAguinaldo,
   cerrarLiquidacion,
@@ -87,6 +89,7 @@ import {
   type ClasificacionesProveedores,
   type CuentaBancaria,
   type ConceptoPagoSueldos,
+  type DatosEmisorFiscal,
   type DatosEmpleador,
   type Liquidacion,
   type TipoLiquidacion,
@@ -132,6 +135,7 @@ function hoyISO(): string {
 const SECCIONES = [
   { key: 'dashboard', label: 'Dashboard' },
   { key: 'facturas', label: 'Comprobantes' },
+  { key: 'facturacionElectronica', label: 'Facturación electrónica' },
   { key: 'ingresosGastos', label: 'Ingresos y gastos' },
   { key: 'cobranzas', label: 'Cobranzas y pagos' },
   { key: 'cuentasCorrientes', label: 'Cuentas corrientes' },
@@ -152,7 +156,7 @@ const SECCIONES = [
 
 /** Secciones exclusivas del plan Full (el sistema de gestión de uso diario) — el resto que
  * requiere pago sigue disponible desde el plan Medio. */
-const SECCIONES_FULL = new Set(['cuentasCorrientes', 'remitos', 'margenes', 'sueldos', 'cheques', 'stock', 'tesoreria'])
+const SECCIONES_FULL = new Set(['facturacionElectronica', 'cuentasCorrientes', 'remitos', 'margenes', 'sueldos', 'cheques', 'stock', 'tesoreria'])
 
 type Seccion = (typeof SECCIONES)[number]['key']
 
@@ -202,6 +206,9 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   const [empleados, setEmpleados] = useState<Empleado[]>(() => cargarNegocioData()?.empleados ?? [])
   const [datosEmpleador, setDatosEmpleador] = useState<DatosEmpleador>(
     () => cargarNegocioData()?.datosEmpleador ?? DATOS_EMPLEADOR_VACIOS,
+  )
+  const [datosEmisorFiscal, setDatosEmisorFiscal] = useState<DatosEmisorFiscal>(
+    () => cargarNegocioData()?.datosEmisorFiscal ?? DATOS_EMISOR_FISCAL_VACIOS,
   )
   const [liquidaciones, setLiquidaciones] = useState<Liquidacion[]>(() => cargarNegocioData()?.liquidaciones ?? [])
   const [anticipos, setAnticipos] = useState<Anticipo[]>(() => cargarNegocioData()?.anticipos ?? [])
@@ -261,6 +268,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           setSectores(d.sectores ?? [])
           setEmpleados(d.empleados ?? [])
           setDatosEmpleador(d.datosEmpleador ?? DATOS_EMPLEADOR_VACIOS)
+          setDatosEmisorFiscal(d.datosEmisorFiscal ?? DATOS_EMISOR_FISCAL_VACIOS)
           setLiquidaciones(d.liquidaciones ?? [])
           setAnticipos(d.anticipos ?? [])
           setProductos(d.productos ?? [])
@@ -300,6 +308,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
       sectores,
       empleados,
       datosEmpleador,
+      datosEmisorFiscal,
       liquidaciones,
       anticipos,
       productos,
@@ -330,6 +339,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     sectores,
     empleados,
     datosEmpleador,
+    datosEmisorFiscal,
     liquidaciones,
     anticipos,
     productos,
@@ -365,6 +375,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           sectores,
           empleados,
           datosEmpleador,
+          datosEmisorFiscal,
           liquidaciones,
           anticipos,
           productos,
@@ -402,6 +413,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     sectores,
     empleados,
     datosEmpleador,
+    datosEmisorFiscal,
     liquidaciones,
     anticipos,
     productos,
@@ -1449,6 +1461,18 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
             onAgregarSector={handleAgregarSector}
             onEliminarSector={handleEliminarSector}
           />
+        </PremiumLock>
+      )}
+
+      {seccion === 'facturacionElectronica' && (
+        <PremiumLock
+          activo={esFull}
+          nivelRequerido="full"
+          titulo="Facturación electrónica"
+          descripcion="Habilitá tu CUIT ante ARCA paso a paso para poder emitir comprobantes con CAE desde el sistema."
+          onQuieroPremium={abrirPlanes}
+        >
+          <FacturacionElectronica datos={datosEmisorFiscal} onCambiar={setDatosEmisorFiscal} />
         </PremiumLock>
       )}
 

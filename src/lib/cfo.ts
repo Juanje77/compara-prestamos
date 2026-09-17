@@ -437,6 +437,37 @@ export const MEDIOS_PAGO_LABEL: Record<MedioPago, string> = {
   transferencia: 'Transferencia bancaria',
 }
 
+/** Condición del emisor frente al IVA. Define qué letra de comprobante puede emitir: un
+ * monotributista siempre C, un responsable inscripto A o B según a quién le venda. */
+export type CondicionEmisor = 'responsable_inscripto' | 'monotributo'
+
+export const CONDICIONES_EMISOR: { id: CondicionEmisor; nombre: string }[] = [
+  { id: 'responsable_inscripto', nombre: 'Responsable inscripto' },
+  { id: 'monotributo', nombre: 'Monotributo' },
+]
+
+/** Datos del contribuyente que emite, y en qué punto está del circuito de habilitación ante ARCA.
+ * Nada de esto es secreto: el token de emisión NO va acá, porque esta estructura se guarda en
+ * localStorage y se sincroniza desde el navegador. */
+export interface DatosEmisorFiscal {
+  cuit: string
+  razonSocial: string
+  condicion: CondicionEmisor
+  /** Punto de venta habilitado para **web services** — es un tipo distinto del que se usa en
+   * Comprobantes en Línea, y usar el equivocado hace que ARCA rechace la emisión. */
+  puntoVenta: string
+  /** Ids de las etapas del circuito de ARCA ya completadas — ver ETAPAS_HABILITACION. */
+  etapasCompletadas: string[]
+}
+
+export const DATOS_EMISOR_FISCAL_VACIOS: DatosEmisorFiscal = {
+  cuit: '',
+  razonSocial: '',
+  condicion: 'responsable_inscripto',
+  puntoVenta: '',
+  etapasCompletadas: [],
+}
+
 /** Tipo de documento del receptor. Sólo `dni` está confirmado contra el ejemplo oficial de la API;
  * el resto sale de los comprobantes que ARCA admite y hay que verificarlo contra el contrato
  * OpenAPI antes de emitir en producción. */
