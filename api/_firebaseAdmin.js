@@ -1,5 +1,6 @@
 // Inicializa Firebase Admin una sola vez por instancia de función serverless.
 import { cert, getApps, initializeApp } from 'firebase-admin/app'
+import { getAuth } from 'firebase-admin/auth'
 import { getFirestore } from 'firebase-admin/firestore'
 
 function credencialesDesdeEnv() {
@@ -8,9 +9,18 @@ function credencialesDesdeEnv() {
   return JSON.parse(raw)
 }
 
-export function obtenerFirestoreAdmin() {
+function inicializar() {
   if (getApps().length === 0) {
     initializeApp({ credential: cert(credencialesDesdeEnv()) })
   }
+}
+
+export function obtenerFirestoreAdmin() {
+  inicializar()
   return getFirestore()
+}
+
+export function obtenerAuthAdmin() {
+  inicializar()
+  return getAuth()
 }
