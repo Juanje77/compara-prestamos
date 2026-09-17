@@ -130,7 +130,8 @@ const SECCIONES: SeccionAyuda[] = [
     tier: 'full',
     descripcion: 'Nómina de empleados: cuánto cobra cada uno de bolsillo y cuánto le cuesta realmente a la empresa.',
     pasos: [
-      'Cargá cada empleado con su nombre y sueldo básico de convenio.',
+      'Completá una sola vez los datos de la empresa para el recibo: CUIT, domicilio y lugar de pago (el art. 140 de la LCT los exige).',
+      'Cargá cada empleado con su nombre, CUIL, fecha de ingreso, legajo y sueldo básico de convenio.',
       'Sumá los otros haberes del recibo (antigüedad, presentismo, día del gremio, acuerdos) marcando cuáles son remunerativos y cuáles no: los no remunerativos no pagan jubilación ni PAMI, y tampoco generan contribuciones patronales.',
       'Los descuentos vienen con los tres de siempre —jubilación 11% y Ley 19.032 3% sobre lo remunerativo, obra social 3% sobre el total— y podés sumar los de tu convenio (S.E.C., F.A.E.C. y S., cuota sindical), eligiendo para cada uno la base sobre la que se calcula.',
       'Del lado de la empresa quedan dos porcentajes editables: contribuciones patronales (seguridad social) y cargas sociales adicionales (ART, seguro de vida, sindicato patronal), ambos sobre lo remunerativo.',
@@ -139,6 +140,8 @@ const SECCIONES: SeccionAyuda[] = [
       'Los dos pagos aparecen también en Cobranzas y pagos con su fecha estimada, para verlos venir en la semana — pero se registran acá, que es donde se elige la cuenta.',
       'En junio y diciembre aparecen además las dos cuotas del aguinaldo (SAC), calculadas como medio sueldo bruto por empleado con sus mismos aportes y contribuciones.',
       'Si tenés sectores creados, repartí el costo de cada empleado entre ellos con un % — sirve para los que hacen varias tareas (60% Metalúrgica, 40% Service).',
+      'Cada empleado se ve como una fila con su neto y su costo; tocala para abrir el detalle y editarlo.',
+      'Con `🖨` imprimís el recibo de un empleado, o `🖨 Imprimir todos los recibos` para toda la nómina, uno por hoja. La constancia del último depósito de aportes se completa sola con el pago de cargas sociales que hayas registrado del mes anterior.',
       'Dado de baja un empleado con `Dar de baja` en vez de borrarlo, para no perder el historial.',
     ],
     tip: 'En cuanto cargás al menos un empleado activo, el costo total de la nómina pasa a ser el valor automático (🧾 auto) de la categoría "Sueldos" en Presupuesto vs. Real y en el gráfico de Composición de gastos del Dashboard, en vez del estimado que cargaste a mano.',

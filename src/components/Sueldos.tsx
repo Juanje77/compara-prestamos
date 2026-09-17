@@ -7,10 +7,12 @@ import {
   CONTRIBUCIONES_PATRONALES_PCT_DEFAULT,
   calcularCostoEmpleado,
   calcularPagosSueldos,
+  idOrigenPagoSueldos,
   type BaseDescuento,
   type ConceptoHaber,
   type ConceptoPagoSueldos,
   type CuentaBancaria,
+  type DatosEmpleador,
   type DescuentoEmpleado,
   type Empleado,
   type MovimientoTesoreria,
@@ -24,6 +26,8 @@ import { InputMoneda } from './InputMoneda'
 
 interface Props {
   nombreNegocio: string
+  datosEmpleador: DatosEmpleador
+  onCambiarDatosEmpleador: (datos: DatosEmpleador) => void
   empleados: Empleado[]
   nomina: NominaTotal
   /** Medio sueldo por empleado con sus cargas — solo se paga en junio y diciembre. */
@@ -176,6 +180,43 @@ function FilaEmpleado({
             value={empleado.sueldoBruto}
             onChange={(v) => onActualizar(empleado.id, { sueldoBruto: v })}
             className="tabular mt-0.5 w-36 rounded-lg border px-2 py-1 text-sm"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+          />
+        </label>
+        <label className="block">
+          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            CUIL
+          </span>
+          <input
+            type="text"
+            placeholder="20-12345678-3"
+            value={empleado.cuil ?? ''}
+            onChange={(e) => onActualizar(empleado.id, { cuil: e.target.value })}
+            className="tabular mt-0.5 w-36 rounded-lg border px-2 py-1 text-sm"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+          />
+        </label>
+        <label className="block">
+          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            Fecha de ingreso
+          </span>
+          <input
+            type="date"
+            value={empleado.fechaIngreso ?? ''}
+            onChange={(e) => onActualizar(empleado.id, { fechaIngreso: e.target.value })}
+            className="tabular mt-0.5 w-36 rounded-lg border px-2 py-1 text-sm"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+          />
+        </label>
+        <label className="block">
+          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            Legajo
+          </span>
+          <input
+            type="text"
+            value={empleado.legajo ?? ''}
+            onChange={(e) => onActualizar(empleado.id, { legajo: e.target.value })}
+            className="tabular mt-0.5 w-20 rounded-lg border px-2 py-1 text-sm"
             style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
           />
         </label>
@@ -578,6 +619,8 @@ function PanelPagos({
 
 export function Sueldos({
   nombreNegocio,
+  datosEmpleador,
+  onCambiarDatosEmpleador,
   empleados,
   nomina,
   aguinaldo,
@@ -595,7 +638,28 @@ export function Sueldos({
 
   function imprimirRecibos(deQuienes: Empleado[]) {
     if (deQuienes.length === 0) return
-    abrirRecibosSueldo({ nombreNegocio, mes: mesActualISO(), empleados: deQuienes })
+    const mes = mesActualISO()
+    const buscarPago = (mesBuscado: string, concepto: 'netos' | 'cargas') =>
+      movimientosTesoreria.find(
+        (m) => m.origen === 'sueldo' && m.origenId === idOrigenPagoSueldos(mesBuscado, concepto),
+      )
+    // La constancia de aportes que exige el recibo es la del mes anterior al liquidado.
+    const [anio, numeroMes] = mes.split('-').map(Number)
+    const anterior = new Date(anio, numeroMes - 2, 1)
+    const mesAnterior = `${anterior.getFullYear()}-${String(anterior.getMonth() + 1).padStart(2, '0')}`
+    const pagoCargas = buscarPago(mesAnterior, 'cargas')
+    const cuentaDelPago = cuentas.find((c) => c.id === pagoCargas?.cuentaId)
+
+    abrirRecibosSueldo({
+      nombreNegocio,
+      empleador: datosEmpleador,
+      mes,
+      empleados: deQuienes,
+      fechaPago: buscarPago(mes, 'netos')?.fecha,
+      depositoAportes: pagoCargas
+        ? { periodo: mesAnterior, fecha: pagoCargas.fecha, entidad: cuentaDelPago?.nombre ?? 'cuenta registrada' }
+        : undefined,
+    })
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -631,6 +695,39 @@ export function Sueldos({
           Dashboard —composición de gastos, margen operativo, runway y punto de equilibrio— y en
           Presupuesto vs. Real.
         </p>
+
+        <div className="mb-4 rounded-lg border p-3" style={{ borderColor: 'var(--gridline)', background: 'var(--surface-2)' }}>
+          <p className="mb-2 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+            Datos de la empresa para el recibo{' '}
+            <span style={{ color: 'var(--text-secondary)' }}>(obligatorios por el art. 140 de la LCT)</span>
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <input
+              type="text"
+              placeholder="CUIT del empleador"
+              value={datosEmpleador.cuit}
+              onChange={(e) => onCambiarDatosEmpleador({ ...datosEmpleador, cuit: e.target.value })}
+              className="w-44 shrink-0 rounded-lg border px-3 py-1.5 text-sm"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+            />
+            <input
+              type="text"
+              placeholder="Domicilio de la empresa"
+              value={datosEmpleador.domicilio}
+              onChange={(e) => onCambiarDatosEmpleador({ ...datosEmpleador, domicilio: e.target.value })}
+              className="min-w-[200px] flex-1 rounded-lg border px-3 py-1.5 text-sm"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+            />
+            <input
+              type="text"
+              placeholder="Lugar de pago (localidad)"
+              value={datosEmpleador.lugarPago}
+              onChange={(e) => onCambiarDatosEmpleador({ ...datosEmpleador, lugarPago: e.target.value })}
+              className="w-52 shrink-0 rounded-lg border px-3 py-1.5 text-sm"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+            />
+          </div>
+        </div>
 
         <form onSubmit={handleSubmit} className="flex flex-wrap gap-2">
           <input

@@ -17,7 +17,7 @@ import type {
   Recomendacion,
   TendenciaMensual,
 } from './cfo'
-import { calcularCostoEmpleado, type Empleado } from './cfo'
+import { calcularCostoEmpleado, type DatosEmpleador, type Empleado } from './cfo'
 
 // ---------------------------------------------------------------------------
 // Paleta — misma que src/index.css (modo claro), fijada en hexadecimal porque
@@ -323,7 +323,10 @@ const ESTILO = `
   }
 `
 
-function documentoBase(titulo: string, tituloNegocio: string, cuerpo: string): string {
+const PIE_INFORME =
+  'Estimación orientativa a partir de los datos cargados por el usuario — no reemplaza un análisis financiero profesional. Elaborado con FinCorp · Juan Costantini, Contador Público (MP: T20F94). Asesoramiento: WhatsApp +54 9 2392 583117.'
+
+function documentoBase(titulo: string, tituloNegocio: string, cuerpo: string, pie = PIE_INFORME): string {
   return `<!doctype html>
 <html lang="es">
 <head>
@@ -337,7 +340,7 @@ function documentoBase(titulo: string, tituloNegocio: string, cuerpo: string): s
   </div>
   <div class="hoja">
     ${cuerpo}
-    <p class="pie-pagina">Estimación orientativa a partir de los datos cargados por el usuario — no reemplaza un análisis financiero profesional. Elaborado con FinCorp · Juan Costantini, Contador Público (MP: T20F94). Asesoramiento: WhatsApp +54 9 2392 583117.</p>
+    <p class="pie-pagina">${pie}</p>
   </div>
 </body>
 </html>`
@@ -675,9 +678,19 @@ export function abrirInformeSaludFinanciera(datos: InformeSaludFinancieraData) {
 
 export interface ReciboSueldoData {
   nombreNegocio: string
+  empleador: DatosEmpleador
   /** Mes liquidado, en formato "YYYY-MM". */
   mes: string
   empleados: Empleado[]
+  /** Fecha en que se abonaron los netos, si ya se registró el pago en Tesorería. */
+  fechaPago?: string
+  /** Constancia del último depósito de aportes (art. 140 inc. g LCT), tomada del pago de cargas
+   * sociales ya registrado. */
+  depositoAportes?: { periodo: string; fecha: string; entidad: string }
+}
+
+function fechaCorta(fechaISO?: string): string {
+  return fechaISO ? new Date(`${fechaISO}T00:00:00`).toLocaleDateString('es-AR') : '—'
 }
 
 function etiquetaMesLargo(mesISO: string): string {
@@ -690,7 +703,8 @@ function celdaMonto(valor: number): string {
   return valor === 0 ? '<td class="num" style="color:' + COLOR.textoMuted + '">—</td>' : `<td class="num">${formatoMoneda(valor)}</td>`
 }
 
-function reciboDeEmpleado(empleado: Empleado, nombreNegocio: string, mes: string): string {
+function reciboDeEmpleado(empleado: Empleado, datos: ReciboSueldoData): string {
+  const { nombreNegocio, empleador, mes } = datos
   const costo = calcularCostoEmpleado(empleado)
   const conceptos = empleado.conceptos ?? []
 
@@ -730,9 +744,19 @@ function reciboDeEmpleado(empleado: Empleado, nombreNegocio: string, mes: string
 
       <table class="datos-empleado">
         <tr>
+          <td><span>Empleador</span><strong>${escapeHtml(nombreNegocio)}</strong></td>
+          <td><span>CUIT</span><strong>${escapeHtml(empleador.cuit || '—')}</strong></td>
+          <td><span>Domicilio</span><strong>${escapeHtml(empleador.domicilio || '—')}</strong></td>
+        </tr>
+        <tr>
           <td><span>Empleado</span><strong>${escapeHtml(empleado.nombre)}</strong></td>
+          <td><span>CUIL</span><strong>${escapeHtml(empleado.cuil || '—')}</strong></td>
+          <td><span>Legajo</span><strong>${escapeHtml(empleado.legajo || '—')}</strong></td>
+        </tr>
+        <tr>
           <td><span>Categoría / convenio</span><strong>${escapeHtml(empleado.categoria || '—')}</strong></td>
-          <td><span>Período</span><strong>${escapeHtml(etiquetaMesLargo(mes))}</strong></td>
+          <td><span>Fecha de ingreso</span><strong>${escapeHtml(fechaCorta(empleado.fechaIngreso))}</strong></td>
+          <td><span>Período liquidado</span><strong>${escapeHtml(etiquetaMesLargo(mes))}</strong></td>
         </tr>
       </table>
 
@@ -769,6 +793,23 @@ function reciboDeEmpleado(empleado: Empleado, nombreNegocio: string, mes: string
         <tfoot><tr><td>Costo total</td><td class="num">${formatoMoneda(costo.costoEmpresa)}</td></tr></tfoot>
       </table>
 
+      <table class="tabla legales">
+        <tbody>
+          <tr>
+            <td>Lugar y fecha de pago</td>
+            <td class="num">${escapeHtml(empleador.lugarPago || '—')}${datos.fechaPago ? ` — ${escapeHtml(fechaCorta(datos.fechaPago))}` : ''}</td>
+          </tr>
+          <tr>
+            <td>Constancia del último depósito de aportes (art. 140 inc. g LCT)</td>
+            <td class="num">${
+              datos.depositoAportes
+                ? `Período ${escapeHtml(etiquetaMesLargo(datos.depositoAportes.periodo))} — depositado el ${escapeHtml(fechaCorta(datos.depositoAportes.fecha))} en ${escapeHtml(datos.depositoAportes.entidad)}`
+                : '—'
+            }</td>
+          </tr>
+        </tbody>
+      </table>
+
       <div class="firmas">
         <div><span></span><p>Firma del empleador</p></div>
         <div><span></span><p>Firma del empleado — recibí conforme</p></div>
@@ -792,6 +833,8 @@ const ESTILO_RECIBO = `
   .neto { display: flex; align-items: center; justify-content: space-between; gap: 16px; border: 2px solid ${COLOR.navy}; border-radius: 8px; padding: 12px 16px; margin: 0 0 22px; }
   .neto span { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: ${COLOR.textoSecundario}; }
   .neto strong { font-size: 22px; color: ${COLOR.navy}; font-variant-numeric: tabular-nums; }
+  .legales td:first-child { color: ${COLOR.textoSecundario}; }
+  .legales .num { text-align: right; font-weight: 500; }
   .costo-empresa thead th { background: ${COLOR.fondo}; color: ${COLOR.textoMuted}; font-weight: 500; }
   .firmas { display: flex; gap: 40px; margin-top: 48px; }
   .firmas div { flex: 1; text-align: center; }
@@ -804,8 +847,12 @@ const ESTILO_RECIBO = `
  * como PDF con el diálogo del navegador. */
 export function abrirRecibosSueldo(datos: ReciboSueldoData) {
   const tituloNegocio = datos.nombreNegocio.trim() || 'Tu negocio'
-  const cuerpo = datos.empleados.map((e) => reciboDeEmpleado(e, tituloNegocio, datos.mes)).join('')
-  const html = documentoBase('Recibo de sueldo', tituloNegocio, cuerpo).replace(
+  const cuerpo = datos.empleados.map((e) => reciboDeEmpleado(e, { ...datos, nombreNegocio: tituloNegocio })).join('')
+  const pie =
+    'Duplicado del recibo de haberes emitido por el empleador. Los importes surgen de los datos cargados en FinCorp; ' +
+    'verificá la liquidación con tu asesor contable antes de firmarlo. Elaborado con FinCorp · Juan Costantini, ' +
+    'Contador Público (MP: T20F94).'
+  const html = documentoBase('Recibo de sueldo', tituloNegocio, cuerpo, pie).replace(
     '</style>',
     `${ESTILO_RECIBO}</style>`,
   )

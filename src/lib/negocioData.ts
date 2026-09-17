@@ -1,4 +1,4 @@
-import type { Anticipo, Bien, Cheque, ClasificacionesProveedores, CuentaBancaria, Deuda, Empleado, Factura, IngresosBrutosManualMes, IvaManualMes, MovimientoBancario, MovimientoDiario, MovimientoStock, MovimientoTesoreria, Pago, Producto, RemitoPresupuesto, Sector } from './cfo'
+import type { Anticipo, Bien, Cheque, ClasificacionesProveedores, CuentaBancaria, DatosEmpleador, Deuda, Empleado, Factura, IngresosBrutosManualMes, IvaManualMes, MovimientoBancario, MovimientoDiario, MovimientoStock, MovimientoTesoreria, Pago, Producto, RemitoPresupuesto, Sector } from './cfo'
 
 export interface NegocioData {
   ingresos: number
@@ -27,6 +27,8 @@ export interface NegocioData {
   sectores: Sector[]
   /** Nómina de empleados — ver calcularNominaTotal. */
   empleados: Empleado[]
+  /** CUIT, domicilio y lugar de pago de la empresa, para los recibos de sueldo. */
+  datosEmpleador: DatosEmpleador
   /** Anticipos cobrados/pagados contra un remito o presupuesto — ver calcularSaldoRemito. */
   anticipos: Anticipo[]
   /** Catálogo de productos de Stock — ver calcularValorInventario. */

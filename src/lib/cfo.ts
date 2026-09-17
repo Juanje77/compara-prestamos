@@ -1212,9 +1212,24 @@ export interface AsignacionSector {
   porcentaje: number
 }
 
+/** Datos fijos de la empresa que el recibo de sueldo tiene que llevar por el art. 140 de la LCT. */
+export interface DatosEmpleador {
+  cuit: string
+  domicilio: string
+  /** Localidad donde se abona — "lugar de pago" del recibo. */
+  lugarPago: string
+}
+
+export const DATOS_EMPLEADOR_VACIOS: DatosEmpleador = { cuit: '', domicilio: '', lugarPago: '' }
+
 export interface Empleado {
   id: string
   nombre: string
+  /** CUIL del trabajador (art. 140 inc. c LCT). */
+  cuil?: string
+  /** Fecha de ingreso, obligatoria en el recibo (art. 140 inc. c LCT). */
+  fechaIngreso?: string
+  legajo?: string
   /** Sueldo básico de convenio — el resto de los haberes van en `conceptos`. */
   sueldoBruto: number
   /** Categoría/convenio, solo informativo (ej. "Administrativo A — CCT 130/75"). */

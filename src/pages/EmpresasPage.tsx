@@ -44,6 +44,7 @@ import {
   calcularMargenBrutoTotal,
   calcularMargenOperativo,
   calcularMargenPorSector,
+  DATOS_EMPLEADOR_VACIOS,
   calcularAguinaldo,
   calcularNominaTotal,
   calcularPagosSueldos,
@@ -85,6 +86,7 @@ import {
   type ClasificacionesProveedores,
   type CuentaBancaria,
   type ConceptoPagoSueldos,
+  type DatosEmpleador,
   type Deuda as DeudaTipo,
   type Empleado,
   type EstadoCheque,
@@ -195,6 +197,9 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   const [remitos, setRemitos] = useState<RemitoPresupuesto[]>(() => cargarNegocioData()?.remitos ?? [])
   const [sectores, setSectores] = useState<Sector[]>(() => cargarNegocioData()?.sectores ?? [])
   const [empleados, setEmpleados] = useState<Empleado[]>(() => cargarNegocioData()?.empleados ?? [])
+  const [datosEmpleador, setDatosEmpleador] = useState<DatosEmpleador>(
+    () => cargarNegocioData()?.datosEmpleador ?? DATOS_EMPLEADOR_VACIOS,
+  )
   const [anticipos, setAnticipos] = useState<Anticipo[]>(() => cargarNegocioData()?.anticipos ?? [])
   const [productos, setProductos] = useState<Producto[]>(() => cargarNegocioData()?.productos ?? [])
   const [movimientosStock, setMovimientosStock] = useState<MovimientoStock[]>(
@@ -251,6 +256,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           setRemitos(d.remitos ?? [])
           setSectores(d.sectores ?? [])
           setEmpleados(d.empleados ?? [])
+          setDatosEmpleador(d.datosEmpleador ?? DATOS_EMPLEADOR_VACIOS)
           setAnticipos(d.anticipos ?? [])
           setProductos(d.productos ?? [])
           setMovimientosStock(d.movimientosStock ?? [])
@@ -288,6 +294,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
       remitos,
       sectores,
       empleados,
+      datosEmpleador,
       anticipos,
       productos,
       movimientosStock,
@@ -316,6 +323,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     remitos,
     sectores,
     empleados,
+    datosEmpleador,
     anticipos,
     productos,
     movimientosStock,
@@ -349,6 +357,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           remitos,
           sectores,
           empleados,
+          datosEmpleador,
           anticipos,
           productos,
           movimientosStock,
@@ -384,6 +393,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     remitos,
     sectores,
     empleados,
+    datosEmpleador,
     anticipos,
     productos,
     movimientosStock,
@@ -1434,6 +1444,8 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
         >
           <Sueldos
             nombreNegocio={nombreNegocio}
+            datosEmpleador={datosEmpleador}
+            onCambiarDatosEmpleador={setDatosEmpleador}
             empleados={empleados}
             nomina={nominaTotal}
             aguinaldo={aguinaldo}
