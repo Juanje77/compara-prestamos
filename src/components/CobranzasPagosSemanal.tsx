@@ -31,6 +31,7 @@ import {
 } from '../lib/cfo'
 import { InputMoneda } from './InputMoneda'
 import { IconButton } from './IconButton'
+import { Card } from './Card'
 
 /** Los movimientos generados a partir de una factura llevan este prefijo en el id, para poder
  * distinguirlos de los cargados a mano (que no se pueden borrar ni editar desde acá). */
@@ -352,7 +353,7 @@ function ColumnaMovimientos({
   const haySeleccion = seleccionados.size > 0
 
   return (
-    <div className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+    <Card>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
           {titulo}
@@ -527,7 +528,7 @@ function ColumnaMovimientos({
           />
         </div>
       </div>
-    </div>
+    </Card>
   )
 }
 

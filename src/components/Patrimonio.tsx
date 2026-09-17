@@ -4,6 +4,7 @@ import { TIPOS_BIEN_LABEL, type Bien, type TipoBien } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
 import { IconButton } from './IconButton'
+import { Card } from './Card'
 
 interface Props {
   bienes: Bien[]
@@ -28,7 +29,7 @@ export function Patrimonio({ bienes, runwayExtendido, onAgregar, onEliminar }: P
   }
 
   return (
-    <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+    <Card as="section">
       <h2 className="mb-1 text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
         Patrimonio / Bienes
       </h2>
@@ -124,6 +125,6 @@ export function Patrimonio({ bienes, runwayExtendido, onAgregar, onEliminar }: P
           </span>
         </p>
       )}
-    </section>
+    </Card>
   )
 }

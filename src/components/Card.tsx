@@ -13,12 +13,15 @@ interface Props extends HTMLAttributes<HTMLDivElement> {
   /** Tinte celeste sutil, para destacar una sección (hoy usado a mano en varios lados con
    * color-mix contra var(--series-blue)). */
   destacada?: boolean
+  /** El original era a veces `<section>` (landmark de página) y a veces `<div>` — se preserva
+   * en vez de aplanar todo a `<div>`. */
+  as?: 'div' | 'section'
   children: ReactNode
 }
 
-export function Card({ padding = 'md', destacada = false, className = '', style, children, ...props }: Props) {
+export function Card({ padding = 'md', destacada = false, as: Tag = 'div', className = '', style, children, ...props }: Props) {
   return (
-    <div
+    <Tag
       className={`rounded-xl border ${PADDING[padding]} ${className}`}
       style={{
         borderColor: destacada ? 'var(--series-blue)' : 'var(--border)',
@@ -28,6 +31,6 @@ export function Card({ padding = 'md', destacada = false, className = '', style,
       {...props}
     >
       {children}
-    </div>
+    </Tag>
   )
 }

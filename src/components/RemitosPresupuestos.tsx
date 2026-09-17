@@ -5,6 +5,7 @@ import { MEDIOS_PAGO_LABEL, calcularMontoDesdeLineas } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
 import { IconButton } from './IconButton'
+import { Card } from './Card'
 
 interface Props {
   remitosCobrar: RemitoConSaldo[]
@@ -87,7 +88,7 @@ function TarjetaRemito({
   }
 
   return (
-    <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+    <Card padding="sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="font-semibold" style={{ color: 'var(--text-primary)' }}>
           <span
@@ -205,7 +206,7 @@ function TarjetaRemito({
           Al vincular, los {formatoMoneda(remito.montoAnticipado)} ya anticipados pasan a ser pago de esa factura.
         </p>
       )}
-    </div>
+    </Card>
   )
 }
 
@@ -230,18 +231,18 @@ function Columna({
 }) {
   if (remitos.length === 0) {
     return (
-      <div className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+      <Card>
         <h3 className="mb-1 text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
           {titulo}
         </h3>
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
           No hay remitos ni presupuestos cargados.
         </p>
-      </div>
+      </Card>
     )
   }
   return (
-    <div className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+    <Card>
       <h3 className="mb-3 text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
         {titulo}
       </h3>
@@ -259,7 +260,7 @@ function Columna({
           />
         ))}
       </div>
-    </div>
+    </Card>
   )
 }
 
@@ -352,7 +353,7 @@ export function RemitosPresupuestos({
 
   return (
     <div className="space-y-6">
-      <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+      <Card as="section">
         <h2 className="mb-1 text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
           Remitos y presupuestos
         </h2>
@@ -562,7 +563,7 @@ export function RemitosPresupuestos({
             )}
           </div>
         )}
-      </section>
+      </Card>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Columna

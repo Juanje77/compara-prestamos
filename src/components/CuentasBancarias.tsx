@@ -4,6 +4,7 @@ import type { CuentaBancaria } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
 import { IconButton } from './IconButton'
+import { Card } from './Card'
 
 interface Props {
   cuentas: CuentaBancaria[]
@@ -28,10 +29,7 @@ export function CuentasBancarias({ cuentas, onAgregar, onCambiarSaldo, onElimina
   }
 
   return (
-    <section
-      className="rounded-xl border p-5"
-      style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}
-    >
+    <Card as="section">
       <h2 className="mb-1 text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
         Cuentas bancarias
       </h2>
@@ -122,6 +120,6 @@ export function CuentasBancarias({ cuentas, onAgregar, onCambiarSaldo, onElimina
           Tenés al menos una cuenta en descubierto.
         </p>
       )}
-    </section>
+    </Card>
   )
 }

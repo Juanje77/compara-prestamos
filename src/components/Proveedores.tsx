@@ -4,6 +4,7 @@ import type { ProveedorResumen } from '../lib/cfo'
 import { CATEGORIAS_GASTO } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
 import { IconButton } from './IconButton'
+import { Card } from './Card'
 
 interface Props {
   proveedores: ProveedorResumen[]
@@ -28,7 +29,7 @@ export function Proveedores({ proveedores, onClasificar, onAgregarManual, onElim
   }
 
   return (
-    <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+    <Card as="section">
       <h2 className="mb-1 text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
         Proveedores
       </h2>
@@ -136,6 +137,6 @@ export function Proveedores({ proveedores, onClasificar, onAgregarManual, onElim
           </table>
         </div>
       )}
-    </section>
+    </Card>
   )
 }

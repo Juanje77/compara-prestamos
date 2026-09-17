@@ -3,6 +3,7 @@ import { AlertTriangle, Trash2 } from 'lucide-react'
 import type { MargenSector } from '../lib/cfo'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
 import { IconButton } from './IconButton'
+import { Card } from './Card'
 
 interface Props {
   sectores: { id: string; nombre: string }[]
@@ -22,7 +23,7 @@ function etiquetaMes(mesISO: string): string {
 function TarjetaMargen({ margen }: { margen: MargenSector }) {
   const positivo = margen.ganancia >= 0
   return (
-    <div className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+    <Card>
       <p className="font-semibold" style={{ color: 'var(--text-primary)' }}>
         {margen.sector.nombre}
       </p>
@@ -106,7 +107,7 @@ function TarjetaMargen({ margen }: { margen: MargenSector }) {
           cargadas: su ganancia queda sobrestimada acá porque no hay forma de separar su costo del monto facturado.
         </p>
       )}
-    </div>
+    </Card>
   )
 }
 
@@ -128,7 +129,7 @@ export function MargenesPorSector({ sectores, margenes, mes, onCambiarMes, onAgr
 
   return (
     <div className="space-y-6">
-      <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+      <Card as="section">
         <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
             Márgenes por sector
@@ -194,7 +195,7 @@ export function MargenesPorSector({ sectores, margenes, mes, onCambiarMes, onAgr
             ))}
           </ul>
         )}
-      </section>
+      </Card>
 
       {sectores.length === 0 ? (
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>

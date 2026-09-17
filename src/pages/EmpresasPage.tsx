@@ -114,6 +114,7 @@ import {
   type TipoFactura,
   type TipoMovimientoStock,
 } from '../lib/cfo'
+import { Card } from '../components/Card'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
 import { exportarParaContador } from '../lib/contadorExport'
 import { abrirInformeFinanciero, abrirInformeSaludFinanciera } from '../lib/htmlReport'
@@ -1680,7 +1681,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
 
           <section className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
             {esFull ? (
-              <div className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+              <Card>
                 <h2 className="mb-1 text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
                   Cuentas bancarias
                 </h2>
@@ -1698,7 +1699,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
                 >
                   Ir a Tesorería →
                 </button>
-              </div>
+              </Card>
             ) : (
               <CuentasBancarias
                 cuentas={cuentas}

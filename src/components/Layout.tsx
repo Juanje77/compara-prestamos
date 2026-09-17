@@ -4,6 +4,7 @@ import { FincorpLogo } from './FincorpLogo'
 import { BrandHeader } from './BrandHeader'
 import { WhatsAppFloatingButton } from './WhatsAppContact'
 import { LoginModal } from './LoginModal'
+import { Button } from './Button'
 import { useAuth } from '../lib/AuthContext'
 
 const SECCIONES: { to: string; label: string; end?: boolean }[] = [
@@ -24,26 +25,18 @@ function SesionUsuario() {
         <span className="hidden max-w-[140px] truncate sm:inline" style={{ color: 'var(--text-secondary)' }}>
           {user.displayName || user.email}
         </span>
-        <button
-          onClick={() => cerrarSesion()}
-          className="rounded-full border px-3 py-1.5 text-xs font-medium"
-          style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
-        >
+        <Button pill onClick={() => cerrarSesion()} style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
           Cerrar sesión
-        </button>
+        </Button>
       </div>
     )
   }
 
   return (
     <>
-      <button
-        onClick={() => setMostrarLogin(true)}
-        className="rounded-full border px-4 py-2 text-sm font-medium"
-        style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
-      >
+      <Button pill onClick={() => setMostrarLogin(true)}>
         Iniciar sesión
-      </button>
+      </Button>
       {mostrarLogin && <LoginModal onCerrar={() => setMostrarLogin(false)} />}
     </>
   )

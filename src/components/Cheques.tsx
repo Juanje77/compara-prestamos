@@ -5,6 +5,7 @@ import { calcularTotalesCheques, estadosChequeDisponibles, etiquetaEstadoCheque,
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
 import { IconButton } from './IconButton'
+import { Card } from './Card'
 
 interface Props {
   cheques: Cheque[]
@@ -94,7 +95,7 @@ export function Cheques({ cheques, facturas, cuentas, onAgregar, onCambiarEstado
 
   return (
     <div className="space-y-6">
-      <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+      <Card as="section">
         <h2 className="mb-1 text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
           Cheques
         </h2>
@@ -221,7 +222,7 @@ export function Cheques({ cheques, facturas, cuentas, onAgregar, onCambiarEstado
             )}
           </div>
         )}
-      </section>
+      </Card>
 
       {cheques.length === 0 ? (
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
@@ -230,23 +231,23 @@ export function Cheques({ cheques, facturas, cuentas, onAgregar, onCambiarEstado
       ) : (
         <>
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+            <Card padding="sm">
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                 Recibidos en cartera
               </p>
               <p className="tabular text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
                 {formatoMoneda(totales.recibidosEnCartera)}
               </p>
-            </div>
-            <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+            </Card>
+            <Card padding="sm">
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                 Emitidos en cartera
               </p>
               <p className="tabular text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
                 {formatoMoneda(totales.emitidosEnCartera)}
               </p>
-            </div>
-            <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+            </Card>
+            <Card padding="sm">
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                 Saldo neto en cheques
               </p>
@@ -256,8 +257,8 @@ export function Cheques({ cheques, facturas, cuentas, onAgregar, onCambiarEstado
               >
                 {formatoMoneda(totales.saldoNetoCheques)}
               </p>
-            </div>
-            <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+            </Card>
+            <Card padding="sm">
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                 Comisiones pagadas a bancos
               </p>
@@ -267,10 +268,10 @@ export function Cheques({ cheques, facturas, cuentas, onAgregar, onCambiarEstado
               >
                 {formatoMoneda(totales.totalComisionesDescuento)}
               </p>
-            </div>
+            </Card>
           </section>
 
-          <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+          <Card as="section">
             <h3 className="mb-3 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
               Cheques cargados
             </h3>
@@ -373,7 +374,7 @@ export function Cheques({ cheques, facturas, cuentas, onAgregar, onCambiarEstado
                 </li>
               ))}
             </ul>
-          </section>
+          </Card>
         </>
       )}
     </div>

@@ -31,6 +31,7 @@ import { formatoMoneda } from '../lib/finance'
 import { abrirLibroSueldos, abrirRecibosSueldo } from '../lib/htmlReport'
 import { InputMoneda } from './InputMoneda'
 import { IconButton } from './IconButton'
+import { Card } from './Card'
 
 interface Props {
   nombreNegocio: string
@@ -564,7 +565,7 @@ function PanelPagos({
   }
 
   return (
-    <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+    <Card as="section">
       <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
           Pago de la nómina
@@ -608,7 +609,7 @@ function PanelPagos({
           ))}
         </div>
       )}
-    </section>
+    </Card>
   )
 }
 
@@ -682,7 +683,7 @@ export function Sueldos({
 
   return (
     <div className="space-y-6">
-      <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+      <Card as="section">
         <h2 className="mb-1 text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
           Sueldos y cargas sociales
         </h2>
@@ -755,10 +756,10 @@ export function Sueldos({
             Agregar empleado
           </button>
         </form>
-      </section>
+      </Card>
 
       {nomina.cantidadActivos > 0 && (
-        <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+        <Card as="section">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs font-semibold tracking-wide uppercase" style={{ color: 'var(--text-muted)' }}>
               Nómina vigente ({nomina.cantidadActivos} activo{nomina.cantidadActivos === 1 ? '' : 's'})
@@ -821,7 +822,7 @@ export function Sueldos({
               </p>
             </div>
           </div>
-        </section>
+        </Card>
       )}
 
       {nomina.cantidadActivos > 0 && (
@@ -836,7 +837,7 @@ export function Sueldos({
       )}
 
       {empleados.some((e) => e.activo) && (
-        <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+        <Card as="section">
           <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
               Liquidaciones y libro de sueldos
@@ -915,7 +916,7 @@ export function Sueldos({
                 ))}
             </ul>
           )}
-        </section>
+        </Card>
       )}
 
       {ordenados.length === 0 ? (

@@ -2,6 +2,7 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 import { Receipt } from 'lucide-react'
 import type { CategoriaGasto } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
+import { Card } from './Card'
 
 interface Props {
   categorias: CategoriaGasto[]
@@ -31,7 +32,7 @@ export function GastosPorCategoria({ categorias, esReal = false }: Props) {
   const total = activas.reduce((s, c) => s + c.monto, 0)
 
   return (
-    <div className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+    <Card>
       <div className="mb-1 flex flex-wrap items-center gap-2">
         <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
           Composición de gastos
@@ -86,6 +87,6 @@ export function GastosPorCategoria({ categorias, esReal = false }: Props) {
           </ul>
         </>
       )}
-    </div>
+    </Card>
   )
 }

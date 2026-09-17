@@ -6,6 +6,7 @@ import { importarProductosDesdeExcel } from '../lib/excelImport'
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
 import { IconButton } from './IconButton'
+import { Card } from './Card'
 
 interface Props {
   productos: Producto[]
@@ -364,7 +365,7 @@ export function Stock({
 
   return (
     <div className="space-y-6">
-      <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+      <Card as="section">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
@@ -473,7 +474,7 @@ export function Stock({
             )}
           </>
         )}
-      </section>
+      </Card>
     </div>
   )
 }

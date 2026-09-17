@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Card } from './Card'
 
 type Tier = 'basico' | 'medio' | 'full'
 
@@ -326,7 +327,7 @@ function TierBadge({ tier }: { tier: Tier }) {
 
 function TarjetaSeccion({ seccion }: { seccion: SeccionAyuda }) {
   return (
-    <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }} id={`ayuda-${seccion.id}`}>
+    <Card as="section" id={`ayuda-${seccion.id}`}>
       <div className="mb-1 flex flex-wrap items-center gap-2">
         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
           {seccion.numero}
@@ -361,7 +362,7 @@ function TarjetaSeccion({ seccion }: { seccion: SeccionAyuda }) {
           {seccion.tip}
         </p>
       )}
-    </section>
+    </Card>
   )
 }
 
@@ -382,7 +383,7 @@ export function Ayuda({ esPremium, esFull }: Props) {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+      <Card as="section">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
@@ -413,14 +414,14 @@ export function Ayuda({ esPremium, esFull }: Props) {
           Tu plan actual: <strong style={{ color: 'var(--text-secondary)' }}>{esFull ? 'Full' : esPremium ? 'Medio' : 'Básico'}</strong>. Filtrá por
           plan para ver solo lo que ya tenés disponible.
         </p>
-      </section>
+      </Card>
 
       {visibles.map((s) => (
         <TarjetaSeccion key={s.id} seccion={s} />
       ))}
 
       {(filtro === 'todos' || filtro === 'full') && (
-        <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+        <Card as="section">
           <div className="mb-1 flex flex-wrap items-center gap-2">
             <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
               Ejemplo de punta a punta
@@ -450,10 +451,10 @@ export function Ayuda({ esPremium, esFull }: Props) {
               </li>
             ))}
           </ol>
-        </section>
+        </Card>
       )}
 
-      <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+      <Card as="section">
         <h3 className="mb-1 text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
           Comparar planes
         </h3>
@@ -490,7 +491,7 @@ export function Ayuda({ esPremium, esFull }: Props) {
             </tbody>
           </table>
         </div>
-      </section>
+      </Card>
     </div>
   )
 }

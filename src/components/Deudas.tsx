@@ -4,6 +4,7 @@ import type { Deuda } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
 import { IconButton } from './IconButton'
+import { Card } from './Card'
 
 interface Props {
   deudas: Deuda[]
@@ -31,10 +32,7 @@ export function Deudas({ deudas, onAgregar, onEliminar }: Props) {
   }
 
   return (
-    <section
-      className="rounded-xl border p-5"
-      style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}
-    >
+    <Card as="section">
       <h2 className="mb-1 text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
         Deudas
       </h2>
@@ -129,6 +127,6 @@ export function Deudas({ deudas, onAgregar, onEliminar }: Props) {
         Cuota mensual total: <span className="tabular font-medium">{formatoMoneda(totalCuota)}</span>. Si ya la
         estás pagando, acordate de incluirla dentro de tus gastos fijos para que se refleje en el flujo de caja.
       </p>
-    </section>
+    </Card>
   )
 }

@@ -3,6 +3,7 @@ import { Trash2 } from 'lucide-react'
 import type { ClienteResumen } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
 import { IconButton } from './IconButton'
+import { Card } from './Card'
 
 interface Props {
   clientes: ClienteResumen[]
@@ -23,7 +24,7 @@ export function Clientes({ clientes, onAgregarManual, onEliminarManual }: Props)
   }
 
   return (
-    <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+    <Card as="section">
       <h2 className="mb-1 text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
         Clientes
       </h2>
@@ -87,6 +88,6 @@ export function Clientes({ clientes, onAgregarManual, onEliminarManual }: Props)
           </table>
         </div>
       )}
-    </section>
+    </Card>
   )
 }

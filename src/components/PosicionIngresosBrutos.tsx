@@ -5,6 +5,7 @@ import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
 import { InfoTooltip } from './InfoTooltip'
 import { IconButton } from './IconButton'
+import { Card } from './Card'
 
 interface Props {
   posicion: PosicionIngresosBrutosMes[]
@@ -93,7 +94,7 @@ export function PosicionIngresosBrutos({ posicion, onCambiarManual, onEliminarMe
   }
 
   return (
-    <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+    <Card as="section">
       <h2 className="mb-1 text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
         Posición de Ingresos Brutos — La Pampa
       </h2>
@@ -204,6 +205,6 @@ export function PosicionIngresosBrutos({ posicion, onCambiarManual, onEliminarMe
           </table>
         </div>
       )}
-    </section>
+    </Card>
   )
 }

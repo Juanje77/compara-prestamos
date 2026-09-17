@@ -5,6 +5,7 @@ import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
 import { InfoTooltip } from './InfoTooltip'
 import { IconButton } from './IconButton'
+import { Card } from './Card'
 
 interface Props {
   posicion: PosicionIvaMes[]
@@ -71,7 +72,7 @@ export function PosicionIva({ posicion, onCambiarManual, onEliminarMes }: Props)
   }
 
   return (
-    <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+    <Card as="section">
       <h2 className="mb-1 text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
         Posición de IVA
       </h2>
@@ -195,6 +196,6 @@ export function PosicionIva({ posicion, onCambiarManual, onEliminarMes }: Props)
           </table>
         </div>
       )}
-    </section>
+    </Card>
   )
 }

@@ -3,6 +3,7 @@ import { BarChart3, Lock } from 'lucide-react'
 import { Bar, BarChart, Cell, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { formatoMoneda } from '../lib/finance'
 import { proyectarFlujoCaja, proyectarFlujoCajaEscenarios, type FilaProyeccion } from '../lib/cfo'
+import { Card } from './Card'
 
 interface Props {
   saldoInicial: number
@@ -108,7 +109,7 @@ export function FlujoDeCaja({
   }, [esPremium, saldoInicial, ingresos, gastosTotales, meses, tasaCrecimiento, gastosExtraPorMes])
 
   return (
-    <div className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+    <Card>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
@@ -253,6 +254,6 @@ export function FlujoDeCaja({
           </ResponsiveContainer>
         </div>
       )}
-    </div>
+    </Card>
   )
 }

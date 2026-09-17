@@ -6,6 +6,7 @@ import { MEDIOS_COBRO_LABEL, calcularResumenMovimientosDiarios, calcularTotalesP
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
 import { IconButton } from './IconButton'
+import { Card } from './Card'
 
 interface Props {
   movimientos: MovimientoDiario[]
@@ -71,7 +72,7 @@ export function IngresosGastos({ movimientos, onAgregar, onEliminar }: Props) {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+      <Card as="section">
         <h2 className="mb-1 text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
           Ingresos y gastos
         </h2>
@@ -135,7 +136,7 @@ export function IngresosGastos({ movimientos, onAgregar, onEliminar }: Props) {
             Agregar
           </button>
         </form>
-      </section>
+      </Card>
 
       {movimientos.length === 0 ? (
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
@@ -144,23 +145,23 @@ export function IngresosGastos({ movimientos, onAgregar, onEliminar }: Props) {
       ) : (
         <>
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+            <Card padding="sm">
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                 Total ingresos
               </p>
               <p className="tabular text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
                 {formatoMoneda(resumen.totalIngresos)}
               </p>
-            </div>
-            <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+            </Card>
+            <Card padding="sm">
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                 Total gastos
               </p>
               <p className="tabular text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
                 {formatoMoneda(resumen.totalGastos)}
               </p>
-            </div>
-            <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+            </Card>
+            <Card padding="sm">
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                 Saldo del período
               </p>
@@ -170,11 +171,11 @@ export function IngresosGastos({ movimientos, onAgregar, onEliminar }: Props) {
               >
                 {formatoMoneda(resumen.saldo)}
               </p>
-            </div>
+            </Card>
           </section>
 
           {totalesPorMedio.length > 0 && (
-            <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+            <Card as="section">
               <h3 className="mb-3 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
                 Ingresos por medio de cobro
               </h3>
@@ -210,10 +211,10 @@ export function IngresosGastos({ movimientos, onAgregar, onEliminar }: Props) {
                   ))}
                 </ul>
               </div>
-            </section>
+            </Card>
           )}
 
-          <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+          <Card as="section">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
                 Movimientos cargados
@@ -274,7 +275,7 @@ export function IngresosGastos({ movimientos, onAgregar, onEliminar }: Props) {
                 </li>
               ))}
             </ul>
-          </section>
+          </Card>
         </>
       )}
     </div>

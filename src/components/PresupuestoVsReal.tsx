@@ -3,6 +3,7 @@ import { Receipt, TrendingDown, TrendingUp } from 'lucide-react'
 import { generarComentariosDesvio, type DesvioCategoria, type DesvioVentas } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
+import { Card } from './Card'
 
 interface Props {
   desvios: DesvioCategoria[]
@@ -33,7 +34,7 @@ export function PresupuestoVsReal({ desvios, ventas, mes, onCambiarMes, onCambia
   }
 
   return (
-    <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+    <Card as="section">
       <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
           Presupuesto vs. Real
@@ -225,6 +226,6 @@ export function PresupuestoVsReal({ desvios, ventas, mes, onCambiarMes, onCambia
           </tfoot>
         </table>
       </div>
-    </section>
+    </Card>
   )
 }

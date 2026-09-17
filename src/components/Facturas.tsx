@@ -33,6 +33,7 @@ import { identificarComprobante } from '../lib/facturacionElectronica'
 import { EmitirComprobante } from './EmitirComprobante'
 import { NuevaNota } from './NuevaNota'
 import { IconButton } from './IconButton'
+import { Card } from './Card'
 
 interface Props {
   facturas: Factura[]
@@ -237,7 +238,7 @@ export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarV
 
   return (
     <div className="space-y-6">
-      <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+      <Card as="section">
         <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
             Comprobantes
@@ -387,7 +388,7 @@ export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarV
             Agregar
           </button>
         </form>
-      </section>
+      </Card>
 
       {facturas.length === 0 ? (
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
@@ -396,7 +397,7 @@ export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarV
       ) : (
         <>
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+            <Card padding="sm">
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                 Ventas netas del período
               </p>
@@ -406,8 +407,8 @@ export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarV
               <p className="tabular mt-0.5 text-xs" style={{ color: 'var(--text-muted)' }}>
                 Neto: {formatoMoneda(ivaTotales.netoVentas)} · IVA (débito fiscal): {formatoMoneda(ivaTotales.ivaVentas)}
               </p>
-            </div>
-            <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+            </Card>
+            <Card padding="sm">
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                 Compras netas del período
               </p>
@@ -417,8 +418,8 @@ export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarV
               <p className="tabular mt-0.5 text-xs" style={{ color: 'var(--text-muted)' }}>
                 Neto: {formatoMoneda(ivaTotales.netoCompras)} · IVA (crédito fiscal): {formatoMoneda(ivaTotales.ivaCompras)}
               </p>
-            </div>
-            <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+            </Card>
+            <Card padding="sm">
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                 Margen bruto del período
               </p>
@@ -428,7 +429,7 @@ export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarV
               >
                 {formatoMoneda(margenTotal.margenBruto)} ({formatoPorcentaje(margenTotal.margenBrutoPct)})
               </p>
-            </div>
+            </Card>
           </section>
 
           {margenTotal.margenBruto < 0 && (
@@ -442,7 +443,7 @@ export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarV
           )}
 
           {indicadoresCobroPago.hayDatos && (
-            <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+            <Card as="section">
               <h3 className="mb-1 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
                 Indicadores de cobro y pago
               </h3>
@@ -542,10 +543,10 @@ export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarV
                   </ul>
                 </div>
               </div>
-            </section>
+            </Card>
           )}
 
-          <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+          <Card as="section">
             <h3 className="mb-1 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
               Ventas y compras netas por mes
             </h3>
@@ -628,10 +629,10 @@ export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarV
                 </tbody>
               </table>
             </div>
-          </section>
+          </Card>
 
           <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <div className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+            <Card>
               <h3 className="mb-3 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
                 Top clientes
               </h3>
@@ -666,8 +667,8 @@ export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarV
                   </ul>
                 </>
               )}
-            </div>
-            <div className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+            </Card>
+            <Card>
               <h3 className="mb-3 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
                 Top proveedores
               </h3>
@@ -702,10 +703,10 @@ export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarV
                   </ul>
                 </>
               )}
-            </div>
+            </Card>
           </section>
 
-          <section className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+          <Card as="section">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
                 Comprobantes cargados
@@ -898,7 +899,7 @@ export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarV
                 ))}
               </ul>
             )}
-          </section>
+          </Card>
         </>
       )}
 

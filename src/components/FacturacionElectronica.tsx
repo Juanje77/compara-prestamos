@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { CONDICIONES_EMISOR, type DatosEmisorFiscal } from '../lib/cfo'
 import { esCuitValido, limpiarCuit } from '../lib/cuit'
 import { darDeAltaEmisor, ErrorFacturacion } from '../lib/facturacionApi'
+import { Card } from './Card'
 
 // Circuito de habilitación para emitir con CAE. Los pasos de ARCA salen del instructivo oficial de
 // Sistemas 360; los de la API, de su documentación pública.
@@ -340,7 +341,7 @@ export function FacturacionElectronica({ datos, onCambiar }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+      <Card padding="sm">
         <h2 className="mb-1 text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
           Facturación electrónica
         </h2>
@@ -445,7 +446,7 @@ export function FacturacionElectronica({ datos, onCambiar }: Props) {
             />
           ))}
         </div>
-      </div>
+      </Card>
 
     </div>
   )

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Check, Trash2 } from 'lucide-react'
 import type { CuentaBancaria, CuentaCorrienteContraparte, MedioPago, Pago, TipoDocumentoAnticipo, TipoFactura } from '../lib/cfo'
 import { MEDIOS_PAGO_LABEL } from '../lib/cfo'
+import { Card } from './Card'
 
 const DOCUMENTO_LABEL: Record<TipoDocumentoAnticipo, string> = {
   remito: 'Remito',
@@ -64,7 +65,7 @@ function TarjetaContraparte({
   }
 
   return (
-    <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+    <Card padding="sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="font-semibold" style={{ color: 'var(--text-primary)' }}>
           {grupo.contraparte}
@@ -233,7 +234,7 @@ function TarjetaContraparte({
           )}
         </div>
       )}
-    </div>
+    </Card>
   )
 }
 
@@ -260,7 +261,7 @@ function Columna({
   const totalSaldo = grupos.reduce((s, g) => s + g.saldo, 0)
 
   return (
-    <div className="rounded-xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}>
+    <Card>
       <div className="mb-1 flex items-center justify-between gap-2">
         <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
           {titulo}
@@ -306,7 +307,7 @@ function Columna({
           )}
         </>
       )}
-    </div>
+    </Card>
   )
 }
 
