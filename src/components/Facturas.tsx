@@ -8,6 +8,7 @@ import type {
   Factura,
   Pago,
   ResultadoEmision,
+  Sector,
   TendenciaMensual,
   TipoComprobante,
   TipoFactura,
@@ -41,6 +42,9 @@ interface Props {
   pagos?: Pago[]
   /** Solo se pasa con el plan Full — habilita elegir con qué cuenta se cobró/pagó cada factura. */
   cuentas?: CuentaBancaria[]
+  /** Sectores (divisiones/centros de costo) creados en Márgenes por sector, para asignar cada
+   * comprobante a uno al cargarlo — ver calcularMargenPorSector. */
+  sectores?: Sector[]
   onAgregar: (factura: Omit<Factura, 'id'>) => void
   onImportarVarias: (facturas: Omit<Factura, 'id'>[]) => void
   onCambiar: (
@@ -137,7 +141,7 @@ function BotonExportarContador({ onExportar }: { onExportar: Props['onExportarCo
   )
 }
 
-export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarVarias, onCambiar, onEliminar, emisorFiscal, onEmitida, onVaciar, onExportarContador, onDescargarInforme }: Props) {
+export function Facturas({ facturas, pagos = [], cuentas, sectores = [], onAgregar, onImportarVarias, onCambiar, onEliminar, emisorFiscal, onEmitida, onVaciar, onExportarContador, onDescargarInforme }: Props) {
   const [facturaAEmitir, setFacturaAEmitir] = useState<Factura | null>(null)
   const [facturaANotear, setFacturaANotear] = useState<Factura | null>(null)
   const [tipo, setTipo] = useState<TipoFactura>('emitida')
@@ -147,6 +151,7 @@ export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarV
   const [iva, setIva] = useState(0)
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10))
   const [cuotas, setCuotas] = useState('1')
+  const [sectorId, setSectorId] = useState('')
   const [filtro, setFiltro] = useState<'todas' | TipoFactura>('todas')
   const [busqueda, setBusqueda] = useState('')
   const [importando, setImportando] = useState(false)
@@ -201,11 +206,13 @@ export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarV
       cumplido: false,
       cuotas: cuotasNum > 1 ? cuotasNum : undefined,
       iva: iva > 0 ? iva : undefined,
+      sectorId: sectorId || undefined,
     })
     setContraparte('')
     setMonto(0)
     setIva(0)
     setCuotas('1')
+    setSectorId('')
   }
 
   function handleVaciar() {
@@ -331,6 +338,22 @@ export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarV
             className="min-w-[140px] flex-1 rounded-lg border px-3 py-1.5 text-sm"
             style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
           />
+          {sectores.length > 0 && (
+            <select
+              value={sectorId}
+              onChange={(e) => setSectorId(e.target.value)}
+              title="Sector al que asignar este comprobante (si no viene de un remito ya asignado)"
+              className="shrink-0 rounded-lg border px-3 py-1.5 text-sm"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+            >
+              <option value="">Sin sector</option>
+              {sectores.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nombre}
+                </option>
+              ))}
+            </select>
+          )}
           <InputMoneda
             placeholder="Monto"
             value={monto}
@@ -770,6 +793,14 @@ export function Facturas({ facturas, pagos = [], cuentas, onAgregar, onImportarV
                       {f.numero && (
                         <span className="ml-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
                           ({f.numero})
+                        </span>
+                      )}
+                      {f.sectorId && (
+                        <span
+                          className="ml-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                          style={{ background: 'color-mix(in srgb, var(--series-blue) 14%, transparent)', color: 'var(--series-blue)' }}
+                        >
+                          {sectores.find((s) => s.id === f.sectorId)?.nombre ?? '—'}
                         </span>
                       )}
                     </span>

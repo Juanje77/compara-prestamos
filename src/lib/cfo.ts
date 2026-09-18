@@ -571,6 +571,11 @@ export interface Factura {
    * es recibida) — el resto (monto - iva) es el neto/base imponible. Opcional: si no se carga, se
    * asume que el comprobante no discrimina IVA (monotributo, exento, etc.). */
   iva?: number
+  /** División o centro de costo del negocio al que pertenece este comprobante — para facturar sin
+   * pasar por un remito. Si el comprobante ya está vinculado a un remito (ver
+   * RemitoPresupuesto.facturaId), se ignora acá y se usa el sector del remito, para no contar el
+   * ingreso dos veces — ver calcularMargenPorSector. */
+  sectorId?: string
 }
 
 /** Suma (o resta, con un número negativo) una cantidad de días a una fecha ISO (YYYY-MM-DD). */
@@ -2214,7 +2219,10 @@ export function generarMovimientosDeRemito(remito: RemitoPresupuesto, generarId:
 // "Service") que se asigna a cada Remito al cargarlo. Con eso se puede ver cuánto factura,
 // cuánto cuesta y cuánto deja de ganancia cada sector. Solo mira remitos (tipoDocumento ===
 // "remito"), nunca presupuestos — un presupuesto todavía no es un compromiso real, mismo
-// criterio que generarMovimientosDeRemito con el stock.
+// criterio que generarMovimientosDeRemito con el stock. También suma los comprobantes que se
+// hayan asignado a un sector directamente, para cubrir lo que se factura sin pasar por un
+// remito (esos comprobantes no tienen líneas de producto, así que su costo no se puede separar
+// del monto facturado).
 
 export interface Sector {
   id: string
@@ -2235,6 +2243,9 @@ export interface MargenSector {
   /** Remitos emitidos del sector sin líneas cargadas: su costo de venta no se puede separar del
    * monto facturado, así que la ganancia de ese remito queda sobrestimada en el total. */
   remitosSinLineas: number
+  /** Comprobantes asignados directo a este sector (sin remito detrás) — igual que un remito sin
+   * líneas, su costo no se puede separar del monto facturado. */
+  cantidadComprobantes: number
 }
 
 /**
@@ -2254,17 +2265,27 @@ export function calcularMargenPorSector(
   productos: Producto[],
   /** Nómina vigente: cada empleado suma a los sectores donde esté asignado, según su porcentaje. */
   empleados: Empleado[] = [],
+  /** Comprobantes que se hayan asignado a un sector directamente, para lo que se factura sin
+   * pasar por un remito. Los que ya estén vinculados a un remito de la lista de arriba se
+   * ignoran acá, porque su ingreso ya se cuenta a través de ese remito. */
+  facturas: Factura[] = [],
 ): MargenSector[] {
   const productoPorId = new Map(productos.map((p) => [p.id, p]))
   const activos = empleados.filter((e) => e.activo)
+  const facturaIdsConRemito = new Set(remitos.map((r) => r.facturaId).filter((id): id is string => !!id))
 
   return sectores.map((sector) => {
     const delSector = remitos.filter((r) => r.tipoDocumento === 'remito' && r.sectorId === sector.id)
     const emitidos = delSector.filter((r) => r.tipo === 'emitida')
     const recibidos = delSector.filter((r) => r.tipo === 'recibida')
 
-    const ingreso = emitidos.reduce((s, r) => s + r.monto, 0)
-    const costoCompras = recibidos.reduce((s, r) => s + r.monto, 0)
+    const comprobantesDelSector = facturas.filter((f) => f.sectorId === sector.id && !facturaIdsConRemito.has(f.id))
+    const comprobantesEmitidos = comprobantesDelSector.filter((f) => f.tipo === 'emitida')
+    const comprobantesRecibidos = comprobantesDelSector.filter((f) => f.tipo === 'recibida')
+
+    const ingreso = emitidos.reduce((s, r) => s + r.monto, 0) + comprobantesEmitidos.reduce((s, f) => s + f.monto, 0)
+    const costoCompras =
+      recibidos.reduce((s, r) => s + r.monto, 0) + comprobantesRecibidos.reduce((s, f) => s + f.monto, 0)
     let costoLineas = 0
     let remitosSinLineas = 0
     for (const r of emitidos) {
@@ -2299,6 +2320,7 @@ export function calcularMargenPorSector(
       margenPct: ingreso > 0 ? (ganancia / ingreso) * 100 : 0,
       cantidadRemitos: delSector.length,
       remitosSinLineas,
+      cantidadComprobantes: comprobantesDelSector.length,
     }
   })
 }

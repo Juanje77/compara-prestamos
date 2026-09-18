@@ -1201,8 +1201,9 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
         remitos.filter((r) => r.fecha.slice(0, 7) === mesMargenes),
         productos,
         empleados,
+        facturas.filter((f) => f.fecha.slice(0, 7) === mesMargenes),
       ),
-    [sectores, remitos, productos, empleados, mesMargenes],
+    [sectores, remitos, productos, empleados, mesMargenes, facturas],
   )
   // Para el calendario semanal: los pagos que genera la nómina del mes en curso.
   const pagosSueldosMesActual = useMemo(
@@ -1409,6 +1410,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
             facturas={facturas}
             pagos={pagos}
             cuentas={esFull ? cuentas : undefined}
+            sectores={sectores}
             onAgregar={handleAgregarFactura}
             onImportarVarias={handleImportarFacturas}
             onCambiar={handleCambiarFactura}

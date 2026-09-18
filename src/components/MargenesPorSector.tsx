@@ -30,6 +30,8 @@ function TarjetaMargen({ margen }: { margen: MargenSector }) {
       </p>
       <p className="mb-3 text-xs" style={{ color: 'var(--text-muted)' }}>
         {margen.cantidadRemitos} remito{margen.cantidadRemitos === 1 ? '' : 's'} asignado{margen.cantidadRemitos === 1 ? '' : 's'}
+        {margen.cantidadComprobantes > 0 &&
+          ` · ${margen.cantidadComprobantes} comprobante${margen.cantidadComprobantes === 1 ? '' : 's'} sin remito`}
       </p>
 
       <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:grid-cols-3">
@@ -108,6 +110,14 @@ function TarjetaMargen({ margen }: { margen: MargenSector }) {
           cargadas: su ganancia queda sobrestimada acá porque no hay forma de separar su costo del monto facturado.
         </p>
       )}
+      {margen.cantidadComprobantes > 0 && (
+        <p className="mt-2 inline-flex items-start gap-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+          <AlertTriangle size={12} className="mt-0.5 shrink-0" aria-hidden="true" />
+          {margen.cantidadComprobantes} comprobante{margen.cantidadComprobantes === 1 ? '' : 's'} de este sector{' '}
+          {margen.cantidadComprobantes === 1 ? 'se cargó' : 'se cargaron'} sin pasar por un remito: su ganancia
+          queda sobrestimada acá, igual que un remito sin líneas.
+        </p>
+      )}
     </Card>
   )
 }
@@ -159,9 +169,9 @@ export function MargenesPorSector({ sectores, margenes, mes, onCambiarMes, onAgr
         </div>
         <p className="mb-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
           Creá un sector por cada división o centro de costo del negocio y asignalo a tus remitos (en la solapa
-          Remitos y presupuestos) para ver cuánto factura, cuánto cuesta y cuánto deja de ganancia cada uno. Solo
-          se cuentan remitos (no presupuestos): un presupuesto todavía no es un compromiso real. Se mira un mes por
-          vez, porque el costo de la nómina asignada a cada sector (desde Sueldos) es mensual.
+          Remitos y presupuestos) o, si facturás sin pasar por un remito, directo al comprobante (en Comprobantes).
+          Solo se cuentan remitos (no presupuestos): un presupuesto todavía no es un compromiso real. Se mira un
+          mes por vez, porque el costo de la nómina asignada a cada sector (desde Sueldos) es mensual.
         </p>
 
         <form onSubmit={handleSubmit} className="flex flex-wrap gap-2">

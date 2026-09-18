@@ -609,6 +609,25 @@ describe('calcularMargenPorSector', () => {
     const sinLineas: RemitoPresupuesto[] = [{ ...remitos[0], lineas: undefined }]
     expect(calcularMargenPorSector(sectores, sinLineas, productos)[0].remitosSinLineas).toBe(1)
   })
+
+  it('suma un comprobante asignado directo al sector, sin remito detrás', () => {
+    const facturas: Factura[] = [
+      { id: 'f1', tipo: 'emitida', tipoComprobante: 'factura', contraparte: 'Cliente', monto: 500000, fecha: '2026-09-10', sectorId: 's1' },
+    ]
+    const [metal] = calcularMargenPorSector(sectores, remitos, productos, empleados, facturas)
+    expect(metal.ingreso).toBe(3000000 + 500000)
+    expect(metal.cantidadComprobantes).toBe(1)
+  })
+
+  it('no duplica el ingreso de un comprobante ya vinculado a un remito del sector', () => {
+    const remitoVinculado: RemitoPresupuesto[] = [{ ...remitos[0], facturaId: 'f1' }, remitos[1]]
+    const facturas: Factura[] = [
+      { id: 'f1', tipo: 'emitida', tipoComprobante: 'factura', contraparte: 'Cliente', monto: 3000000, fecha: '2026-09-10', sectorId: 's1' },
+    ]
+    const [metal] = calcularMargenPorSector(sectores, remitoVinculado, productos, empleados, facturas)
+    expect(metal.ingreso).toBe(3000000) // no 6.000.000: la factura ya está contada vía el remito
+    expect(metal.cantidadComprobantes).toBe(0)
+  })
 })
 
 // ---------------------------------------------------------------------------
