@@ -23,8 +23,10 @@ import {
   cerrarLiquidacion,
   distribuirEnCuotas,
   gastosAguinaldoProyectados,
+  generarMovimientosDeFactura,
   generarMovimientosDeRemito,
   imputarPagoAFIFO,
+  listarProductosBajoMinimo,
   montoConSigno,
   proximoNumeroRecibo,
   proyectarFlujoCaja,
@@ -508,30 +510,73 @@ describe('calcularResumenConciliacion', () => {
 })
 
 describe('generarMovimientosDeRemito', () => {
+  const productosRemito: Producto[] = [
+    { id: 'p1', nombre: 'Chapa', costoUnitario: 100, stockActual: 10 },
+    { id: 'serv1', nombre: 'Instalación', costoUnitario: 0, stockActual: 0, esServicio: true },
+  ]
   const lineas = [
     { productoId: 'p1', cantidad: 3, precioUnitario: 100 },
     { descripcion: 'Mano de obra', cantidad: 1, precioUnitario: 500 },
+    { productoId: 'serv1', cantidad: 1, precioUnitario: 1000 },
   ]
   const base: RemitoPresupuesto = {
     id: 'r1', tipo: 'emitida', tipoDocumento: 'remito', contraparte: 'Cliente', monto: 800,
     fecha: '2026-01-10', estado: 'pendiente', lineas,
   }
 
-  it('un remito emitido saca stock y solo por las líneas con producto', () => {
-    const movs = generarMovimientosDeRemito(base, () => 'x')
+  it('un remito emitido saca stock y solo por las líneas con producto (no servicio)', () => {
+    const movs = generarMovimientosDeRemito(base, productosRemito, () => 'x')
     expect(movs).toHaveLength(1)
     expect(movs[0].tipo).toBe('salida')
     expect(movs[0].cantidad).toBe(3)
   })
 
   it('un remito recibido entra stock y actualiza el costo', () => {
-    const movs = generarMovimientosDeRemito({ ...base, tipo: 'recibida' }, () => 'x')
+    const movs = generarMovimientosDeRemito({ ...base, tipo: 'recibida' }, productosRemito, () => 'x')
     expect(movs[0].tipo).toBe('entrada')
     expect(movs[0].costoUnitario).toBe(100)
   })
 
   it('un presupuesto no mueve nada', () => {
-    expect(generarMovimientosDeRemito({ ...base, tipoDocumento: 'presupuesto' }, () => 'x')).toEqual([])
+    expect(generarMovimientosDeRemito({ ...base, tipoDocumento: 'presupuesto' }, productosRemito, () => 'x')).toEqual([])
+  })
+})
+
+describe('generarMovimientosDeFactura', () => {
+  const productosFactura: Producto[] = [
+    { id: 'p1', nombre: 'Chapa', costoUnitario: 100, stockActual: 10 },
+    { id: 'serv1', nombre: 'Instalación', costoUnitario: 0, stockActual: 0, esServicio: true },
+  ]
+  const facturaConLineas: Factura = {
+    id: 'f1', tipo: 'emitida', tipoComprobante: 'factura', contraparte: 'Cliente', monto: 800, fecha: '2026-01-10',
+    lineas: [
+      { productoId: 'p1', cantidad: 2, precioUnitario: 100 },
+      { productoId: 'serv1', cantidad: 1, precioUnitario: 500 },
+    ],
+  }
+
+  it('un comprobante emitido con líneas saca stock solo del producto, no del servicio', () => {
+    const movs = generarMovimientosDeFactura(facturaConLineas, productosFactura, () => 'x')
+    expect(movs).toHaveLength(1)
+    expect(movs[0].tipo).toBe('salida')
+    expect(movs[0].productoId).toBe('p1')
+    expect(movs[0].facturaId).toBe('f1')
+  })
+
+  it('un comprobante sin líneas no mueve nada', () => {
+    expect(generarMovimientosDeFactura({ ...facturaConLineas, lineas: undefined }, productosFactura, () => 'x')).toEqual([])
+  })
+})
+
+describe('listarProductosBajoMinimo', () => {
+  it('ignora un servicio aunque tenga stockMinimo cargado por error', () => {
+    const productos: Producto[] = [
+      { id: 'p1', nombre: 'Chapa', costoUnitario: 100, stockActual: 0, stockMinimo: 5 },
+      { id: 'serv1', nombre: 'Instalación', costoUnitario: 0, stockActual: 0, stockMinimo: 5, esServicio: true },
+    ]
+    const bajoMinimo = listarProductosBajoMinimo(productos)
+    expect(bajoMinimo).toHaveLength(1)
+    expect(bajoMinimo[0].id).toBe('p1')
   })
 })
 

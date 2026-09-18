@@ -576,6 +576,11 @@ export interface Factura {
    * RemitoPresupuesto.facturaId), se ignora acá y se usa el sector del remito, para no contar el
    * ingreso dos veces — ver calcularMargenPorSector. */
   sectorId?: string
+  /** Líneas de la lista de precios (productos o servicios), para facturar directo sin pasar por
+   * un remito. Si están cargadas, el monto se calcula solo a partir de ellas — ver
+   * calcularMontoDesdeLineas — y los productos con stock (no servicios) lo descuentan/suman al
+   * guardarse — ver generarMovimientosDeFactura. */
+  lineas?: LineaProducto[]
 }
 
 /** Suma (o resta, con un número negativo) una cantidad de días a una fecha ISO (YYYY-MM-DD). */
@@ -2117,9 +2122,10 @@ export function calcularMontoDesdeLineas(lineas: LineaProducto[]): number {
 // Stock (Full): catálogo de productos y sus movimientos de entrada/salida/ajuste
 // ---------------------------------------------------------------------------
 //
-// Vive separado de Facturas (que sigue siendo un monto único, sin líneas) — el punto natural
-// para descontar o sumar stock es el Remito, porque es el documento que efectivamente acompaña
-// la mercadería que se entrega o se recibe. Un Presupuesto no mueve nada todavía.
+// El catálogo también sirve de lista de precios para armar líneas en Remitos y Comprobantes: el
+// punto natural para descontar o sumar stock es el que efectivamente acompaña la mercadería que
+// se entrega o se recibe (un Remito, o un Comprobante facturado directo sin remito de por medio).
+// Un Presupuesto no mueve nada todavía, ni tampoco una línea de un producto marcado "servicio".
 
 export interface Producto {
   id: string
@@ -2132,6 +2138,9 @@ export interface Producto {
   stockActual: number
   /** Si se define, por debajo de este número el producto aparece como "bajo stock". */
   stockMinimo?: number
+  /** Un servicio (ej. mano de obra, un abono) no mueve stock nunca, aunque se lo use en líneas de
+   * un remito o comprobante — su stockActual queda siempre en 0 y no entra en "bajo stock". */
+  esServicio?: boolean
 }
 
 export type TipoMovimientoStock = 'entrada' | 'salida' | 'ajuste'
@@ -2149,6 +2158,8 @@ export interface MovimientoStock {
   costoUnitario?: number
   /** Si este movimiento se generó solo al guardar un remito con líneas de producto. */
   remitoId?: string
+  /** Igual que remitoId, pero para un comprobante facturado directo con líneas de producto. */
+  facturaId?: string
 }
 
 /** Cuánto suma o resta un movimiento al stock — entradas suman, salidas restan, y un ajuste ya
@@ -2182,32 +2193,62 @@ export function calcularValorInventario(productos: Producto[]): number {
   return productos.reduce((s, p) => s + p.stockActual * p.costoUnitario, 0)
 }
 
-/** Productos con stock en o por debajo de su mínimo definido. */
+/** Productos con stock en o por debajo de su mínimo definido — un servicio nunca entra acá, aunque
+ * por error tenga un stockMinimo cargado. */
 export function listarProductosBajoMinimo(productos: Producto[]): Producto[] {
-  return productos.filter((p) => p.stockMinimo !== undefined && p.stockActual <= p.stockMinimo)
+  return productos.filter((p) => !p.esServicio && p.stockMinimo !== undefined && p.stockActual <= p.stockMinimo)
+}
+
+/** Una línea mueve stock si tiene productoId y ese producto no es un servicio. */
+function lineaMueveStock(l: LineaProducto, productos: Producto[]): l is LineaProducto & { productoId: string } {
+  return Boolean(l.productoId) && !productos.find((p) => p.id === l.productoId)?.esServicio
 }
 
 /**
  * Genera los movimientos de stock que corresponden a un remito con líneas de producto: si es
  * "emitida" (a un cliente) sale mercadería, si es "recibida" (de un proveedor) entra. Un
- * presupuesto, o un remito sin líneas, no generan nada.
+ * presupuesto, un remito sin líneas, o líneas de un servicio, no generan nada.
  */
-export function generarMovimientosDeRemito(remito: RemitoPresupuesto, generarId: () => string): MovimientoStock[] {
+export function generarMovimientosDeRemito(remito: RemitoPresupuesto, productos: Producto[], generarId: () => string): MovimientoStock[] {
   if (remito.tipoDocumento !== 'remito' || !remito.lineas || remito.lineas.length === 0) return []
   const tipo: TipoMovimientoStock = remito.tipo === 'emitida' ? 'salida' : 'entrada'
   const motivo = `Remito${remito.numero ? ` ${remito.numero}` : ''} — ${remito.contraparte}`
-  // Las líneas sin producto (mano de obra, flete, otros costos) suman al monto pero no mueven stock.
+  // Las líneas sin producto, o de un servicio, suman al monto pero no mueven stock.
   return remito.lineas
-    .filter((l): l is LineaProducto & { productoId: string } => Boolean(l.productoId))
+    .filter((l) => lineaMueveStock(l, productos))
     .map((l) => ({
       id: generarId(),
-      productoId: l.productoId,
+      productoId: l.productoId!,
       tipo,
       cantidad: l.cantidad,
       fecha: remito.fecha,
       motivo,
       costoUnitario: tipo === 'entrada' ? l.precioUnitario : undefined,
       remitoId: remito.id,
+    }))
+}
+
+/**
+ * Igual que generarMovimientosDeRemito, pero para un comprobante facturado directo con líneas de
+ * producto, sin pasar por un remito — para no duplicar, si el comprobante viene vinculado a un
+ * remito (ver RemitoPresupuesto.facturaId) sus líneas ya movieron el stock desde ahí y acá no se
+ * genera nada de nuevo.
+ */
+export function generarMovimientosDeFactura(factura: Factura, productos: Producto[], generarId: () => string): MovimientoStock[] {
+  if (!factura.lineas || factura.lineas.length === 0) return []
+  const tipo: TipoMovimientoStock = factura.tipo === 'emitida' ? 'salida' : 'entrada'
+  const motivo = `Comprobante${factura.numero ? ` ${factura.numero}` : ''} — ${factura.contraparte}`
+  return factura.lineas
+    .filter((l) => lineaMueveStock(l, productos))
+    .map((l) => ({
+      id: generarId(),
+      productoId: l.productoId!,
+      tipo,
+      cantidad: l.cantidad,
+      fecha: factura.fecha,
+      motivo,
+      costoUnitario: tipo === 'entrada' ? l.precioUnitario : undefined,
+      facturaId: factura.id,
     }))
 }
 

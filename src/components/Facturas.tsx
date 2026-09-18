@@ -6,7 +6,9 @@ import type {
   DatosEmisorFiscal,
   DatosReceptor,
   Factura,
+  LineaProducto,
   Pago,
+  Producto,
   ResultadoEmision,
   Sector,
   TendenciaMensual,
@@ -18,6 +20,7 @@ import {
   calcularAgingCuentas,
   calcularDSOyDPO,
   calcularMargenBrutoTotal,
+  calcularMontoDesdeLineas,
   calcularRanking,
   calcularTendenciaMensual,
   ivaConSigno,
@@ -45,6 +48,9 @@ interface Props {
   /** Sectores (divisiones/centros de costo) creados en Márgenes por sector, para asignar cada
    * comprobante a uno al cargarlo — ver calcularMargenPorSector. */
   sectores?: Sector[]
+  /** Catálogo de Stock, para armar líneas de producto/servicio al facturar directo sin pasar por
+   * un remito — ver generarMovimientosDeFactura. Solo llega poblado en el plan Full. */
+  productos?: Producto[]
   onAgregar: (factura: Omit<Factura, 'id'>) => void
   onImportarVarias: (facturas: Omit<Factura, 'id'>[]) => void
   onCambiar: (
@@ -141,7 +147,7 @@ function BotonExportarContador({ onExportar }: { onExportar: Props['onExportarCo
   )
 }
 
-export function Facturas({ facturas, pagos = [], cuentas, sectores = [], onAgregar, onImportarVarias, onCambiar, onEliminar, emisorFiscal, onEmitida, onVaciar, onExportarContador, onDescargarInforme }: Props) {
+export function Facturas({ facturas, pagos = [], cuentas, sectores = [], productos = [], onAgregar, onImportarVarias, onCambiar, onEliminar, emisorFiscal, onEmitida, onVaciar, onExportarContador, onDescargarInforme }: Props) {
   const [facturaAEmitir, setFacturaAEmitir] = useState<Factura | null>(null)
   const [facturaANotear, setFacturaANotear] = useState<Factura | null>(null)
   const [tipo, setTipo] = useState<TipoFactura>('emitida')
@@ -152,6 +158,12 @@ export function Facturas({ facturas, pagos = [], cuentas, sectores = [], onAgreg
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10))
   const [cuotas, setCuotas] = useState('1')
   const [sectorId, setSectorId] = useState('')
+  const [lineas, setLineas] = useState<LineaProducto[]>([])
+  const [tipoLinea, setTipoLinea] = useState<'producto' | 'otro'>('producto')
+  const [productoElegido, setProductoElegido] = useState('')
+  const [descripcionLinea, setDescripcionLinea] = useState('')
+  const [cantidadLinea, setCantidadLinea] = useState(0)
+  const [precioLinea, setPrecioLinea] = useState(0)
   const [filtro, setFiltro] = useState<'todas' | TipoFactura>('todas')
   const [busqueda, setBusqueda] = useState('')
   const [importando, setImportando] = useState(false)
@@ -192,27 +204,62 @@ export function Facturas({ facturas, pagos = [], cuentas, sectores = [], onAgreg
     )
     .sort((a, b) => b.fecha.localeCompare(a.fecha))
 
+  const puedeElegirProducto = productos.length > 0
+  const montoDesdeLineas = lineas.length > 0 ? calcularMontoDesdeLineas(lineas) : null
+
+  function handleElegirProducto(id: string) {
+    setProductoElegido(id)
+    const producto = productos.find((p) => p.id === id)
+    if (producto) setPrecioLinea((tipo === 'emitida' ? producto.precioVenta : producto.costoUnitario) ?? 0)
+  }
+
+  function limpiarFormularioLinea() {
+    setProductoElegido('')
+    setDescripcionLinea('')
+    setCantidadLinea(0)
+    setPrecioLinea(0)
+  }
+
+  function handleAgregarLinea() {
+    if (cantidadLinea <= 0) return
+    if (tipoLinea === 'producto' && puedeElegirProducto) {
+      if (!productoElegido) return
+      setLineas((prev) => [...prev, { productoId: productoElegido, cantidad: cantidadLinea, precioUnitario: precioLinea }])
+    } else {
+      if (!descripcionLinea.trim()) return
+      setLineas((prev) => [...prev, { descripcion: descripcionLinea.trim(), cantidad: cantidadLinea, precioUnitario: precioLinea }])
+    }
+    limpiarFormularioLinea()
+  }
+
+  function handleEliminarLinea(index: number) {
+    setLineas((prev) => prev.filter((_, i) => i !== index))
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const cuotasNum = Math.max(1, Math.round(Number(cuotas) || 1))
-    if (!contraparte.trim() || !monto || monto <= 0 || !fecha) return
+    const montoFinal = montoDesdeLineas ?? monto
+    if (!contraparte.trim() || !montoFinal || montoFinal <= 0 || !fecha) return
     onAgregar({
       tipo,
       tipoComprobante,
       contraparte: contraparte.trim(),
-      monto,
+      monto: montoFinal,
       fecha,
       fechaEstimadaCobroPago: sumarDias(fecha, plazoDias),
       cumplido: false,
       cuotas: cuotasNum > 1 ? cuotasNum : undefined,
       iva: iva > 0 ? iva : undefined,
       sectorId: sectorId || undefined,
+      lineas: lineas.length > 0 ? lineas : undefined,
     })
     setContraparte('')
     setMonto(0)
     setIva(0)
     setCuotas('1')
     setSectorId('')
+    setLineas([])
   }
 
   function handleVaciar() {
@@ -354,13 +401,23 @@ export function Facturas({ facturas, pagos = [], cuentas, sectores = [], onAgreg
               ))}
             </select>
           )}
-          <InputMoneda
-            placeholder="Monto"
-            value={monto}
-            onChange={setMonto}
-            className="tabular w-28 shrink-0 rounded-lg border px-3 py-1.5 text-sm"
-            style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
-          />
+          {montoDesdeLineas !== null ? (
+            <div
+              className="tabular flex w-28 shrink-0 items-center rounded-lg border px-3 py-1.5 text-sm font-semibold"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface-2)', color: 'var(--text-primary)' }}
+              title="Se calcula solo a partir de las líneas de producto"
+            >
+              {formatoMoneda(montoDesdeLineas)}
+            </div>
+          ) : (
+            <InputMoneda
+              placeholder="Monto"
+              value={monto}
+              onChange={setMonto}
+              className="tabular w-28 shrink-0 rounded-lg border px-3 py-1.5 text-sm"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+            />
+          )}
           <InputMoneda
             placeholder="IVA"
             title="Monto de IVA incluido en el total (opcional)"
@@ -408,6 +465,119 @@ export function Facturas({ facturas, pagos = [], cuentas, sectores = [], onAgreg
             Agregar
           </Button>
         </form>
+
+        {puedeElegirProducto && (
+          <div className="mt-4 border-t pt-4" style={{ borderColor: 'var(--gridline)' }}>
+            <p className="mb-2 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+              Líneas del comprobante <span style={{ color: 'var(--text-secondary)' }}>(opcional)</span> — elegí de
+              tu lista de precios en vez de tipear el monto a mano. Solo los productos (no los servicios){' '}
+              {tipo === 'emitida' ? 'descuentan' : 'suman'} stock al guardarse.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <select
+                value={tipoLinea}
+                onChange={(e) => {
+                  setTipoLinea(e.target.value as 'producto' | 'otro')
+                  limpiarFormularioLinea()
+                }}
+                className="shrink-0 rounded-lg border px-2 py-1.5 text-sm"
+                style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+              >
+                <option value="producto">De la lista de precios</option>
+                <option value="otro">Otro concepto</option>
+              </select>
+              {tipoLinea === 'producto' ? (
+                <select
+                  value={productoElegido}
+                  onChange={(e) => handleElegirProducto(e.target.value)}
+                  className="min-w-[160px] flex-1 rounded-lg border px-2 py-1.5 text-sm"
+                  style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+                >
+                  <option value="">Elegir producto o servicio…</option>
+                  {productos.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nombre}
+                      {!p.esServicio && ` (stock: ${p.stockActual})`}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  placeholder="Descripción (ej: Flete, Instalación)"
+                  value={descripcionLinea}
+                  onChange={(e) => setDescripcionLinea(e.target.value)}
+                  className="min-w-[160px] flex-1 rounded-lg border px-2 py-1.5 text-sm"
+                  style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+                />
+              )}
+              <InputMoneda
+                placeholder="Cantidad"
+                value={cantidadLinea}
+                onChange={setCantidadLinea}
+                className="tabular w-24 shrink-0 rounded-lg border px-2 py-1.5 text-sm"
+                style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+              />
+              <InputMoneda
+                placeholder="Precio unitario"
+                value={precioLinea}
+                onChange={setPrecioLinea}
+                className="tabular w-32 shrink-0 rounded-lg border px-2 py-1.5 text-sm"
+                style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+              />
+              <button
+                type="button"
+                onClick={handleAgregarLinea}
+                className="shrink-0 rounded-lg border px-3 py-1.5 text-sm font-semibold transition-opacity hover:opacity-90"
+                style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
+              >
+                Agregar línea
+              </button>
+            </div>
+
+            {lineas.length > 0 && (
+              <ul className="mt-3 space-y-1 text-sm">
+                {lineas.map((l, i) => {
+                  const producto = l.productoId ? productos.find((p) => p.id === l.productoId) : undefined
+                  return (
+                    <li
+                      key={i}
+                      className="flex items-center gap-2 rounded-lg border px-2 py-1"
+                      style={{ borderColor: 'var(--gridline)' }}
+                    >
+                      <span className="flex-1" style={{ color: 'var(--text-primary)' }}>
+                        {producto?.nombre ?? l.descripcion ?? l.productoId}
+                        {producto?.esServicio && (
+                          <span
+                            className="ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+                            style={{ background: 'var(--gridline)', color: 'var(--text-muted)' }}
+                          >
+                            servicio
+                          </span>
+                        )}
+                        {!l.productoId && (
+                          <span
+                            className="ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+                            style={{ background: 'var(--gridline)', color: 'var(--text-muted)' }}
+                          >
+                            no mueve stock
+                          </span>
+                        )}
+                      </span>
+                      <span className="tabular shrink-0" style={{ color: 'var(--text-secondary)' }}>
+                        {l.cantidad} × {formatoMoneda(l.precioUnitario)}
+                      </span>
+                      <span className="tabular shrink-0 font-semibold" style={{ color: 'var(--text-primary)' }}>
+                        {formatoMoneda(l.cantidad * l.precioUnitario)}
+                      </span>
+                      <IconButton icon={Trash2} onClick={() => handleEliminarLinea(i)} label="Quitar línea" className="shrink-0" />
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+        )}
       </Card>
 
       {facturas.length === 0 ? (
@@ -793,6 +963,11 @@ export function Facturas({ facturas, pagos = [], cuentas, sectores = [], onAgreg
                       {f.numero && (
                         <span className="ml-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
                           ({f.numero})
+                        </span>
+                      )}
+                      {f.lineas && f.lineas.length > 0 && (
+                        <span className="ml-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                          · {f.lineas.length} ítem{f.lineas.length === 1 ? '' : 's'}
                         </span>
                       )}
                     </span>

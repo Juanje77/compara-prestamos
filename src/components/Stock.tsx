@@ -42,6 +42,7 @@ function FormularioAlta({ onAgregarProducto }: { onAgregarProducto: Props['onAgr
   const [costoUnitario, setCostoUnitario] = useState(0)
   const [precioVenta, setPrecioVenta] = useState(0)
   const [stockActual, setStockActual] = useState(0)
+  const [esServicio, setEsServicio] = useState(false)
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -51,17 +52,19 @@ function FormularioAlta({ onAgregarProducto }: { onAgregarProducto: Props['onAgr
       nombre: nombre.trim(),
       costoUnitario,
       precioVenta: precioVenta || undefined,
-      stockActual,
+      stockActual: esServicio ? 0 : stockActual,
+      esServicio: esServicio || undefined,
     })
     setCodigo('')
     setNombre('')
     setCostoUnitario(0)
     setPrecioVenta(0)
     setStockActual(0)
+    setEsServicio(false)
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mb-4 flex flex-wrap gap-2">
+    <form onSubmit={handleSubmit} className="mb-4 flex flex-wrap items-center gap-2">
       <input
         type="text"
         placeholder="Código (opcional)"
@@ -72,7 +75,7 @@ function FormularioAlta({ onAgregarProducto }: { onAgregarProducto: Props['onAgr
       />
       <input
         type="text"
-        placeholder="Nombre del producto"
+        placeholder="Nombre del producto o servicio"
         value={nombre}
         onChange={(e) => setNombre(e.target.value)}
         className="min-w-[160px] flex-1 rounded-lg border px-3 py-1.5 text-sm"
@@ -92,13 +95,24 @@ function FormularioAlta({ onAgregarProducto }: { onAgregarProducto: Props['onAgr
         className="tabular w-28 shrink-0 rounded-lg border px-3 py-1.5 text-sm"
         style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
       />
-      <InputMoneda
-        placeholder="Stock inicial"
-        value={stockActual}
-        onChange={setStockActual}
-        className="tabular w-28 shrink-0 rounded-lg border px-3 py-1.5 text-sm"
-        style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
-      />
+      {!esServicio && (
+        <InputMoneda
+          placeholder="Stock inicial"
+          value={stockActual}
+          onChange={setStockActual}
+          className="tabular w-28 shrink-0 rounded-lg border px-3 py-1.5 text-sm"
+          style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+        />
+      )}
+      <label className="flex shrink-0 items-center gap-1.5 text-xs" style={{ color: 'var(--text-secondary)' }}>
+        <input
+          type="checkbox"
+          checked={esServicio}
+          onChange={(e) => setEsServicio(e.target.checked)}
+          className="h-3.5 w-3.5 accent-current"
+        />
+        Es un servicio (sin stock)
+      </label>
       <Button type="submit" variante="primario">
         Agregar
       </Button>
@@ -175,16 +189,28 @@ function FilaProducto({
         </td>
         <td className="py-2 pr-4" style={{ color: 'var(--text-primary)' }}>
           {producto.nombre}
+          {producto.esServicio && (
+            <span
+              className="ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+              style={{ background: 'var(--gridline)', color: 'var(--text-muted)' }}
+            >
+              Servicio
+            </span>
+          )}
         </td>
         <td
           className="tabular py-2 pr-4 text-right font-semibold"
           style={{ color: bajoMinimo ? 'var(--status-critical)' : 'var(--text-primary)' }}
           title={bajoMinimo ? `Stock mínimo: ${producto.stockMinimo}` : undefined}
         >
-          <span className="inline-flex items-center gap-1">
-            {producto.stockActual}
-            {bajoMinimo && <AlertTriangle size={12} aria-hidden="true" />}
-          </span>
+          {producto.esServicio ? (
+            <span style={{ color: 'var(--text-muted)' }}>—</span>
+          ) : (
+            <span className="inline-flex items-center gap-1">
+              {producto.stockActual}
+              {bajoMinimo && <AlertTriangle size={12} aria-hidden="true" />}
+            </span>
+          )}
         </td>
         <td className="tabular py-2 pr-4 text-right" style={{ color: 'var(--text-secondary)' }}>
           {formatoMoneda(producto.costoUnitario)}
@@ -193,16 +219,18 @@ function FilaProducto({
           {producto.precioVenta ? formatoMoneda(producto.precioVenta) : '—'}
         </td>
         <td className="tabular py-2 pr-4 text-right" style={{ color: 'var(--text-primary)' }}>
-          {formatoMoneda(producto.stockActual * producto.costoUnitario)}
+          {producto.esServicio ? '—' : formatoMoneda(producto.stockActual * producto.costoUnitario)}
         </td>
         <td className="py-2 text-right">
-          <button
-            onClick={() => setExpandido((v) => !v)}
-            className="shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold"
-            style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
-          >
-            {expandido ? 'Cerrar' : '± Ajustar'}
-          </button>
+          {!producto.esServicio && (
+            <button
+              onClick={() => setExpandido((v) => !v)}
+              className="shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold"
+              style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
+            >
+              {expandido ? 'Cerrar' : '± Ajustar'}
+            </button>
+          )}
           <IconButton
             icon={Trash2}
             onClick={() => {
@@ -214,7 +242,7 @@ function FilaProducto({
           />
         </td>
       </tr>
-      {expandido && (
+      {expandido && !producto.esServicio && (
         <tr className="border-t" style={{ borderColor: 'var(--gridline)' }}>
           <td colSpan={7} className="py-3">
             <div className="rounded-lg border p-3" style={{ borderColor: 'var(--gridline)', background: 'var(--surface-2)' }}>
@@ -303,7 +331,7 @@ function FilaProducto({
                           {m.motivo}
                         </span>
                       )}
-                      {!m.remitoId && (
+                      {!m.remitoId && !m.facturaId && (
                         <IconButton icon={Trash2} onClick={() => onEliminarMovimiento(m.id)} label="Eliminar movimiento" className="ml-auto shrink-0" />
                       )}
                     </li>
@@ -365,8 +393,9 @@ export function Stock({
               Stock
             </h2>
             <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-              Cargá tu catálogo de productos y llevá el control de entradas y salidas. Al guardar un remito con
-              líneas de producto, el stock se actualiza solo.
+              Cargá tu catálogo de productos y servicios — es tu lista de precios para armar líneas en Remitos y
+              Comprobantes. Al guardar uno con líneas de producto, el stock se actualiza solo (un servicio nunca
+              mueve stock).
             </p>
           </div>
           <ImportarExcelButton onImportar={handleImportar} />

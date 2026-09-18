@@ -73,6 +73,7 @@ import {
   calcularValorTotalBienes,
   generarAlertas,
   generarRecomendaciones,
+  generarMovimientosDeFactura,
   generarMovimientosDeRemito,
   imputarPagoAFIFO,
   listarClientes,
@@ -649,7 +650,13 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   }
 
   function handleAgregarFactura(factura: Omit<Factura, 'id'>) {
-    setFacturas((prev) => [...prev, { ...factura, id: generarId() }])
+    const nuevaFactura: Factura = { ...factura, id: generarId() }
+    setFacturas((prev) => [...prev, nuevaFactura])
+    const nuevosMovimientos = generarMovimientosDeFactura(nuevaFactura, productos, generarId)
+    if (nuevosMovimientos.length > 0) {
+      setMovimientosStock((prev) => [...prev, ...nuevosMovimientos])
+      setProductos((prev) => nuevosMovimientos.reduce((acc, mov) => aplicarMovimientoStock(acc, mov), prev))
+    }
   }
 
   function handleImportarFacturas(nuevas: Omit<Factura, 'id'>[]) {
@@ -710,6 +717,11 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
 
   function handleEliminarFactura(id: string) {
     revertirMovimientoDirectoDeFactura(id)
+    const movimientosDeLaFactura = movimientosStock.filter((m) => m.facturaId === id)
+    if (movimientosDeLaFactura.length > 0) {
+      setProductos((prev) => movimientosDeLaFactura.reduce((acc, mov) => revertirMovimientoStock(acc, mov), prev))
+      setMovimientosStock((prev) => prev.filter((m) => m.facturaId !== id))
+    }
     setFacturas((prev) => prev.filter((f) => f.id !== id))
   }
 
@@ -948,7 +960,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   function handleAgregarRemito(remito: Omit<RemitoPresupuesto, 'id' | 'estado'>) {
     const nuevoRemito: RemitoPresupuesto = { ...remito, id: generarId(), estado: 'pendiente' }
     setRemitos((prev) => [...prev, nuevoRemito])
-    const nuevosMovimientos = generarMovimientosDeRemito(nuevoRemito, generarId)
+    const nuevosMovimientos = generarMovimientosDeRemito(nuevoRemito, productos, generarId)
     if (nuevosMovimientos.length > 0) {
       setMovimientosStock((prev) => [...prev, ...nuevosMovimientos])
       setProductos((prev) => nuevosMovimientos.reduce((acc, mov) => aplicarMovimientoStock(acc, mov), prev))
@@ -1544,6 +1556,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
             pagos={pagos}
             cuentas={esFull ? cuentas : undefined}
             sectores={sectores}
+            productos={productos}
             onAgregar={handleAgregarFactura}
             onImportarVarias={handleImportarFacturas}
             onCambiar={handleCambiarFactura}

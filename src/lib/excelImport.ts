@@ -68,6 +68,7 @@ export interface FilaProductoImportada {
   precioVenta?: number
   stockActual: number
   stockMinimo?: number
+  esServicio?: boolean
 }
 
 const ALIAS_CODIGO = ['codigo', 'sku', 'cod']
@@ -76,6 +77,8 @@ const ALIAS_COSTO = ['costo', 'costo unitario', 'precio de costo', 'precio costo
 const ALIAS_PRECIO = ['precio', 'precio de venta', 'precio venta']
 const ALIAS_STOCK = ['stock', 'cantidad', 'existencia', 'existencias', 'stock actual']
 const ALIAS_STOCK_MINIMO = ['stock minimo', 'minimo', 'stock de seguridad']
+const ALIAS_SERVICIO = ['servicio', 'es servicio', 'tipo']
+const VALORES_SERVICIO = ['si', 'sí', 'x', 'servicio', 'service', 'true']
 
 /**
  * Lee un Excel de catálogo de productos para el alta masiva en Stock. Solo exige una columna de
@@ -93,6 +96,7 @@ export async function importarProductosDesdeExcel(file: File): Promise<FilaProdu
   const idxPrecio = encabezados.findIndex((h) => ALIAS_PRECIO.includes(h))
   const idxStock = encabezados.findIndex((h) => ALIAS_STOCK.includes(h))
   const idxStockMinimo = encabezados.findIndex((h) => ALIAS_STOCK_MINIMO.includes(h))
+  const idxServicio = encabezados.findIndex((h) => ALIAS_SERVICIO.includes(h))
 
   if (idxNombre === -1) {
     throw new Error(
@@ -111,14 +115,17 @@ export async function importarProductosDesdeExcel(file: File): Promise<FilaProdu
     const precioRaw = idxPrecio !== -1 ? fila[idxPrecio] : undefined
     const stockRaw = idxStock !== -1 ? fila[idxStock] : undefined
     const stockMinRaw = idxStockMinimo !== -1 ? fila[idxStockMinimo] : undefined
+    const esServicio = idxServicio !== -1 && VALORES_SERVICIO.includes(normalizar(fila[idxServicio]))
 
     resultado.push({
       codigo: idxCodigo !== -1 && fila[idxCodigo] ? String(fila[idxCodigo]).trim() : undefined,
       nombre: String(nombre).trim(),
       costoUnitario: typeof costoRaw === 'number' ? costoRaw : 0,
       precioVenta: typeof precioRaw === 'number' ? precioRaw : undefined,
-      stockActual: typeof stockRaw === 'number' ? stockRaw : 0,
-      stockMinimo: typeof stockMinRaw === 'number' ? stockMinRaw : undefined,
+      // Un servicio no tiene stock, sin importar lo que diga la columna de stock del archivo.
+      stockActual: esServicio ? 0 : typeof stockRaw === 'number' ? stockRaw : 0,
+      stockMinimo: esServicio ? undefined : typeof stockMinRaw === 'number' ? stockMinRaw : undefined,
+      esServicio: esServicio || undefined,
     })
   }
 
