@@ -21,6 +21,19 @@
   --status-good-text: #006300;
   --status-warning: #fab219;
   --status-critical: #d03b3b;
+
+  /* Paleta editorial de la landing (HomePage) — separada del resto de la app a propósito, ver
+   * el comentario en HomePage.tsx. */
+  --land-paper: #ffffff;
+  --land-border: #f0e9e1;
+  --land-heading: #0c1754;
+  --land-charcoal: #171417;
+  --land-body: #6f6d68;
+  --land-cobalt: #2545ff;
+  --land-dark-surface: #0c1754;
+  --land-tint-bg: #eaebf8;
+  --land-tint-text: #0c1754;
+
   color-scheme: light dark;
 }
 
@@ -46,6 +59,16 @@
     --status-good-text: #0ca30c;
     --status-warning: #fab219;
     --status-critical: #d03b3b;
+
+    --land-paper: #101c44;
+    --land-border: rgba(255, 255, 255, 0.12);
+    --land-heading: #f2f3fb;
+    --land-charcoal: #eef0f7;
+    --land-body: #aab0cc;
+    --land-cobalt: #5b7fff;
+    --land-dark-surface: #16234f;
+    --land-tint-bg: rgba(91, 127, 255, 0.16);
+    --land-tint-text: #c7d2ff;
   }
 }
 
@@ -68,6 +91,16 @@
   --status-good-text: #0ca30c;
   --status-warning: #fab219;
   --status-critical: #d03b3b;
+
+  --land-paper: #101c44;
+  --land-border: rgba(255, 255, 255, 0.12);
+  --land-heading: #f2f3fb;
+  --land-charcoal: #eef0f7;
+  --land-body: #aab0cc;
+  --land-cobalt: #5b7fff;
+  --land-dark-surface: #16234f;
+  --land-tint-bg: rgba(91, 127, 255, 0.16);
+  --land-tint-text: #c7d2ff;
 }
 
 * {

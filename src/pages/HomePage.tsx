@@ -25,20 +25,24 @@ import {
 } from 'lucide-react'
 import { buildWhatsAppLink } from '../components/WhatsAppContact'
 
-// Paleta y tipografía editorial (referencia Officevibe/Workleap) — deliberadamente local a esta
-// página. El resto de la app usa su propio sistema de tokens (--series-blue, --surface-*, con
-// soporte claro/oscuro); esta portada es una pieza de marketing de tema claro fijo, así que no
-// tiene sentido tocar los tokens globales por ella.
+// Paleta y tipografía editorial (referencia Officevibe/Workleap) — deliberadamente separada del
+// sistema de tokens del resto de la app (--series-blue, --surface-*), con sus propios tokens
+// --land-* en index.css que sí responden a modo claro/oscuro. `navy`/`paper` son roles de TEXTO
+// (títulos, precio); para fondos siempre oscuros (la tarjeta del plan Full, el cierre) se usa
+// `darkSurface` + los colores fijos `onDark`/`onDarkMuted`, porque esas superficies son oscuras
+// en los dos temas y no deben invertirse con el resto de la página.
 const C = {
-  navy: '#0c1754',
-  cobalt: '#2545ff',
-  charcoal: '#171417',
-  canvas: '#f9f8f6',
-  paper: '#ffffff',
-  cream: '#f0e9e1',
-  graphite: '#222222',
-  stone: '#6f6d68',
-  lavender: '#eaebf8',
+  navy: 'var(--land-heading)',
+  cobalt: 'var(--land-cobalt)',
+  charcoal: 'var(--land-charcoal)',
+  paper: 'var(--land-paper)',
+  cream: 'var(--land-border)',
+  stone: 'var(--land-body)',
+  tintBg: 'var(--land-tint-bg)',
+  tintText: 'var(--land-tint-text)',
+  darkSurface: 'var(--land-dark-surface)',
+  onDark: '#ffffff',
+  onDarkMuted: '#c3c2b7',
 }
 
 const serif: CSSProperties = { fontFamily: "'Fraunces', ui-serif, Georgia, serif" }
@@ -115,12 +119,15 @@ function PillButton({
   target?: string
   rel?: string
 }) {
+  // 'oscuro' y el 'secundario' por defecto son para botones que van SOBRE una superficie
+  // siempre oscura (la tarjeta del plan Full, el cierre) — sus colores quedan fijos a propósito,
+  // no serían legibles si heredaran los tokens de tema claro/oscuro de la página.
   const estilo: CSSProperties =
     variante === 'primario'
       ? { background: C.cobalt, color: '#fff' }
       : variante === 'oscuro'
-        ? { background: C.paper, color: C.navy }
-        : { background: 'transparent', color: C.paper, border: `1.5px solid ${C.paper}` }
+        ? { background: '#ffffff', color: '#0c1754' }
+        : { background: 'transparent', color: '#ffffff', border: '1.5px solid #ffffff' }
   const clases = `inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-medium transition-opacity hover:opacity-85 ${className}`
   if (to) {
     return (
@@ -164,7 +171,7 @@ function DashboardCard({ src, alt, rotar }: { src: string; alt: string; rotar?: 
         <div
           className="absolute inset-0 rounded-2xl"
           style={{
-            background: C.navy,
+            background: C.darkSurface,
             transform: rotar === 'left' ? 'rotate(-3deg) translate(-10px, 10px)' : 'rotate(3deg) translate(10px, 10px)',
           }}
           aria-hidden="true"
@@ -199,8 +206,8 @@ function PricingTier({
     <div
       className="relative flex h-full flex-col rounded-2xl p-8 text-center sm:p-10"
       style={{
-        background: acento ? C.navy : C.paper,
-        border: acento ? 'none' : `1px solid ${C.cream}`,
+        background: acento ? C.darkSurface : C.paper,
+        border: acento ? '1px solid var(--land-cobalt)' : `1px solid ${C.cream}`,
       }}
     >
       {badge && (
@@ -212,13 +219,13 @@ function PricingTier({
         </span>
       )}
       <Eyebrow>
-        <span style={{ color: acento ? C.lavender : C.charcoal }}>{eyebrow}</span>
+        <span style={{ color: acento ? C.onDarkMuted : C.charcoal }}>{eyebrow}</span>
       </Eyebrow>
-      <p className="mt-3 text-4xl font-medium" style={{ ...serif, color: acento ? C.paper : C.navy }}>
+      <p className="mt-3 text-4xl font-medium" style={{ ...serif, color: acento ? C.onDark : C.navy }}>
         {precio}
-        <span className="text-base" style={{ ...sans, color: acento ? C.lavender : C.stone }}> /mes</span>
+        <span className="text-base" style={{ ...sans, color: acento ? C.onDarkMuted : C.stone }}> /mes</span>
       </p>
-      <p className="mx-auto mt-4 max-w-xs text-sm" style={{ ...sans, color: acento ? C.lavender : C.stone, lineHeight: 1.6 }}>
+      <p className="mx-auto mt-4 max-w-xs text-sm" style={{ ...sans, color: acento ? C.onDarkMuted : C.stone, lineHeight: 1.6 }}>
         {texto}
       </p>
       <div className="mt-6 flex-1" />
@@ -256,7 +263,7 @@ export function HomePage() {
               Comparar préstamos
             </PillButton>
           </div>
-          <p className="mt-5 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium" style={{ background: C.lavender, color: C.navy }}>
+          <p className="mt-5 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium" style={{ background: C.tintBg, color: C.tintText }}>
             Probá el plan Full 15 días gratis, sin tarjeta
           </p>
         </div>
@@ -423,11 +430,11 @@ export function HomePage() {
       {/* ------------------------------------------------------------------ */}
       {/* Cierre */}
       {/* ------------------------------------------------------------------ */}
-      <section className="mb-10 rounded-3xl px-6 py-14 text-center sm:px-12 sm:py-20" style={{ background: C.navy }}>
-        <h2 className="mx-auto max-w-2xl text-3xl font-normal sm:text-4xl" style={{ ...serif, color: C.paper }}>
+      <section className="mb-10 rounded-3xl px-6 py-14 text-center sm:px-12 sm:py-20" style={{ background: C.darkSurface }}>
+        <h2 className="mx-auto max-w-2xl text-3xl font-normal sm:text-4xl" style={{ ...serif, color: C.onDark }}>
           ¿Listo para <Accent>ordenar</Accent> las finanzas de tu negocio?
         </h2>
-        <p className="mx-auto mt-4 max-w-xl text-sm sm:text-base" style={{ color: C.lavender, lineHeight: 1.6 }}>
+        <p className="mx-auto mt-4 max-w-xl text-sm sm:text-base" style={{ color: C.onDarkMuted, lineHeight: 1.6 }}>
           Empezá con 15 días gratis y acceso Full completo, sin tarjeta. Si preferís hablar antes,
           escribime por WhatsApp y te cuento cuál de los planes se ajusta mejor a tu negocio.
         </p>
