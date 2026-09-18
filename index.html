@@ -1,6 +1,15 @@
 <!doctype html>
 <html lang="es-AR">
   <head>
+    <script>
+      // Aplicar el tema guardado ya, antes de la primera pintura — si esto esperara a que
+      // React monte, alguien con "claro" guardado y el sistema en oscuro vería un parpadeo
+      // oscuro→claro al cargar.
+      try {
+        var t = localStorage.getItem('fincorp-theme')
+        if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t)
+      } catch (e) {}
+    </script>
     <meta charset="UTF-8" />
     <meta name="google-site-verification" content="kcxc1u8qLH1KPvN8lPly1oNrzEbbsKlOh751uc8E8dU" />
     <link rel="icon" type="image/png" href="/favicon-32.png" sizes="32x32" />

@@ -5,6 +5,7 @@ import { BrandHeader } from './BrandHeader'
 import { WhatsAppFloatingButton } from './WhatsAppContact'
 import { LoginModal } from './LoginModal'
 import { Button } from './Button'
+import { ThemeToggle } from './ThemeToggle'
 import { useAuth } from '../lib/AuthContext'
 
 const SECCIONES: { to: string; label: string; end?: boolean }[] = [
@@ -67,6 +68,7 @@ export function Layout() {
               ))}
             </nav>
             <SesionUsuario />
+            <ThemeToggle />
           </div>
         </div>
       </header>
