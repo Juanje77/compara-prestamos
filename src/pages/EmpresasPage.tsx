@@ -386,45 +386,64 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
 
   useEffect(() => {
     if (!user || !nubeLista) return
-    const timeout = setTimeout(() => {
-      guardarDatosUsuario(user.uid, {
-        negocioData: {
-          ingresos,
-          meses,
-          montos,
-          cuentas,
-          deudas,
-          bienes,
-          realManualPorMes,
-          ventasManualPorMes,
-          facturas,
-          clasificaciones,
-          clientesManual,
-          cheques,
-          pagos,
-          remitos,
-          sectores,
-          empleados,
-          datosEmpleador,
-          datosEmisorFiscal,
-          liquidaciones,
-          anticipos,
-          productos,
-          movimientosStock,
-          movimientosTesoreria,
-          movimientosBancarios,
-          ivaManualPorMes,
-          ingresosBrutosManualPorMes,
-          movimientosDiarios,
-          tasaCrecimiento,
-          nombreNegocio,
-          actualizadoEn,
-        },
-      }).catch(() => {
+    const negocioData = {
+      ingresos,
+      meses,
+      montos,
+      cuentas,
+      deudas,
+      bienes,
+      realManualPorMes,
+      ventasManualPorMes,
+      facturas,
+      clasificaciones,
+      clientesManual,
+      cheques,
+      pagos,
+      remitos,
+      sectores,
+      empleados,
+      datosEmpleador,
+      datosEmisorFiscal,
+      liquidaciones,
+      anticipos,
+      productos,
+      movimientosStock,
+      movimientosTesoreria,
+      movimientosBancarios,
+      ivaManualPorMes,
+      ingresosBrutosManualPorMes,
+      movimientosDiarios,
+      tasaCrecimiento,
+      nombreNegocio,
+      actualizadoEn,
+    }
+
+    // Se manda una sola vez por snapshot: si el usuario cierra la pestaña o recarga antes de que
+    // pasen los 800ms, el listener de "se está por ir" dispara el mismo envío ya, en vez de dejar
+    // que se pierda con el setTimeout cancelado — es la ventana que causaba que un comprobante
+    // recién cargado desapareciera al recargar rápido.
+    let enviado = false
+    function enviarAhora() {
+      if (enviado) return
+      enviado = true
+      guardarDatosUsuario(user!.uid, { negocioData }).catch(() => {
         // Idem: si falla el guardado en la nube, los datos siguen a salvo en localStorage.
       })
-    }, 800)
-    return () => clearTimeout(timeout)
+    }
+
+    const timeout = setTimeout(enviarAhora, 800)
+    function alEsconderse() {
+      if (document.visibilityState === 'hidden') enviarAhora()
+    }
+    document.addEventListener('visibilitychange', alEsconderse)
+    window.addEventListener('pagehide', enviarAhora)
+
+    return () => {
+      clearTimeout(timeout)
+      document.removeEventListener('visibilitychange', alEsconderse)
+      window.removeEventListener('pagehide', enviarAhora)
+    }
   }, [
     user,
     nubeLista,
