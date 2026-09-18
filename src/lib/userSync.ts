@@ -46,6 +46,7 @@ type FirestoreApi = {
   doc: typeof import('firebase/firestore').doc
   getDoc: typeof import('firebase/firestore').getDoc
   setDoc: typeof import('firebase/firestore').setDoc
+  onSnapshot: typeof import('firebase/firestore').onSnapshot
 }
 
 let apiPromise: Promise<FirestoreApi | null> | null = null
@@ -54,8 +55,8 @@ function obtenerApi(): Promise<FirestoreApi | null> {
   if (!apiPromise) {
     apiPromise = (async () => {
       if (!firebaseHabilitado || !app) return null
-      const { getFirestore, doc, getDoc, setDoc } = await import('firebase/firestore')
-      return { db: getFirestore(app), doc, getDoc, setDoc }
+      const { getFirestore, doc, getDoc, setDoc, onSnapshot } = await import('firebase/firestore')
+      return { db: getFirestore(app), doc, getDoc, setDoc, onSnapshot }
     })()
   }
   return apiPromise
@@ -74,4 +75,30 @@ export async function guardarDatosUsuario(uid: string, datos: Partial<DatosUsuar
   const api = await obtenerApi()
   if (!api) return
   await api.setDoc(api.doc(api.db, 'users', uid), datos, { merge: true })
+}
+
+/**
+ * Como cargarDatosUsuario, pero se queda escuchando: si estos datos cambian en Firestore
+ * (porque la misma empresa los está editando desde otra pestaña o dispositivo a la vez), llama
+ * a `onDatos` de nuevo con la versión nueva, sin esperar a que se recargue la página. También
+ * llama a `onDatos` con el primer valor apenas se conecta. Devuelve una función para dejar de
+ * escuchar (llamarla al desmontar).
+ */
+export function suscribirseADatosUsuario(uid: string, onDatos: (datos: DatosUsuario | null) => void): () => void {
+  let cancelado = false
+  let dejarDeEscuchar: (() => void) | null = null
+  obtenerApi().then((api) => {
+    if (!api || cancelado) return
+    dejarDeEscuchar = api.onSnapshot(
+      api.doc(api.db, 'users', uid),
+      (snap) => onDatos(snap.exists() ? (snap.data() as DatosUsuario) : null),
+      () => {
+        // Firestore puede no estar disponible todavía (sin conexión, etc.) — seguimos con lo local.
+      },
+    )
+  })
+  return () => {
+    cancelado = true
+    dejarDeEscuchar?.()
+  }
 }

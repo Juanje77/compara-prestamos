@@ -120,7 +120,7 @@ import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
 import { exportarParaContador } from '../lib/contadorExport'
 import { abrirInformeFinanciero, abrirInformeSaludFinanciera } from '../lib/htmlReport'
 import { cargarNegocioData, guardarNegocioData } from '../lib/negocioData'
-import { cargarDatosUsuario, guardarDatosUsuario } from '../lib/userSync'
+import { guardarDatosUsuario, suscribirseADatosUsuario } from '../lib/userSync'
 import { numeroComprobanteFormateado } from '../lib/facturacionElectronica'
 import { useAuth } from '../lib/AuthContext'
 
@@ -261,6 +261,14 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   const [nubeLista, setNubeLista] = useState(false)
   const cargaNubeHecha = useRef(false)
 
+  // Siempre el actualizadoEn más reciente que ya está en pantalla — se lee dentro del listener de
+  // abajo, que se suscribe una sola vez por login y no puede depender de "actualizadoEn" directo
+  // sin resuscribirse en cada cambio.
+  const actualizadoEnRef = useRef(actualizadoEn)
+  useEffect(() => {
+    actualizadoEnRef.current = actualizadoEn
+  }, [actualizadoEn])
+
   useEffect(() => {
     if (!user) {
       setNubeLista(false)
@@ -269,18 +277,20 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     }
     if (cargaNubeHecha.current) return
     cargaNubeHecha.current = true
-    cargarDatosUsuario(user.uid)
-      .then((datos) => {
-        if (datos?.negocioData) {
-          const d = datos.negocioData
-          // El guardado en Firestore está debounceado 800ms: si el usuario cargó algo y recargó
-          // la página antes de que ese guardado llegara a viajar, lo que hay en la nube es más
-          // viejo que lo que ya quedó en localStorage. En ese caso no lo pisamos acá — el efecto
-          // de guardado en la nube, más abajo, se va a encargar de subir la versión local.
-          const local = cargarNegocioData()
-          const localMasReciente =
-            local?.actualizadoEn != null && d.actualizadoEn != null && local.actualizadoEn > d.actualizadoEn
-          if (localMasReciente) return
+    let primerDato = true
+    // Escucha en vivo (no una lectura única): si la misma empresa edita desde otra pestaña o
+    // dispositivo al mismo tiempo, ese cambio llega acá al instante, sin esperar a que se
+    // recargue esta página — así dos ediciones simultáneas no pueden pisarse entre sí sin que
+    // ninguna de las dos pantallas se entere.
+    const dejarDeEscuchar = suscribirseADatosUsuario(user.uid, (datos) => {
+      if (datos?.negocioData) {
+        const d = datos.negocioData
+        // Puede ser el eco de lo que este mismo dispositivo acaba de escribir, o una versión
+        // vieja porque el guardado en Firestore está debounceado — en cualquier caso, si ya
+        // tenemos algo igual de nuevo o más nuevo en pantalla, no lo pisamos.
+        const localMasReciente =
+          actualizadoEnRef.current != null && d.actualizadoEn != null && actualizadoEnRef.current > d.actualizadoEn
+        if (!localMasReciente) {
           setIngresos(d.ingresos)
           setMeses(d.meses)
           setMontos((prev) => ({ ...prev, ...d.montos }))
@@ -311,12 +321,13 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           setTasaCrecimiento(d.tasaCrecimiento ?? 0)
           setNombreNegocio(d.nombreNegocio ?? '')
         }
-      })
-      .catch(() => {
-        // Firestore puede no estar disponible todavía (proyecto recién creado, sin conexión, etc.)
-        // — seguimos con los datos locales sin romper nada.
-      })
-      .finally(() => setNubeLista(true))
+      }
+      if (primerDato) {
+        primerDato = false
+        setNubeLista(true)
+      }
+    })
+    return () => dejarDeEscuchar()
   }, [user])
 
   useEffect(() => {
