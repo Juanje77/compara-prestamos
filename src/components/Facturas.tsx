@@ -49,7 +49,7 @@ interface Props {
   onImportarVarias: (facturas: Omit<Factura, 'id'>[]) => void
   onCambiar: (
     id: string,
-    cambios: Partial<Pick<Factura, 'fechaEstimadaCobroPago' | 'cumplido' | 'medioPago'>> & { cuentaId?: string },
+    cambios: Partial<Pick<Factura, 'fechaEstimadaCobroPago' | 'cumplido' | 'medioPago' | 'sectorId'>> & { cuentaId?: string },
   ) => void
   onEliminar: (id: string) => void
   /** Solo con el plan Full y el circuito de ARCA habilitado — permite emitir el comprobante. */
@@ -795,15 +795,27 @@ export function Facturas({ facturas, pagos = [], cuentas, sectores = [], onAgreg
                           ({f.numero})
                         </span>
                       )}
-                      {f.sectorId && (
-                        <span
-                          className="ml-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                          style={{ background: 'color-mix(in srgb, var(--series-blue) 14%, transparent)', color: 'var(--series-blue)' }}
-                        >
-                          {sectores.find((s) => s.id === f.sectorId)?.nombre ?? '—'}
-                        </span>
-                      )}
                     </span>
+                    {sectores.length > 0 && (
+                      <select
+                        value={f.sectorId ?? ''}
+                        onChange={(e) => onCambiar(f.id, { sectorId: e.target.value || undefined })}
+                        title="Sector al que asignar este comprobante — funciona también para los importados desde ARCA"
+                        className="shrink-0 rounded border px-1.5 py-0.5 text-xs"
+                        style={{
+                          borderColor: 'var(--border)',
+                          background: 'var(--surface-1)',
+                          color: f.sectorId ? 'var(--series-blue)' : 'var(--text-muted)',
+                        }}
+                      >
+                        <option value="">Sin sector</option>
+                        {sectores.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.nombre}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                     <span className="tabular shrink-0 text-xs" style={{ color: 'var(--text-muted)' }}>
                       {new Date(`${f.fecha}T00:00:00`).toLocaleDateString('es-AR')}
                     </span>
