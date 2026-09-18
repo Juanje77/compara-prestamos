@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { BarChart3, Calculator, Cloud, FileDown, Lock } from 'lucide-react'
+import { BarChart3, Calculator, ChevronDown, Cloud, FileDown, Lock } from 'lucide-react'
 import { FlujoDeCaja } from '../components/FlujoDeCaja'
 import { GastosPorCategoria } from '../components/GastosPorCategoria'
 import { KpiCard } from '../components/KpiCard'
@@ -166,6 +166,24 @@ const SECCIONES_FULL = new Set(['facturacionElectronica', 'cuentasCorrientes', '
 
 type Seccion = (typeof SECCIONES)[number]['key']
 
+/** Las que se usan a diario quedan sueltas, siempre a un clic — incluye "Ingresos y gastos"
+ * porque es la pantalla principal del plan Básico, que todavía no tiene Comprobantes. El resto
+ * se agrupa por tema detrás de un desplegable, para no tener 19 solapas todas al mismo nivel —
+ * ver el <nav> más abajo. */
+const SECCIONES_SUELTAS: Seccion[] = ['dashboard', 'facturas', 'ingresosGastos']
+
+const GRUPOS: { key: string; label: string; secciones: Seccion[] }[] = [
+  {
+    key: 'ventas',
+    label: 'Ventas y compras',
+    secciones: ['facturacionElectronica', 'cobranzas', 'cuentasCorrientes', 'remitos', 'margenes', 'clientes', 'proveedores', 'presupuesto'],
+  },
+  { key: 'tesoreria', label: 'Tesorería y stock', secciones: ['tesoreria', 'cheques', 'stock'] },
+  { key: 'rrhh', label: 'RRHH', secciones: ['sueldos'] },
+  { key: 'impuestos', label: 'Impuestos', secciones: ['iva', 'iibb'] },
+  { key: 'negocio', label: 'Negocio', secciones: ['patrimonio', 'ayuda'] },
+]
+
 interface Props {
   esPremium: boolean
   /** Plan Full (arriba de Medio) — desbloquea Cuentas corrientes, Remitos/presupuestos y
@@ -175,7 +193,20 @@ interface Props {
 
 export function EmpresasPage({ esPremium, esFull = false }: Props) {
   const { user } = useAuth()
-  const [seccion, setSeccion] = useState<Seccion>('dashboard')
+  const [seccion, setSeccionRaw] = useState<Seccion>('dashboard')
+  // Qué grupo del menú está desplegado — null si ninguno. Cambiar de sección por cualquier vía
+  // (clic en el menú, o un atajo como "Ir a Tesorería" desde el Dashboard) abre el grupo que la
+  // contiene, para que el usuario no pierda de vista en qué grupo quedó parado.
+  const [grupoAbierto, setGrupoAbierto] = useState<string | null>(null)
+  function setSeccion(s: Seccion) {
+    setSeccionRaw(s)
+    setGrupoAbierto(GRUPOS.find((g) => (g.secciones as Seccion[]).includes(s))?.key ?? null)
+  }
+  function seccionBloqueada(key: Seccion): boolean {
+    return SECCIONES_FULL.has(key)
+      ? !esFull
+      : !esPremium && (['presupuesto', 'facturas', 'proveedores', 'clientes', 'iva', 'iibb', 'patrimonio'] as Seccion[]).includes(key)
+  }
   const [mostrarPlanes, setMostrarPlanes] = useState(false)
   const [ingresos, setIngresos] = useState(() => cargarNegocioData()?.ingresos ?? 7000000)
   const [meses, setMeses] = useState(() => cargarNegocioData()?.meses ?? 6)
@@ -1386,37 +1417,83 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
         )}
       </div>
 
-      <nav className="mb-6 flex flex-wrap gap-2" role="tablist">
-        {SECCIONES.map((s) => {
-          const bloqueada = SECCIONES_FULL.has(s.key)
-            ? !esFull
-            : !esPremium &&
-              (s.key === 'presupuesto' ||
-                s.key === 'facturas' ||
-                s.key === 'proveedores' ||
-                s.key === 'clientes' ||
-                s.key === 'iva' ||
-                s.key === 'iibb' ||
-                s.key === 'patrimonio')
-          return (
-            <button
-              key={s.key}
-              role="tab"
-              aria-selected={seccion === s.key}
-              onClick={() => setSeccion(s.key)}
-              className="inline-flex items-center gap-1 rounded-full border px-4 py-2 text-sm font-medium transition-colors"
-              style={
-                seccion === s.key
-                  ? { background: 'var(--series-blue)', borderColor: 'var(--series-blue)', color: 'white' }
-                  : { borderColor: 'var(--border)', color: 'var(--text-secondary)', background: 'var(--surface-1)' }
-              }
-            >
-              {s.label}
-              {bloqueada && <Lock size={12} aria-hidden="true" />}
-            </button>
-          )
-        })}
-      </nav>
+      <div className="mb-6 space-y-2">
+        <nav className="flex flex-wrap gap-2" role="tablist">
+          {SECCIONES_SUELTAS.map((key) => {
+            const s = SECCIONES.find((x) => x.key === key)!
+            return (
+              <button
+                key={key}
+                role="tab"
+                aria-selected={seccion === key}
+                onClick={() => setSeccion(key)}
+                className="inline-flex items-center gap-1 rounded-full border px-4 py-2 text-sm font-medium transition-colors"
+                style={
+                  seccion === key
+                    ? { background: 'var(--series-blue)', borderColor: 'var(--series-blue)', color: 'white' }
+                    : { borderColor: 'var(--border)', color: 'var(--text-secondary)', background: 'var(--surface-1)' }
+                }
+              >
+                {s.label}
+                {seccionBloqueada(key) && <Lock size={12} aria-hidden="true" />}
+              </button>
+            )
+          })}
+          {GRUPOS.map((g) => {
+            const activo = (g.secciones as Seccion[]).includes(seccion)
+            const abierto = grupoAbierto === g.key
+            return (
+              <button
+                key={g.key}
+                aria-expanded={abierto}
+                onClick={() => setGrupoAbierto(abierto ? null : g.key)}
+                className="inline-flex items-center gap-1.5 rounded-full border px-4 py-2 text-sm font-medium transition-colors"
+                style={
+                  activo
+                    ? { background: 'color-mix(in srgb, var(--series-blue) 16%, transparent)', borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }
+                    : { borderColor: 'var(--border)', color: 'var(--text-secondary)', background: 'var(--surface-1)' }
+                }
+              >
+                {g.label}
+                <ChevronDown
+                  size={14}
+                  aria-hidden="true"
+                  style={{ transform: abierto ? 'rotate(180deg)' : undefined, transition: 'transform 150ms' }}
+                />
+              </button>
+            )
+          })}
+        </nav>
+
+        {grupoAbierto && (
+          <nav
+            className="flex flex-wrap gap-2 rounded-xl border p-2"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
+            role="tablist"
+          >
+            {GRUPOS.find((g) => g.key === grupoAbierto)!.secciones.map((key) => {
+              const s = SECCIONES.find((x) => x.key === key)!
+              return (
+                <button
+                  key={key}
+                  role="tab"
+                  aria-selected={seccion === key}
+                  onClick={() => setSeccion(key)}
+                  className="inline-flex items-center gap-1 rounded-full border px-4 py-2 text-sm font-medium transition-colors"
+                  style={
+                    seccion === key
+                      ? { background: 'var(--series-blue)', borderColor: 'var(--series-blue)', color: 'white' }
+                      : { borderColor: 'var(--border)', color: 'var(--text-secondary)', background: 'var(--surface-1)' }
+                  }
+                >
+                  {s.label}
+                  {seccionBloqueada(key) && <Lock size={12} aria-hidden="true" />}
+                </button>
+              )
+            })}
+          </nav>
+        )}
+      </div>
 
       {seccion === 'ingresosGastos' && (
         <IngresosGastos
