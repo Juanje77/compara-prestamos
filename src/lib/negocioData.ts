@@ -53,6 +53,10 @@ export interface NegocioData {
   movimientosDiarios: MovimientoDiario[]
   tasaCrecimiento: number
   nombreNegocio: string
+  /** Instante (Date.now()) de este snapshot — para no dejar que una carga de la nube, más vieja
+   * porque el guardado en Firestore está debounceado, pise una edición local más reciente que
+   * todavía no llegó a viajar (ver el efecto de carga en EmpresasPage). */
+  actualizadoEn?: number
 }
 
 const STORAGE_KEY = 'compara-prestamos.negocio-empresa'

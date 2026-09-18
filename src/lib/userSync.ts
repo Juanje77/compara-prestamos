@@ -32,6 +32,8 @@ export interface NegocioDataUsuario {
   movimientosDiarios?: MovimientoDiario[]
   tasaCrecimiento?: number
   nombreNegocio?: string
+  /** Ver NegocioData.actualizadoEn en negocioData.ts — mismo propósito, del lado de la nube. */
+  actualizadoEn?: number
 }
 
 export interface DatosUsuario {

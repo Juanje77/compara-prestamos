@@ -240,6 +240,22 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   const [tasaCrecimiento, setTasaCrecimiento] = useState(() => cargarNegocioData()?.tasaCrecimiento ?? 0)
   const [nombreNegocio, setNombreNegocio] = useState(() => cargarNegocioData()?.nombreNegocio ?? '')
 
+  // Instante de este snapshot de datos — el mismo valor va tanto al guardado local (inmediato)
+  // como al de Firestore (debounceado 800ms). Sirve para que, al recargar la página, la carga
+  // desde la nube no pise con datos viejos una edición local que todavía no llegó a viajar (ver
+  // el efecto de carga más abajo).
+  const actualizadoEn = useMemo(
+    () => Date.now(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      ingresos, meses, montos, cuentas, deudas, bienes, realManualPorMes, ventasManualPorMes,
+      facturas, clasificaciones, clientesManual, cheques, pagos, remitos, sectores, empleados,
+      datosEmpleador, datosEmisorFiscal, liquidaciones, anticipos, productos, movimientosStock,
+      movimientosTesoreria, movimientosBancarios, ivaManualPorMes, ingresosBrutosManualPorMes,
+      movimientosDiarios, tasaCrecimiento, nombreNegocio,
+    ],
+  )
+
   // Sincronización con Firestore: solo empieza a escribir en la nube después de intentar
   // leer lo que el usuario ya tenía guardado, para no pisarlo con los valores por defecto.
   const [nubeLista, setNubeLista] = useState(false)
@@ -257,6 +273,14 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
       .then((datos) => {
         if (datos?.negocioData) {
           const d = datos.negocioData
+          // El guardado en Firestore está debounceado 800ms: si el usuario cargó algo y recargó
+          // la página antes de que ese guardado llegara a viajar, lo que hay en la nube es más
+          // viejo que lo que ya quedó en localStorage. En ese caso no lo pisamos acá — el efecto
+          // de guardado en la nube, más abajo, se va a encargar de subir la versión local.
+          const local = cargarNegocioData()
+          const localMasReciente =
+            local?.actualizadoEn != null && d.actualizadoEn != null && local.actualizadoEn > d.actualizadoEn
+          if (localMasReciente) return
           setIngresos(d.ingresos)
           setMeses(d.meses)
           setMontos((prev) => ({ ...prev, ...d.montos }))
@@ -326,6 +350,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
       movimientosDiarios,
       tasaCrecimiento,
       nombreNegocio,
+      actualizadoEn,
     })
   }, [
     ingresos,
@@ -393,6 +418,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           movimientosDiarios,
           tasaCrecimiento,
           nombreNegocio,
+          actualizadoEn,
         },
       }).catch(() => {
         // Idem: si falla el guardado en la nube, los datos siguen a salvo en localStorage.
