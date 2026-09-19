@@ -21,6 +21,7 @@ import { PosicionIngresosBrutos } from '../components/PosicionIngresosBrutos'
 import { IngresosGastos } from '../components/IngresosGastos'
 import { InputMoneda } from '../components/InputMoneda'
 import { Patrimonio } from '../components/Patrimonio'
+import { Backup } from '../components/Backup'
 import { Ayuda } from '../components/Ayuda'
 import { CuentasCorrientes } from '../components/CuentasCorrientes'
 import { RemitosPresupuestos } from '../components/RemitosPresupuestos'
@@ -115,7 +116,7 @@ import { Button } from '../components/Button'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
 import { exportarParaContador } from '../lib/contadorExport'
 import { abrirInformeFinanciero, abrirInformeSaludFinanciera } from '../lib/htmlReport'
-import { cargarNegocioData, guardarNegocioData } from '../lib/negocioData'
+import { cargarNegocioData, guardarNegocioData, type NegocioData } from '../lib/negocioData'
 import { guardarDatosUsuario, suscribirseADatosUsuario } from '../lib/userSync'
 import { numeroComprobanteFormateado } from '../lib/facturacionElectronica'
 import { useAuth } from '../lib/AuthContext'
@@ -153,6 +154,7 @@ const SECCIONES = [
   { key: 'iva', label: 'Posición de IVA' },
   { key: 'iibb', label: 'Ingresos Brutos' },
   { key: 'patrimonio', label: 'Patrimonio' },
+  { key: 'backup', label: 'Backup' },
   { key: 'ayuda', label: 'Ayuda' },
 ] as const
 
@@ -177,7 +179,7 @@ const GRUPOS: { key: string; label: string; secciones: Seccion[] }[] = [
   { key: 'tesoreria', label: 'Tesorería y stock', secciones: ['tesoreria', 'cheques', 'stock'] },
   { key: 'rrhh', label: 'RRHH', secciones: ['sueldos'] },
   { key: 'impuestos', label: 'Impuestos', secciones: ['iva', 'iibb'] },
-  { key: 'negocio', label: 'Negocio', secciones: ['patrimonio', 'ayuda'] },
+  { key: 'negocio', label: 'Negocio', secciones: ['patrimonio', 'backup', 'ayuda'] },
 ]
 
 interface Props {
@@ -279,6 +281,26 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     ],
   )
 
+  // El snapshot completo del negocio — se arma una sola vez acá y de acá salen tanto el guardado
+  // local como el de Firestore como la descarga de Backup, en vez de repetir la misma lista de 27
+  // campos tres veces.
+  const negocioDataActual: NegocioData = useMemo(
+    () => ({
+      ingresos, meses, montos, cuentas, deudas, bienes, realManualPorMes, ventasManualPorMes,
+      facturas, clasificaciones, clientesManual, cheques, pagos, remitos, sectores, empleados,
+      datosEmisorFiscal, anticipos, productos, movimientosStock,
+      movimientosTesoreria, movimientosBancarios, ivaManualPorMes, ingresosBrutosManualPorMes,
+      movimientosDiarios, tasaCrecimiento, nombreNegocio, actualizadoEn,
+    }),
+    [
+      ingresos, meses, montos, cuentas, deudas, bienes, realManualPorMes, ventasManualPorMes,
+      facturas, clasificaciones, clientesManual, cheques, pagos, remitos, sectores, empleados,
+      datosEmisorFiscal, anticipos, productos, movimientosStock,
+      movimientosTesoreria, movimientosBancarios, ivaManualPorMes, ingresosBrutosManualPorMes,
+      movimientosDiarios, tasaCrecimiento, nombreNegocio, actualizadoEn,
+    ],
+  )
+
   // Sincronización con Firestore: solo empieza a escribir en la nube después de intentar
   // leer lo que el usuario ya tenía guardado, para no pisarlo con los valores por defecto.
   const [nubeLista, setNubeLista] = useState(false)
@@ -352,98 +374,12 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   }, [user])
 
   useEffect(() => {
-    guardarNegocioData({
-      ingresos,
-      meses,
-      montos,
-      cuentas,
-      deudas,
-      bienes,
-      realManualPorMes,
-      ventasManualPorMes,
-      facturas,
-      clasificaciones,
-      clientesManual,
-      cheques,
-      pagos,
-      remitos,
-      sectores,
-      empleados,
-      datosEmisorFiscal,
-      anticipos,
-      productos,
-      movimientosStock,
-      movimientosTesoreria,
-      movimientosBancarios,
-      ivaManualPorMes,
-      ingresosBrutosManualPorMes,
-      movimientosDiarios,
-      tasaCrecimiento,
-      nombreNegocio,
-      actualizadoEn,
-    })
-  }, [
-    ingresos,
-    meses,
-    montos,
-    cuentas,
-    deudas,
-    bienes,
-    realManualPorMes,
-    ventasManualPorMes,
-    facturas,
-    clasificaciones,
-    clientesManual,
-    cheques,
-    pagos,
-    remitos,
-    sectores,
-    empleados,
-    datosEmisorFiscal,
-    anticipos,
-    productos,
-    movimientosStock,
-    movimientosTesoreria,
-    movimientosBancarios,
-    ivaManualPorMes,
-    ingresosBrutosManualPorMes,
-    movimientosDiarios,
-    tasaCrecimiento,
-    nombreNegocio,
-  ])
+    guardarNegocioData(negocioDataActual)
+  }, [negocioDataActual])
 
   useEffect(() => {
     if (!user || !nubeLista) return
-    const negocioData = {
-      ingresos,
-      meses,
-      montos,
-      cuentas,
-      deudas,
-      bienes,
-      realManualPorMes,
-      ventasManualPorMes,
-      facturas,
-      clasificaciones,
-      clientesManual,
-      cheques,
-      pagos,
-      remitos,
-      sectores,
-      empleados,
-      datosEmisorFiscal,
-      anticipos,
-      productos,
-      movimientosStock,
-      movimientosTesoreria,
-      movimientosBancarios,
-      ivaManualPorMes,
-      ingresosBrutosManualPorMes,
-      movimientosDiarios,
-      tasaCrecimiento,
-      nombreNegocio,
-      actualizadoEn,
-    }
+    const negocioData = negocioDataActual
 
     // Se manda una sola vez por snapshot: si el usuario cierra la pestaña o recarga antes de que
     // pasen los 800ms, el listener de "se está por ir" dispara el mismo envío ya, en vez de dejar
@@ -470,37 +406,40 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
       document.removeEventListener('visibilitychange', alEsconderse)
       window.removeEventListener('pagehide', enviarAhora)
     }
-  }, [
-    user,
-    nubeLista,
-    ingresos,
-    meses,
-    montos,
-    cuentas,
-    deudas,
-    bienes,
-    realManualPorMes,
-    ventasManualPorMes,
-    facturas,
-    clasificaciones,
-    clientesManual,
-    cheques,
-    pagos,
-    remitos,
-    sectores,
-    empleados,
-    datosEmisorFiscal,
-    anticipos,
-    productos,
-    movimientosStock,
-    movimientosTesoreria,
-    movimientosBancarios,
-    ivaManualPorMes,
-    ingresosBrutosManualPorMes,
-    movimientosDiarios,
-    tasaCrecimiento,
-    nombreNegocio,
-  ])
+  }, [user, nubeLista, negocioDataActual])
+
+  /** Pisa todo el negocio con lo que venga en un backup restaurado desde Backup — mismos defaults
+   * que la carga inicial y la del listener de Firestore, por si el archivo es de una versión
+   * vieja de FinCorp y le falta algún campo agregado después. */
+  function handleRestaurarBackup(d: Partial<NegocioData>) {
+    setIngresos(d.ingresos ?? 7000000)
+    setMeses(d.meses ?? 6)
+    setMontos({ ...Object.fromEntries(CATEGORIAS_CONFIG.map((c) => [c.key, c.default])), ...(d.montos ?? {}) })
+    setCuentas(d.cuentas ?? [])
+    setDeudas(d.deudas ?? [])
+    setBienes(d.bienes ?? [])
+    setRealManualPorMes(d.realManualPorMes ?? {})
+    setVentasManualPorMes(d.ventasManualPorMes ?? {})
+    setFacturas(d.facturas ?? [])
+    setClasificaciones(d.clasificaciones ?? {})
+    setClientesManual(d.clientesManual ?? [])
+    setCheques(d.cheques ?? [])
+    setPagos(d.pagos ?? [])
+    setRemitos(d.remitos ?? [])
+    setSectores(d.sectores ?? [])
+    setEmpleados(d.empleados ?? [])
+    setDatosEmisorFiscal(d.datosEmisorFiscal ?? DATOS_EMISOR_FISCAL_VACIOS)
+    setAnticipos(d.anticipos ?? [])
+    setProductos(d.productos ?? [])
+    setMovimientosStock(d.movimientosStock ?? [])
+    setMovimientosTesoreria(d.movimientosTesoreria ?? [])
+    setMovimientosBancarios(d.movimientosBancarios ?? [])
+    setIvaManualPorMes(d.ivaManualPorMes ?? {})
+    setIngresosBrutosManualPorMes(d.ingresosBrutosManualPorMes ?? {})
+    setMovimientosDiarios(d.movimientosDiarios ?? [])
+    setTasaCrecimiento(d.tasaCrecimiento ?? 0)
+    setNombreNegocio(d.nombreNegocio ?? '')
+  }
 
   function cambiarMonto(key: string, monto: number) {
     setMontos((prev) => ({ ...prev, [key]: monto }))
@@ -1782,6 +1721,8 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           <Patrimonio bienes={bienes} runwayExtendido={runwayExtendido} onAgregar={handleAgregarBien} onEliminar={handleEliminarBien} />
         </PremiumLock>
       )}
+
+      {seccion === 'backup' && <Backup datos={negocioDataActual} onRestaurar={handleRestaurarBackup} />}
 
       {seccion === 'ayuda' && <Ayuda esPremium={esPremium} esFull={esFull} />}
 

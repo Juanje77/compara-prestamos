@@ -267,6 +267,19 @@ const SECCIONES: SeccionAyuda[] = [
       'Con el plan Full, el mismo archivo trae además "Cuentas por Cobrar", "Cuentas por Pagar", "Cheques", "Resumen de cuentas" y "Movimientos Tesorería".',
     ],
   },
+  {
+    id: 'backup',
+    numero: '19',
+    titulo: 'Backup',
+    tier: 'basico',
+    descripcion: 'Una copia completa de todo lo que cargaste en FinCorp, para descargar cuando quieras.',
+    pasos: [
+      'Tocá `Descargar backup` para bajar un archivo `.json` con absolutamente todo lo cargado — comprobantes, cuentas, cheques, sueldos, stock, tesorería, todo.',
+      'Guardalo donde quieras: es tuyo, y no depende de que sigas usando FinCorp.',
+      'Para restaurar, tocá `Restaurar desde un backup` y elegí ese mismo archivo — reemplaza todos los datos actuales, así que primero te pide confirmar.',
+    ],
+    tip: 'Restaurar no combina: pisa todo lo que tenías cargado por lo que trae el archivo. Si hiciste cambios después de ese backup, se pierden.',
+  },
 ]
 
 const FLUJO = [
