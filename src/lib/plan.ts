@@ -14,9 +14,12 @@ export interface PlanUsuario {
   esPrueba: boolean
   /** Fecha ISO en la que termina la prueba gratis (solo tiene sentido si esPrueba es true). */
   pruebaFin: string | null
+  /** Fecha ISO desde la que el estado viene siendo "pausado" o "cancelado" sin interrupción — la
+   * base del período de gracia (ver enPeriodoDeGracia). null si está activo o nunca falló un cobro. */
+  pausadoDesde: string | null
 }
 
-const PLAN_VACIO: PlanUsuario = { plan: null, estado: null, esPrueba: false, pruebaFin: null }
+const PLAN_VACIO: PlanUsuario = { plan: null, estado: null, esPrueba: false, pruebaFin: null, pausadoDesde: null }
 
 /** true si la prueba gratis ya venció — a partir de ahí no alcanza con estado "activo". */
 export function pruebaVencida(plan: PlanUsuario): boolean {
@@ -28,6 +31,26 @@ export function diasRestantesPrueba(plan: PlanUsuario): number {
   if (!plan.esPrueba || !plan.pruebaFin) return 0
   const ms = new Date(plan.pruebaFin).getTime() - Date.now()
   return Math.max(0, Math.ceil(ms / (24 * 60 * 60 * 1000)))
+}
+
+/** Días de tolerancia tras un cobro fallido antes de cortar el acceso — no aplica a la prueba
+ * gratis, solo a una suscripción paga que Mercado Pago pausó o canceló. */
+export const DIAS_GRACIA_SUSCRIPCION = 5
+
+/** true si el pago falló (estado "pausado"/"cancelado") pero todavía está dentro de los
+ * DIAS_GRACIA_SUSCRIPCION desde que empezó a fallar — el acceso sigue funcionando igual. */
+export function enPeriodoDeGracia(plan: PlanUsuario): boolean {
+  if (plan.estado !== 'pausado' && plan.estado !== 'cancelado') return false
+  if (!plan.pausadoDesde) return false
+  const limite = new Date(plan.pausadoDesde).getTime() + DIAS_GRACIA_SUSCRIPCION * 24 * 60 * 60 * 1000
+  return Date.now() < limite
+}
+
+/** Días que quedan de gracia (0 si no aplica o ya se agotó). */
+export function diasRestantesGracia(plan: PlanUsuario): number {
+  if (!plan.pausadoDesde || !enPeriodoDeGracia(plan)) return 0
+  const limite = new Date(plan.pausadoDesde).getTime() + DIAS_GRACIA_SUSCRIPCION * 24 * 60 * 60 * 1000
+  return Math.max(0, Math.ceil((limite - Date.now()) / (24 * 60 * 60 * 1000)))
 }
 
 type FirestoreApi = {
@@ -70,6 +93,7 @@ function suscribirsePlanUsuario(uid: string, callback: (plan: PlanUsuario) => vo
             estado: data?.estado ?? null,
             esPrueba: data?.esPrueba ?? false,
             pruebaFin: data?.pruebaFin ?? null,
+            pausadoDesde: data?.pausadoDesde ?? null,
           })
         },
         () => callback(PLAN_VACIO),

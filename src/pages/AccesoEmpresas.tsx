@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { Calculator, Gift } from 'lucide-react'
+import { AlertTriangle, Calculator, Gift } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
-import { usePlanUsuario, pruebaVencida, diasRestantesPrueba } from '../lib/plan'
+import { usePlanUsuario, pruebaVencida, diasRestantesPrueba, enPeriodoDeGracia, diasRestantesGracia } from '../lib/plan'
 import { EmpresasPage } from './EmpresasPage'
 import { PlanesEmpresa } from '../components/PlanesEmpresa'
 
@@ -11,6 +11,7 @@ export function AccesoEmpresas() {
   const pruebaIniciada = useRef(false)
   const [pruebaFallo, setPruebaFallo] = useState<string | null>(null)
   const [confirmacionAgotada, setConfirmacionAgotada] = useState(false)
+  const [verPlanesManual, setVerPlanesManual] = useState(false)
 
   // Un usuario que nunca tuvo ningún plan registrado arranca automáticamente una prueba gratis
   // de 15 días con acceso Full completo — sin que tenga que elegir nada. Se activa en el
@@ -153,8 +154,25 @@ export function AccesoEmpresas() {
   }
 
   const vencida = pruebaVencida(plan)
-  if (plan.estado !== 'activo' || vencida) {
+  const enGracia = enPeriodoDeGracia(plan)
+  if ((plan.estado !== 'activo' && !enGracia) || vencida) {
     return <PlanesEmpresa motivoVencimiento={vencida ? 'prueba' : plan.estado ? 'suscripcion' : undefined} />
+  }
+
+  if (verPlanesManual) {
+    return (
+      <div>
+        <button
+          type="button"
+          onClick={() => setVerPlanesManual(false)}
+          className="mb-4 text-sm font-medium"
+          style={{ color: 'var(--series-blue)' }}
+        >
+          ‹ Volver
+        </button>
+        <PlanesEmpresa motivoVencimiento="suscripcion" />
+      </div>
+    )
   }
 
   return (
@@ -166,6 +184,26 @@ export function AccesoEmpresas() {
         >
           <Gift size={16} className="shrink-0" aria-hidden="true" /> Estás en tu prueba gratis de FinCorp Full — te quedan {diasRestantesPrueba(plan)}{' '}
           {diasRestantesPrueba(plan) === 1 ? 'día' : 'días'}.
+        </div>
+      )}
+      {enGracia && (
+        <div
+          className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3 text-sm"
+          style={{ borderColor: 'var(--status-critical)', background: 'var(--surface-1)', color: 'var(--status-critical)' }}
+        >
+          <span className="inline-flex items-center gap-2">
+            <AlertTriangle size={16} className="shrink-0" aria-hidden="true" />
+            No pudimos procesar el pago de tu suscripción. Te quedan {diasRestantesGracia(plan)}{' '}
+            {diasRestantesGracia(plan) === 1 ? 'día' : 'días'} de acceso antes de perderlo.
+          </span>
+          <button
+            type="button"
+            onClick={() => setVerPlanesManual(true)}
+            className="shrink-0 rounded-full px-4 py-1.5 text-xs font-semibold text-white"
+            style={{ background: 'var(--status-critical)' }}
+          >
+            Regularizar pago
+          </button>
         </div>
       )}
       <EmpresasPage

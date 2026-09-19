@@ -54,7 +54,16 @@ export default async function handler(req, res) {
             ? 'cancelado'
             : 'pendiente'
 
-    await ref.set({ estado, actualizadoEn: new Date().toISOString() }, { merge: true })
+    // Mismo criterio que el webhook (ver mercadopago-webhook.js): no reiniciar el conteo de
+    // gracia si ya venía pausado/cancelado desde antes.
+    const pausadoDesde =
+      estado === 'pausado' || estado === 'cancelado'
+        ? datos?.pausadoDesde && datos?.estado !== 'activo'
+          ? datos.pausadoDesde
+          : new Date().toISOString()
+        : null
+
+    await ref.set({ estado, pausadoDesde, actualizadoEn: new Date().toISOString() }, { merge: true })
 
     res.status(200).json({ plan: datos?.plan ?? null, estado })
   } catch {

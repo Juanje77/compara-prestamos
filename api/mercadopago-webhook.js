@@ -54,21 +54,29 @@ export default async function handler(req, res) {
             : 'pendiente'
 
     const db = obtenerFirestoreAdmin()
-    await db
-      .collection('users')
-      .doc(uid)
-      .collection('meta')
-      .doc('plan')
-      .set(
-        {
-          plan,
-          estado,
-          esPrueba: false,
-          mpPreapprovalId: preapprovalId,
-          actualizadoEn: new Date().toISOString(),
-        },
-        { merge: true },
-      )
+    const ref = db.collection('users').doc(uid).collection('meta').doc('plan')
+
+    // pausadoDesde marca desde cuándo empezó a fallar el cobro, para el período de gracia (ver
+    // enPeriodoDeGracia en src/lib/plan.ts). Si ya venía pausado/cancelado, no lo reiniciamos con
+    // cada notificación repetida de Mercado Pago para el mismo problema — si no, la gracia nunca
+    // se agotaría.
+    let pausadoDesde = null
+    if (estado === 'pausado' || estado === 'cancelado') {
+      const actual = (await ref.get()).data()
+      pausadoDesde = actual?.pausadoDesde && actual?.estado !== 'activo' ? actual.pausadoDesde : new Date().toISOString()
+    }
+
+    await ref.set(
+      {
+        plan,
+        estado,
+        esPrueba: false,
+        mpPreapprovalId: preapprovalId,
+        pausadoDesde,
+        actualizadoEn: new Date().toISOString(),
+      },
+      { merge: true },
+    )
 
     res.status(200).json({ recibido: true })
   } catch {

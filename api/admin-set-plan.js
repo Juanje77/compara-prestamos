@@ -43,6 +43,7 @@ export default async function handler(req, res) {
         estado: 'activo',
         esPrueba: false,
         pruebaFin: null,
+        pausadoDesde: null,
         actualizadoEn: new Date().toISOString(),
       },
       { merge: true },
