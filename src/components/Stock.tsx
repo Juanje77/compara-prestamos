@@ -24,6 +24,7 @@ interface Props {
   ) => void
   onEliminarMovimiento: (id: string) => void
   onEliminarProducto: (id: string) => void
+  onEliminarProductos: (ids: string[]) => void
 }
 
 const TIPO_MOVIMIENTO_LABEL: Record<TipoMovimientoStock, string> = {
@@ -144,12 +145,16 @@ function ImportarExcelButton({ onImportar }: { onImportar: (e: React.ChangeEvent
 function FilaProducto({
   producto,
   movimientos,
+  seleccionado,
+  onCambiarSeleccion,
   onRegistrarMovimiento,
   onEliminarMovimiento,
   onEliminarProducto,
 }: {
   producto: Producto
   movimientos: MovimientoStock[]
+  seleccionado: boolean
+  onCambiarSeleccion: (id: string, valor: boolean) => void
   onRegistrarMovimiento: Props['onRegistrarMovimiento']
   onEliminarMovimiento: Props['onEliminarMovimiento']
   onEliminarProducto: Props['onEliminarProducto']
@@ -184,6 +189,15 @@ function FilaProducto({
   return (
     <>
       <tr className="border-t" style={{ borderColor: 'var(--gridline)' }}>
+        <td className="py-2 pr-2">
+          <input
+            type="checkbox"
+            checked={seleccionado}
+            onChange={(e) => onCambiarSeleccion(producto.id, e.target.checked)}
+            className="h-3.5 w-3.5 accent-current"
+            aria-label={`Seleccionar ${producto.nombre}`}
+          />
+        </td>
         <td className="py-2 pr-4 text-xs" style={{ color: 'var(--text-muted)' }}>
           {producto.codigo ?? '—'}
         </td>
@@ -244,7 +258,7 @@ function FilaProducto({
       </tr>
       {expandido && !producto.esServicio && (
         <tr className="border-t" style={{ borderColor: 'var(--gridline)' }}>
-          <td colSpan={7} className="py-3">
+          <td colSpan={8} className="py-3">
             <div className="rounded-lg border p-3" style={{ borderColor: 'var(--gridline)', background: 'var(--surface-2)' }}>
               <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-2">
                 <select
@@ -354,9 +368,11 @@ export function Stock({
   onRegistrarMovimiento,
   onEliminarMovimiento,
   onEliminarProducto,
+  onEliminarProductos,
 }: Props) {
   const [busqueda, setBusqueda] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set())
 
   const valorInventario = calcularValorInventario(productos)
   const bajoMinimo = listarProductosBajoMinimo(productos)
@@ -364,6 +380,36 @@ export function Stock({
   const filtrados = texto
     ? productos.filter((p) => p.nombre.toLowerCase().includes(texto) || p.codigo?.toLowerCase().includes(texto))
     : productos
+  const todosFiltradosSeleccionados = filtrados.length > 0 && filtrados.every((p) => seleccionados.has(p.id))
+
+  function handleCambiarSeleccion(id: string, valor: boolean) {
+    setSeleccionados((prev) => {
+      const siguiente = new Set(prev)
+      if (valor) siguiente.add(id)
+      else siguiente.delete(id)
+      return siguiente
+    })
+  }
+
+  function handleSeleccionarTodos(valor: boolean) {
+    setSeleccionados((prev) => {
+      const siguiente = new Set(prev)
+      for (const p of filtrados) {
+        if (valor) siguiente.add(p.id)
+        else siguiente.delete(p.id)
+      }
+      return siguiente
+    })
+  }
+
+  function handleEliminarSeleccionados() {
+    if (seleccionados.size === 0) return
+    const conMovimientos = movimientos.some((m) => seleccionados.has(m.productoId))
+    const advertencia = conMovimientos ? ' Algunos tienen movimientos cargados: también se borra su historial.' : ''
+    if (!window.confirm(`¿Eliminar ${seleccionados.size} producto(s)/servicio(s)?${advertencia}`)) return
+    onEliminarProductos([...seleccionados])
+    setSeleccionados(new Set())
+  }
 
   async function handleImportar(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -451,16 +497,27 @@ export function Stock({
           </p>
         ) : (
           <>
-            {productos.length > 6 && (
-              <input
-                type="text"
-                placeholder="Buscar por nombre o código…"
-                value={busqueda}
-                onChange={(e) => setBusqueda(e.target.value)}
-                className="mb-3 w-full rounded-lg border px-3 py-1.5 text-sm"
-                style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
-              />
-            )}
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              {productos.length > 6 && (
+                <input
+                  type="text"
+                  placeholder="Buscar por nombre o código…"
+                  value={busqueda}
+                  onChange={(e) => setBusqueda(e.target.value)}
+                  className="min-w-[200px] flex-1 rounded-lg border px-3 py-1.5 text-sm"
+                  style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+                />
+              )}
+              {seleccionados.size > 0 && (
+                <button
+                  onClick={handleEliminarSeleccionados}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium"
+                  style={{ borderColor: 'var(--status-critical)', color: 'var(--status-critical)' }}
+                >
+                  <Trash2 size={14} aria-hidden="true" /> Eliminar seleccionados ({seleccionados.size})
+                </button>
+              )}
+            </div>
             {filtrados.length === 0 ? (
               <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
                 No hay coincidencias.
@@ -470,6 +527,15 @@ export function Stock({
                 <table className="w-full min-w-[700px] text-sm">
                   <thead>
                     <tr className="text-left text-xs" style={{ color: 'var(--text-muted)' }}>
+                      <th className="pb-2 pr-2">
+                        <input
+                          type="checkbox"
+                          checked={todosFiltradosSeleccionados}
+                          onChange={(e) => handleSeleccionarTodos(e.target.checked)}
+                          className="h-3.5 w-3.5 accent-current"
+                          aria-label="Seleccionar todos"
+                        />
+                      </th>
                       <th className="pb-2 pr-4 font-medium">Código</th>
                       <th className="pb-2 pr-4 font-medium">Producto</th>
                       <th className="pb-2 pr-4 text-right font-medium">Stock</th>
@@ -485,6 +551,8 @@ export function Stock({
                         key={p.id}
                         producto={p}
                         movimientos={movimientos}
+                        seleccionado={seleccionados.has(p.id)}
+                        onCambiarSeleccion={handleCambiarSeleccion}
                         onRegistrarMovimiento={onRegistrarMovimiento}
                         onEliminarMovimiento={onEliminarMovimiento}
                         onEliminarProducto={onEliminarProducto}

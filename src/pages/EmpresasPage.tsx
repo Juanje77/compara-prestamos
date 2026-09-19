@@ -1108,6 +1108,12 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     setMovimientosStock((prev) => prev.filter((m) => m.productoId !== id))
   }
 
+  function handleEliminarProductos(ids: string[]) {
+    const idsAEliminar = new Set(ids)
+    setProductos((prev) => prev.filter((p) => !idsAEliminar.has(p.id)))
+    setMovimientosStock((prev) => prev.filter((m) => !idsAEliminar.has(m.productoId)))
+  }
+
   function handleRegistrarMovimientoStock(
     productoId: string,
     tipo: TipoMovimientoStock,
@@ -1692,6 +1698,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
             onRegistrarMovimiento={handleRegistrarMovimientoStock}
             onEliminarMovimiento={handleEliminarMovimientoStock}
             onEliminarProducto={handleEliminarProducto}
+            onEliminarProductos={handleEliminarProductos}
           />
         </PremiumLock>
       )}
