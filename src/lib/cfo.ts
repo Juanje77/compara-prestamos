@@ -1275,56 +1275,19 @@ export function calcularTotalesCheques(cheques: Cheque[]): TotalesCheques {
 }
 
 // ---------------------------------------------------------------------------
-// Sueldos y cargas sociales (Full): nómina básica de empleados
+// Sueldos y cargas sociales (Full): costo de nómina como gasto del negocio
 // ---------------------------------------------------------------------------
 //
-// Terminología estándar de un recibo de sueldo argentino: al sueldo bruto se le descuentan los
-// aportes personales del empleado (jubilación + obra social + PAMI, ~17%) para llegar al neto de
-// bolsillo. La empresa paga ADEMÁS dos cosas distintas sobre ese mismo bruto, que NO son lo
-// mismo: las contribuciones patronales (~24%, Dto. 814/2001 — jubilación, PAMI y obra social a
-// cargo del empleador, van al sistema de seguridad social) y otras cargas sociales adicionales
-// (~3% de referencia — ART, seguro de vida obligatorio, cuota sindical patronal si el convenio la
-// exige — que no son "contribuciones" en sentido técnico pero sí un costo laboral más). El costo
-// real de cada empleado es el bruto más ambas.
+// Esto no liquida sueldos de verdad (no emite recibo ni lleva libro de sueldos) — solo estima
+// cuánto le cuesta cada empleado al negocio, para que ese costo alimente el Dashboard,
+// Presupuesto vs. Real y Márgenes por sector. Sobre el sueldo bruto la empresa paga además dos
+// cosas: las contribuciones patronales (~24%, Dto. 814/2001 — jubilación, PAMI y obra social a
+// cargo del empleador) y otras cargas sociales adicionales (~3% de referencia — ART, seguro de
+// vida obligatorio, cuota sindical patronal si el convenio la exige). El costo real de cada
+// empleado es el bruto más ambas.
 
 export const CONTRIBUCIONES_PATRONALES_PCT_DEFAULT = 24
 export const CARGAS_SOCIALES_ADICIONALES_PCT_DEFAULT = 3
-
-/** Sobre qué se calcula un descuento. La diferencia importa: jubilación y PAMI se calculan solo
- * sobre lo remunerativo, mientras que obra social y los aportes de convenio toman también las
- * sumas no remunerativas. */
-export type BaseDescuento = 'remunerativo' | 'total'
-
-export const BASE_DESCUENTO_LABEL: Record<BaseDescuento, string> = {
-  remunerativo: 'Remunerativo',
-  total: 'Remunerativo + no remunerativo',
-}
-
-/** Una línea de haberes del recibo: el básico va aparte, acá van antigüedad, presentismo, los
- * acuerdos no remunerativos, etc. */
-export interface ConceptoHaber {
-  id: string
-  descripcion: string
-  monto: number
-  /** Los no remunerativos no pagan jubilación ni PAMI ni generan contribuciones patronales. */
-  remunerativo: boolean
-}
-
-export interface DescuentoEmpleado {
-  id: string
-  descripcion: string
-  porcentaje: number
-  base: BaseDescuento
-}
-
-/** Los tres descuentos que lleva cualquier recibo en relación de dependencia. Los de convenio
- * (S.E.C., F.A.E.C. y S., cuota sindical, etc.) se agregan aparte porque cambian según la
- * actividad. */
-export const DESCUENTOS_DEFAULT: Omit<DescuentoEmpleado, 'id'>[] = [
-  { descripcion: 'Jubilación', porcentaje: 11, base: 'remunerativo' },
-  { descripcion: 'Ley 19.032 (PAMI)', porcentaje: 3, base: 'remunerativo' },
-  { descripcion: 'Obra social', porcentaje: 3, base: 'total' },
-]
 
 /** Parte del costo de un empleado que se imputa a un sector — un mismo empleado puede repartirse
  * entre varios (60% Metalúrgica, 40% Service). Lo que no se asigna no cae en ningún sector. */
@@ -1333,33 +1296,12 @@ export interface AsignacionSector {
   porcentaje: number
 }
 
-/** Datos fijos de la empresa que el recibo de sueldo tiene que llevar por el art. 140 de la LCT. */
-export interface DatosEmpleador {
-  cuit: string
-  domicilio: string
-  /** Localidad donde se abona — "lugar de pago" del recibo. */
-  lugarPago: string
-}
-
-export const DATOS_EMPLEADOR_VACIOS: DatosEmpleador = { cuit: '', domicilio: '', lugarPago: '' }
-
 export interface Empleado {
   id: string
   nombre: string
-  /** CUIL del trabajador (art. 140 inc. c LCT). */
-  cuil?: string
-  /** Fecha de ingreso, obligatoria en el recibo (art. 140 inc. c LCT). */
-  fechaIngreso?: string
-  legajo?: string
-  /** Sueldo básico de convenio — el resto de los haberes van en `conceptos`. */
+  /** Sueldo bruto mensual — lo que se carga como gasto "Sueldos". */
   sueldoBruto: number
-  /** Categoría/convenio, solo informativo (ej. "Administrativo A — CCT 130/75"). */
-  categoria?: string
-  /** Antigüedad, presentismo, acuerdos no remunerativos y demás líneas del recibo. */
-  conceptos?: ConceptoHaber[]
-  /** Descuentos al empleado. Si no está definido se usan los de DESCUENTOS_DEFAULT. */
-  descuentos?: DescuentoEmpleado[]
-  /** % que la empresa aporta al sistema de seguridad social (Dto. 814/2001), sobre lo remunerativo. */
+  /** % que la empresa aporta al sistema de seguridad social (Dto. 814/2001), sobre el bruto. */
   contribucionesPatronalesPct: number
   /** % del bruto de otras cargas sociales a cargo de la empresa que NO son contribución
    * previsional — ART, seguro de vida obligatorio, cuota sindical patronal, etc. */
@@ -1370,68 +1312,32 @@ export interface Empleado {
   asignaciones?: AsignacionSector[]
 }
 
-export interface DescuentoCalculado extends DescuentoEmpleado {
-  /** Sobre cuánto se aplicó el porcentaje — es la columna "Base" del recibo. */
-  montoBase: number
-  monto: number
-}
-
 export interface CostoEmpleado {
   empleado: Empleado
-  /** Básico + conceptos remunerativos: la base de jubilación y de las contribuciones. */
-  remunerativo: number
-  noRemunerativo: number
-  brutoTotal: number
-  descuentos: DescuentoCalculado[]
-  totalDescuentos: number
-  /** Lo que cobra de bolsillo: remunerativo + no remunerativo − descuentos. */
-  sueldoNeto: number
+  sueldoBruto: number
   contribucionesPatronales: number
   cargasSocialesAdicionales: number
-  /** Lo que le cuesta a la empresa: todos los haberes + contribuciones + otras cargas sociales. */
+  /** Lo que le cuesta a la empresa: sueldo bruto + contribuciones + otras cargas sociales. */
   costoEmpresa: number
 }
 
-/** Reproduce un recibo de sueldo: separa haberes remunerativos de no remunerativos, aplica cada
- * descuento sobre la base que le corresponde, y suma lo que la empresa paga por encima. */
+/** Costo de un empleado para la empresa: el bruto más las dos cargas que se pagan por encima. */
 export function calcularCostoEmpleado(e: Empleado): CostoEmpleado {
-  const conceptos = e.conceptos ?? []
-  const remunerativo = e.sueldoBruto + conceptos.filter((c) => c.remunerativo).reduce((s, c) => s + c.monto, 0)
-  const noRemunerativo = conceptos.filter((c) => !c.remunerativo).reduce((s, c) => s + c.monto, 0)
-  const brutoTotal = remunerativo + noRemunerativo
-
-  const definiciones = e.descuentos ?? DESCUENTOS_DEFAULT.map((d, i) => ({ ...d, id: `default-${i}` }))
-  const descuentos: DescuentoCalculado[] = definiciones.map((d) => {
-    const montoBase = d.base === 'remunerativo' ? remunerativo : brutoTotal
-    return { ...d, montoBase, monto: montoBase * (d.porcentaje / 100) }
-  })
-  const totalDescuentos = descuentos.reduce((s, d) => s + d.monto, 0)
-
-  // Las sumas no remunerativas existen justamente para no generar contribuciones patronales.
-  const contribucionesPatronales = remunerativo * (e.contribucionesPatronalesPct / 100)
+  const contribucionesPatronales = e.sueldoBruto * (e.contribucionesPatronalesPct / 100)
   const cargasSocialesAdicionales =
-    remunerativo * ((e.cargasSocialesAdicionalesPct ?? CARGAS_SOCIALES_ADICIONALES_PCT_DEFAULT) / 100)
-
+    e.sueldoBruto * ((e.cargasSocialesAdicionalesPct ?? CARGAS_SOCIALES_ADICIONALES_PCT_DEFAULT) / 100)
   return {
     empleado: e,
-    remunerativo,
-    noRemunerativo,
-    brutoTotal,
-    descuentos,
-    totalDescuentos,
-    sueldoNeto: brutoTotal - totalDescuentos,
+    sueldoBruto: e.sueldoBruto,
     contribucionesPatronales,
     cargasSocialesAdicionales,
-    costoEmpresa: brutoTotal + contribucionesPatronales + cargasSocialesAdicionales,
+    costoEmpresa: e.sueldoBruto + contribucionesPatronales + cargasSocialesAdicionales,
   }
 }
 
 export interface NominaTotal {
   cantidadActivos: number
-  totalRemunerativo: number
-  totalNoRemunerativo: number
   totalBruto: number
-  totalNeto: number
   totalContribucionesPatronales: number
   totalCargasSocialesAdicionales: number
   totalCostoEmpresa: number
@@ -1443,19 +1349,16 @@ export function calcularNominaTotal(empleados: Empleado[]): NominaTotal {
   const costos = empleados.filter((e) => e.activo).map(calcularCostoEmpleado)
   return {
     cantidadActivos: costos.length,
-    totalRemunerativo: costos.reduce((s, c) => s + c.remunerativo, 0),
-    totalNoRemunerativo: costos.reduce((s, c) => s + c.noRemunerativo, 0),
-    totalBruto: costos.reduce((s, c) => s + c.brutoTotal, 0),
-    totalNeto: costos.reduce((s, c) => s + c.sueldoNeto, 0),
+    totalBruto: costos.reduce((s, c) => s + c.sueldoBruto, 0),
     totalContribucionesPatronales: costos.reduce((s, c) => s + c.contribucionesPatronales, 0),
     totalCargasSocialesAdicionales: costos.reduce((s, c) => s + c.cargasSocialesAdicionales, 0),
     totalCostoEmpresa: costos.reduce((s, c) => s + c.costoEmpresa, 0),
   }
 }
 
-// Pagar la nómina son dos egresos distintos, en fechas distintas: primero los netos a cada
+// Pagar la nómina son dos egresos distintos, en fechas distintas: primero el sueldo a cada
 // empleado (hasta el 4° día hábil del mes siguiente) y después todo lo que va a AFIP/ART/sindicato
-// —aportes retenidos + contribuciones + ART y demás— con el F.931 (vence alrededor del día 15).
+// —contribuciones patronales y demás cargas— con el F.931 (vence alrededor del día 15).
 // Sumados dan exactamente el costo empresa, así que la caja nunca queda desbalanceada.
 // No hay una entidad "pago de sueldos" guardada aparte: el MovimientoTesoreria con origen
 // "sueldo" ES el registro, y su origenId dice de qué mes y concepto es.
@@ -1463,7 +1366,7 @@ export function calcularNominaTotal(empleados: Empleado[]): NominaTotal {
 export type ConceptoPagoSueldos = 'netos' | 'cargas' | 'aguinaldoNetos' | 'aguinaldoCargas'
 
 export const CONCEPTO_PAGO_SUELDOS_LABEL: Record<ConceptoPagoSueldos, string> = {
-  netos: 'Sueldos netos al personal',
+  netos: 'Sueldos al personal',
   cargas: 'Cargas sociales (F.931, ART y sindicato)',
   aguinaldoNetos: 'Aguinaldo (SAC) al personal',
   aguinaldoCargas: 'Cargas sociales del aguinaldo',
@@ -1491,7 +1394,7 @@ const PAGO_EN_MES_SIGUIENTE: Record<ConceptoPagoSueldos, boolean> = {
 // El sueldo anual complementario se paga en dos cuotas: la primera vence el 30 de junio y la
 // segunda el 18 de diciembre, y cada una es la mitad de la mejor remuneración del semestre. Como
 // acá solo se guarda la nómina vigente (no hay histórico de sueldos mes a mes), se calcula sobre
-// el sueldo bruto actual, que es la mejor aproximación disponible. El SAC también paga aportes y
+// el sueldo bruto actual, que es la mejor aproximación disponible. El SAC también paga
 // contribuciones, así que se trata igual que un medio sueldo extra.
 
 /** Meses en los que vence cada cuota del aguinaldo. */
@@ -1501,155 +1404,9 @@ export function mesTieneAguinaldo(mesISO: string): boolean {
   return MESES_AGUINALDO.includes(Number(mesISO.split('-')[1]))
 }
 
-// ---------------------------------------------------------------------------
-// Liquidaciones cerradas y libro de sueldos (art. 52 LCT)
-// ---------------------------------------------------------------------------
-//
-// Cerrar la liquidación de un mes congela lo liquidado: cada empleado queda con una copia de sus
-// haberes, descuentos y datos personales tal como estaban ese mes, y recibe su número de recibo.
-// Sin esto no habría libro posible — la nómina que se edita es siempre la vigente, así que un
-// libro armado sobre ella mostraría el sueldo de hoy en los meses de hace un año. La numeración
-// es correlativa por empresa y no se reasigna nunca, ni siquiera si se borra una liquidación.
-
-export type TipoLiquidacion = 'mensual' | 'aguinaldo'
-
-export const TIPO_LIQUIDACION_LABEL: Record<TipoLiquidacion, string> = {
-  mensual: 'Mensual',
-  aguinaldo: 'Aguinaldo (SAC)',
-}
-
-/** Copia congelada de lo que se le liquidó a un empleado en un mes. */
-export interface ReciboLiquidado {
-  empleadoId: string
-  numeroRecibo: number
-  nombre: string
-  cuil?: string
-  legajo?: string
-  categoria?: string
-  fechaIngreso?: string
-  sueldoBasico: number
-  conceptos: ConceptoHaber[]
-  remunerativo: number
-  noRemunerativo: number
-  descuentos: DescuentoCalculado[]
-  totalDescuentos: number
-  neto: number
-  contribucionesPatronales: number
-  cargasSocialesAdicionales: number
-  costoEmpresa: number
-}
-
-export interface Liquidacion {
-  id: string
-  /** Período liquidado, "YYYY-MM". */
-  mes: string
-  tipo: TipoLiquidacion
-  /** Cuándo se cerró — no es la fecha de pago, es cuándo se congelaron los números. */
-  fechaCierre: string
-  recibos: ReciboLiquidado[]
-}
-
-/** El próximo número libre: siempre por encima del mayor ya emitido, así borrar una liquidación
- * no hace que un número se reutilice en otro recibo. */
-export function proximoNumeroRecibo(liquidaciones: Liquidacion[]): number {
-  const emitidos = liquidaciones.flatMap((l) => l.recibos.map((r) => r.numeroRecibo))
-  return emitidos.length === 0 ? 1 : Math.max(...emitidos) + 1
-}
-
-export function buscarLiquidacion(liquidaciones: Liquidacion[], mes: string, tipo: TipoLiquidacion): Liquidacion | undefined {
-  return liquidaciones.find((l) => l.mes === mes && l.tipo === tipo)
-}
-
-/** Convierte a un empleado en su recibo del período, con el costo ya calculado. */
-function reciboDeEmpleadoLiquidado(empleado: Empleado, numeroRecibo: number): ReciboLiquidado {
-  const costo = calcularCostoEmpleado(empleado)
-  return {
-    empleadoId: empleado.id,
-    numeroRecibo,
-    nombre: empleado.nombre,
-    cuil: empleado.cuil,
-    legajo: empleado.legajo,
-    categoria: empleado.categoria,
-    fechaIngreso: empleado.fechaIngreso,
-    sueldoBasico: empleado.sueldoBruto,
-    conceptos: empleado.conceptos ?? [],
-    remunerativo: costo.remunerativo,
-    noRemunerativo: costo.noRemunerativo,
-    descuentos: costo.descuentos,
-    totalDescuentos: costo.totalDescuentos,
-    neto: costo.sueldoNeto,
-    contribucionesPatronales: costo.contribucionesPatronales,
-    cargasSocialesAdicionales: costo.cargasSocialesAdicionales,
-    costoEmpresa: costo.costoEmpresa,
-  }
-}
-
-/** Para el aguinaldo se liquida medio sueldo, igual que en calcularAguinaldo. */
-function mitadDeSueldo(e: Empleado): Empleado {
-  return {
-    ...e,
-    sueldoBruto: e.sueldoBruto / 2,
-    conceptos: (e.conceptos ?? []).filter((c) => c.remunerativo).map((c) => ({ ...c, monto: c.monto / 2 })),
-  }
-}
-
-/** Cierra la liquidación del período: congela a cada empleado activo y le asigna su número. */
-export function cerrarLiquidacion(
-  empleados: Empleado[],
-  mes: string,
-  tipo: TipoLiquidacion,
-  liquidacionesPrevias: Liquidacion[],
-  generarId: () => string,
-  hoy = new Date().toISOString().slice(0, 10),
-): Liquidacion {
-  let numero = proximoNumeroRecibo(liquidacionesPrevias)
-  const recibos = empleados
-    .filter((e) => e.activo)
-    .map((e) => reciboDeEmpleadoLiquidado(tipo === 'aguinaldo' ? mitadDeSueldo(e) : e, numero++))
-  return { id: generarId(), mes, tipo, fechaCierre: hoy, recibos }
-}
-
-export interface TotalesLiquidacion {
-  remunerativo: number
-  noRemunerativo: number
-  descuentos: number
-  neto: number
-  contribuciones: number
-  costoEmpresa: number
-}
-
-export function totalesDeLiquidacion(recibos: ReciboLiquidado[]): TotalesLiquidacion {
-  return {
-    remunerativo: recibos.reduce((s, r) => s + r.remunerativo, 0),
-    noRemunerativo: recibos.reduce((s, r) => s + r.noRemunerativo, 0),
-    descuentos: recibos.reduce((s, r) => s + r.totalDescuentos, 0),
-    neto: recibos.reduce((s, r) => s + r.neto, 0),
-    contribuciones: recibos.reduce((s, r) => s + r.contribucionesPatronales + r.cargasSocialesAdicionales, 0),
-    costoEmpresa: recibos.reduce((s, r) => s + r.costoEmpresa, 0),
-  }
-}
-
-/** Vista previa de un período todavía sin cerrar: mismos números, pero sin numeración asignada
- * (numeroRecibo 0 = borrador). */
-export function previsualizarLiquidacion(empleados: Empleado[], mes: string, tipo: TipoLiquidacion): Liquidacion {
-  const recibos = empleados
-    .filter((e) => e.activo)
-    .map((e) => reciboDeEmpleadoLiquidado(tipo === 'aguinaldo' ? mitadDeSueldo(e) : e, 0))
-  return { id: 'borrador', mes, tipo, fechaCierre: '', recibos }
-}
-
-/** El aguinaldo es la mitad de la remuneración de cada empleado, con sus mismos descuentos y
- * contribuciones. Las sumas no remunerativas no entran en el cálculo del SAC. */
+/** El aguinaldo es la mitad del sueldo bruto de cada empleado, con sus mismas contribuciones. */
 export function calcularAguinaldo(empleados: Empleado[]): NominaTotal {
-  return calcularNominaTotal(
-    empleados.map((e) => ({
-      ...e,
-      sueldoBruto: e.sueldoBruto / 2,
-      conceptos: (e.conceptos ?? [])
-        .filter((c) => c.remunerativo)
-        .map((c) => ({ ...c, monto: c.monto / 2 })),
-    })),
-  )
+  return calcularNominaTotal(empleados.map((e) => ({ ...e, sueldoBruto: e.sueldoBruto / 2 })))
 }
 
 /**
@@ -1694,12 +1451,12 @@ export function calcularPagosSueldos(
   if (nomina.cantidadActivos === 0) return []
   const [anio, mesNumero] = mes.split('-').map(Number)
   const montos: Partial<Record<ConceptoPagoSueldos, number>> = {
-    netos: nomina.totalNeto,
-    cargas: nomina.totalCostoEmpresa - nomina.totalNeto,
+    netos: nomina.totalBruto,
+    cargas: nomina.totalContribucionesPatronales + nomina.totalCargasSocialesAdicionales,
   }
   if (aguinaldo && aguinaldo.cantidadActivos > 0 && mesTieneAguinaldo(mes)) {
-    montos.aguinaldoNetos = aguinaldo.totalNeto
-    montos.aguinaldoCargas = aguinaldo.totalCostoEmpresa - aguinaldo.totalNeto
+    montos.aguinaldoNetos = aguinaldo.totalBruto
+    montos.aguinaldoCargas = aguinaldo.totalContribucionesPatronales + aguinaldo.totalCargasSocialesAdicionales
   }
 
   return (Object.keys(montos) as ConceptoPagoSueldos[]).map((concepto) => {

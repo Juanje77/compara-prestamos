@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   CARGAS_SOCIALES_ADICIONALES_PCT_DEFAULT,
-  CONTRIBUCIONES_PATRONALES_PCT_DEFAULT,
   MARGEN_DIAS_CONCILIACION,
   aplicarMovimientoStock,
   aplicarMovimientoTesoreria,
@@ -20,7 +19,6 @@ import {
   calcularRealAutomaticoPorMes,
   calcularResumenConciliacion,
   calcularRunwayMeses,
-  cerrarLiquidacion,
   distribuirEnCuotas,
   gastosAguinaldoProyectados,
   generarMovimientosDeFactura,
@@ -28,7 +26,6 @@ import {
   imputarPagoAFIFO,
   listarProductosBajoMinimo,
   montoConSigno,
-  proximoNumeroRecibo,
   proyectarFlujoCaja,
   revertirMovimientoTesoreria,
   type CuentaBancaria,
@@ -50,121 +47,61 @@ function factura(parcial: Partial<Factura> & Pick<Factura, 'id' | 'tipo' | 'mont
 }
 
 // ---------------------------------------------------------------------------
-// Sueldos — el caso de referencia es una liquidación real de Empleados de
-// Comercio (CCT 130/75), con sus sumas no remunerativas y las bases distintas
-// de cada descuento.
+// Sueldos — costo de nómina como gasto del negocio (sin recibo ni liquidación)
 // ---------------------------------------------------------------------------
 
-const EMPLEADO_COMERCIO: Empleado = {
+const EMPLEADO: Empleado = {
   id: 'e1',
-  nombre: 'Empleado Comercio',
-  sueldoBruto: 1196632.0,
-  conceptos: [
-    { id: 'c1', descripcion: 'Asistencia y Puntualidad', monto: 99719.33, remunerativo: true },
-    { id: 'c2', descripcion: 'Día Empleados de Comercio', monto: 51854.05, remunerativo: true },
-    { id: 'c3', descripcion: 'Acuerdo no remunerativo', monto: 120000, remunerativo: false },
-    { id: 'c4', descripcion: 'Asistencia no remunerativa', monto: 10000, remunerativo: false },
-  ],
-  descuentos: [
-    { id: 'd1', descripcion: 'Jubilación', porcentaje: 11, base: 'remunerativo' },
-    { id: 'd2', descripcion: 'Ley 19.032', porcentaje: 3, base: 'remunerativo' },
-    { id: 'd3', descripcion: 'Obra Social', porcentaje: 3, base: 'total' },
-    { id: 'd4', descripcion: 'S.E.C. Art. 100', porcentaje: 2, base: 'total' },
-    { id: 'd5', descripcion: 'F.A.E.C. y S.', porcentaje: 0.5, base: 'total' },
-  ],
+  nombre: 'Empleado de prueba',
+  sueldoBruto: 1000000,
   contribucionesPatronalesPct: 24,
   cargasSocialesAdicionalesPct: 3,
   activo: true,
 }
 
 describe('calcularCostoEmpleado', () => {
-  it('reproduce el recibo real de Empleados de Comercio', () => {
-    const costo = calcularCostoEmpleado(EMPLEADO_COMERCIO)
-    cerca(costo.remunerativo, 1348205.38)
-    cerca(costo.noRemunerativo, 130000)
-    cerca(costo.totalDescuentos, 270050.05)
-    cerca(costo.sueldoNeto, 1208155.33)
-  })
-
-  it('aplica jubilación y PAMI solo sobre lo remunerativo, y obra social sobre el total', () => {
-    const { descuentos } = calcularCostoEmpleado(EMPLEADO_COMERCIO)
-    const porNombre = (n: string) => descuentos.find((d) => d.descripcion.startsWith(n))!
-    cerca(porNombre('Jubilación').montoBase, 1348205.38)
-    cerca(porNombre('Jubilación').monto, 148302.59)
-    cerca(porNombre('Obra Social').montoBase, 1478205.38)
-    cerca(porNombre('Obra Social').monto, 44346.16)
-  })
-
-  it('no genera contribuciones patronales sobre las sumas no remunerativas', () => {
-    const costo = calcularCostoEmpleado(EMPLEADO_COMERCIO)
-    // 24% y 3% se calculan sobre 1.348.205,38, no sobre 1.478.205,38.
-    cerca(costo.contribucionesPatronales, 323569.29)
-    cerca(costo.cargasSocialesAdicionales, 40446.16)
-    cerca(costo.costoEmpresa, 1842220.83)
-  })
-
-  it('usa los descuentos por defecto cuando un empleado viejo no los tiene definidos', () => {
-    const { descuentos, sueldoNeto } = calcularCostoEmpleado({
-      id: 'x', nombre: 'Sin descuentos', sueldoBruto: 1000000,
-      contribucionesPatronalesPct: CONTRIBUCIONES_PATRONALES_PCT_DEFAULT,
-      cargasSocialesAdicionalesPct: CARGAS_SOCIALES_ADICIONALES_PCT_DEFAULT,
-      activo: true,
-    })
-    expect(descuentos).toHaveLength(3)
-    cerca(sueldoNeto, 830000) // 11 + 3 + 3 = 17%
-  })
-
-  it('los descuentos por defecto usan la base que corresponde a cada uno', () => {
-    // Con una suma no remunerativa las dos bases dejan de coincidir: jubilación y PAMI se calculan
-    // sobre 1.000.000 y obra social sobre 1.200.000.
-    const { descuentos } = calcularCostoEmpleado({
-      id: 'x', nombre: 'Con no remunerativo', sueldoBruto: 1000000,
-      conceptos: [{ id: 'c', descripcion: 'Acuerdo', monto: 200000, remunerativo: false }],
-      contribucionesPatronalesPct: 24, cargasSocialesAdicionalesPct: 3, activo: true,
-    })
-    const porNombre = (n: string) => descuentos.find((d) => d.descripcion.startsWith(n))!
-    cerca(porNombre('Jubilación').montoBase, 1000000)
-    cerca(porNombre('Ley 19.032').montoBase, 1000000)
-    cerca(porNombre('Obra social').montoBase, 1200000)
-    cerca(porNombre('Obra social').monto, 36000)
+  it('calcula contribuciones y cargas sobre el sueldo bruto', () => {
+    const costo = calcularCostoEmpleado(EMPLEADO)
+    expect(costo.sueldoBruto).toBe(1000000)
+    cerca(costo.contribucionesPatronales, 240000)
+    cerca(costo.cargasSocialesAdicionales, 30000)
+    cerca(costo.costoEmpresa, 1270000)
   })
 
   it('tolera un empleado guardado antes de que existieran las cargas adicionales', () => {
-    const viejo = { ...EMPLEADO_COMERCIO, cargasSocialesAdicionalesPct: undefined } as unknown as Empleado
-    cerca(calcularCostoEmpleado(viejo).cargasSocialesAdicionales, 1348205.38 * 0.03)
+    const viejo = { ...EMPLEADO, cargasSocialesAdicionalesPct: undefined } as unknown as Empleado
+    cerca(calcularCostoEmpleado(viejo).cargasSocialesAdicionales, 1000000 * (CARGAS_SOCIALES_ADICIONALES_PCT_DEFAULT / 100))
   })
 })
 
 describe('calcularNominaTotal', () => {
-  const activo = { ...EMPLEADO_COMERCIO, id: 'a' }
-  const deBaja = { ...EMPLEADO_COMERCIO, id: 'b', activo: false }
+  const activo = { ...EMPLEADO, id: 'a' }
+  const deBaja = { ...EMPLEADO, id: 'b', activo: false }
 
   it('suma solo a los empleados activos', () => {
     const nomina = calcularNominaTotal([activo, deBaja])
     expect(nomina.cantidadActivos).toBe(1)
-    cerca(nomina.totalNeto, 1208155.33)
+    cerca(nomina.totalBruto, 1000000)
   })
 
-  it('el neto más lo que va a AFIP da exactamente el costo empresa', () => {
+  it('el costo total es la suma de bruto, contribuciones y cargas', () => {
     const n = calcularNominaTotal([activo, { ...activo, id: 'c' }])
-    cerca(n.totalNeto + (n.totalCostoEmpresa - n.totalNeto), n.totalCostoEmpresa)
-    cerca(n.totalRemunerativo + n.totalNoRemunerativo, n.totalBruto)
+    cerca(n.totalBruto + n.totalContribucionesPatronales + n.totalCargasSocialesAdicionales, n.totalCostoEmpresa)
   })
 })
 
 describe('calcularAguinaldo', () => {
-  it('toma la mitad de la remuneración y deja afuera las sumas no remunerativas', () => {
-    const sac = calcularAguinaldo([EMPLEADO_COMERCIO])
-    cerca(sac.totalRemunerativo, 1348205.38 / 2)
-    expect(sac.totalNoRemunerativo).toBe(0)
+  it('toma la mitad del sueldo bruto', () => {
+    const sac = calcularAguinaldo([EMPLEADO])
+    cerca(sac.totalBruto, 500000)
   })
 })
 
 describe('calcularPagosSueldos', () => {
-  const nomina = calcularNominaTotal([EMPLEADO_COMERCIO])
-  const sac = calcularAguinaldo([EMPLEADO_COMERCIO])
+  const nomina = calcularNominaTotal([EMPLEADO])
+  const sac = calcularAguinaldo([EMPLEADO])
 
-  it('parte la nómina en netos y cargas, que juntos dan el costo empresa', () => {
+  it('parte la nómina en sueldos y cargas, que juntos dan el costo empresa', () => {
     const pagos = calcularPagosSueldos(nomina, '2026-09', [])
     expect(pagos.map((p) => p.concepto)).toEqual(['netos', 'cargas'])
     cerca(pagos[0].monto + pagos[1].monto, nomina.totalCostoEmpresa)
@@ -200,68 +137,6 @@ describe('calcularPagosSueldos', () => {
 
   it('sin empleados activos no hay nada que pagar', () => {
     expect(calcularPagosSueldos(calcularNominaTotal([]), '2026-09', [])).toEqual([])
-  })
-})
-
-describe('liquidaciones y numeración de recibos', () => {
-  const plantilla = [EMPLEADO_COMERCIO, { ...EMPLEADO_COMERCIO, id: 'e2', nombre: 'Otro' }]
-  let n = 0
-  const generarId = () => `id-${++n}`
-
-  it('numera correlativo desde 1 y copia el recibo completo de cada empleado', () => {
-    const liq = cerrarLiquidacion(plantilla, '2026-09', 'mensual', [], generarId)
-    expect(liq.recibos.map((r) => r.numeroRecibo)).toEqual([1, 2])
-    const [primero] = liq.recibos
-    cerca(primero.neto, 1208155.33)
-    // Lo que se congela es todo lo que después se imprime en el recibo, no solo el neto.
-    cerca(primero.sueldoBasico, 1196632)
-    expect(primero.conceptos.map((c) => c.descripcion)).toEqual(EMPLEADO_COMERCIO.conceptos!.map((c) => c.descripcion))
-    expect(primero.descuentos).toHaveLength(5)
-    cerca(primero.remunerativo, 1348205.38)
-    cerca(primero.costoEmpresa, 1842220.83)
-  })
-
-  it('el aguinaldo continúa la misma serie y liquida medio sueldo', () => {
-    const mensual = cerrarLiquidacion(plantilla, '2026-06', 'mensual', [], generarId)
-    const sac = cerrarLiquidacion(plantilla, '2026-06', 'aguinaldo', [mensual], generarId)
-    expect(sac.recibos.map((r) => r.numeroRecibo)).toEqual([3, 4])
-    cerca(sac.recibos[0].remunerativo, 1348205.38 / 2)
-  })
-
-  it('no reutiliza números al reabrir y volver a cerrar un período', () => {
-    const primera = cerrarLiquidacion(plantilla, '2026-09', 'mensual', [], generarId)
-    // "Reabrir" es borrar la liquidación; los números emitidos no vuelven al pool.
-    const trasReabrir = cerrarLiquidacion(plantilla, '2026-09', 'mensual', [primera], generarId)
-    expect(trasReabrir.recibos.map((r) => r.numeroRecibo)).toEqual([3, 4])
-  })
-
-  it('la serie sigue desde el mayor emitido aunque se borre una liquidación intermedia', () => {
-    const enero = cerrarLiquidacion(plantilla, '2026-01', 'mensual', [], generarId) // 1 y 2
-    const febrero = cerrarLiquidacion(plantilla, '2026-02', 'mensual', [enero], generarId) // 3 y 4
-    expect(febrero.recibos.map((r) => r.numeroRecibo)).toEqual([3, 4])
-    // Se reabre enero: quedan vivos solo los recibos 3 y 4, pero el próximo tiene que ser el 5.
-    const marzo = cerrarLiquidacion(plantilla, '2026-03', 'mensual', [febrero], generarId)
-    expect(marzo.recibos.map((r) => r.numeroRecibo)).toEqual([5, 6])
-    expect(proximoNumeroRecibo([febrero])).toBe(5)
-  })
-
-  it('una liquidación congelada no cambia si después se edita al empleado', () => {
-    const liq = cerrarLiquidacion([EMPLEADO_COMERCIO], '2026-09', 'mensual', [], generarId)
-    const netoAlCerrar = liq.recibos[0].neto
-    EMPLEADO_COMERCIO.sueldoBruto = 9999999
-    expect(liq.recibos[0].neto).toBe(netoAlCerrar)
-    EMPLEADO_COMERCIO.sueldoBruto = 1196632.0
-  })
-
-  it('deja afuera a los empleados de baja', () => {
-    const liq = cerrarLiquidacion([{ ...EMPLEADO_COMERCIO, activo: false }], '2026-09', 'mensual', [], generarId)
-    expect(liq.recibos).toEqual([])
-  })
-
-  it('proximoNumeroRecibo arranca en 1 y después sigue el mayor emitido', () => {
-    expect(proximoNumeroRecibo([])).toBe(1)
-    const liq = cerrarLiquidacion(plantilla, '2026-09', 'mensual', [], generarId)
-    expect(proximoNumeroRecibo([liq])).toBe(liq.recibos[1].numeroRecibo + 1)
   })
 })
 

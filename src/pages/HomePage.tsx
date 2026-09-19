@@ -74,7 +74,7 @@ const FEATURES_MEDIO: Feature[] = [
 
 const FEATURES_FULL: Feature[] = [
   { icon: Receipt, titulo: 'Facturación electrónica', texto: 'Emitís facturas A, B y C con CAE sin salir del sistema, y notas de crédito atadas a la factura que corrigen. Te guiamos paso a paso para habilitar tu CUIT ante ARCA.' },
-  { icon: HardHat, titulo: 'Sueldos y cargas sociales', texto: 'Recibos numerados con todo lo que exige el art. 140 de la LCT, libro de sueldos, aguinaldo, y cada descuento con la base sobre la que se calcula.' },
+  { icon: HardHat, titulo: 'Sueldos y cargas sociales', texto: 'Cargá cada empleado con su sueldo bruto y las cargas sociales a cargo de la empresa, con aguinaldo automático y el costo repartido por sector.' },
   { icon: BookOpen, titulo: 'Cuentas corrientes', texto: 'Saldo por cliente y proveedor, con pagos parciales que se van imputando solos a la factura más antigua.' },
   { icon: Ruler, titulo: 'Márgenes por sector', texto: 'Cuánto deja realmente cada división de tu negocio, con el costo de la mano de obra repartido por porcentaje entre las tareas de cada empleado.' },
   { icon: Package, titulo: 'Stock', texto: 'Catálogo de productos con costo y precio, movimientos de entrada y salida, y aviso cuando algo baja del mínimo.' },
@@ -419,11 +419,11 @@ export function HomePage() {
       </div>
 
       <div className="mb-24">
-        <DashboardCard src="/landing-sueldos.png" alt="Módulo de sueldos de FinCorp: nómina vigente, costo para la empresa, pago de netos y cargas sociales, y libro de sueldos" />
+        <DashboardCard src="/landing-sueldos.png" alt="Módulo de sueldos de FinCorp: nómina vigente, costo para la empresa, reparto por sector y pago de sueldos y cargas sociales" />
         <p className="mx-auto mt-4 max-w-2xl text-center text-sm" style={{ color: C.stone, lineHeight: 1.6 }}>
-          Cada empleado se arma como su recibo, separando remunerativos de no remunerativos. Cuando cerrás
-          el período, los recibos quedan numerados y el mes entra al libro. Y lo que pagás sale de la cuenta
-          que elijas, así que Tesorería queda al día sola.
+          Cargá cada empleado con su sueldo bruto y las cargas sociales a cargo de la empresa, repartí el
+          costo por sector si hace varias tareas, y lo que pagás sale de la cuenta que elijas — así
+          Tesorería queda al día sola.
         </p>
       </div>
 

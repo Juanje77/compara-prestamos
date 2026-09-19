@@ -47,9 +47,7 @@ import {
   calcularMargenOperativo,
   calcularMargenPorSector,
   DATOS_EMISOR_FISCAL_VACIOS,
-  DATOS_EMPLEADOR_VACIOS,
   calcularAguinaldo,
-  cerrarLiquidacion,
   calcularNominaTotal,
   calcularPagosSueldos,
   gastosAguinaldoProyectados,
@@ -94,9 +92,6 @@ import {
   type DatosEmisorFiscal,
   type DatosReceptor,
   type ResultadoEmision,
-  type DatosEmpleador,
-  type Liquidacion,
-  type TipoLiquidacion,
   type Deuda as DeudaTipo,
   type Empleado,
   type EstadoCheque,
@@ -242,13 +237,9 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   const [remitos, setRemitos] = useState<RemitoPresupuesto[]>(() => cargarNegocioData()?.remitos ?? [])
   const [sectores, setSectores] = useState<Sector[]>(() => cargarNegocioData()?.sectores ?? [])
   const [empleados, setEmpleados] = useState<Empleado[]>(() => cargarNegocioData()?.empleados ?? [])
-  const [datosEmpleador, setDatosEmpleador] = useState<DatosEmpleador>(
-    () => cargarNegocioData()?.datosEmpleador ?? DATOS_EMPLEADOR_VACIOS,
-  )
   const [datosEmisorFiscal, setDatosEmisorFiscal] = useState<DatosEmisorFiscal>(
     () => cargarNegocioData()?.datosEmisorFiscal ?? DATOS_EMISOR_FISCAL_VACIOS,
   )
-  const [liquidaciones, setLiquidaciones] = useState<Liquidacion[]>(() => cargarNegocioData()?.liquidaciones ?? [])
   const [anticipos, setAnticipos] = useState<Anticipo[]>(() => cargarNegocioData()?.anticipos ?? [])
   const [productos, setProductos] = useState<Producto[]>(() => cargarNegocioData()?.productos ?? [])
   const [movimientosStock, setMovimientosStock] = useState<MovimientoStock[]>(
@@ -282,7 +273,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     [
       ingresos, meses, montos, cuentas, deudas, bienes, realManualPorMes, ventasManualPorMes,
       facturas, clasificaciones, clientesManual, cheques, pagos, remitos, sectores, empleados,
-      datosEmpleador, datosEmisorFiscal, liquidaciones, anticipos, productos, movimientosStock,
+      datosEmisorFiscal, anticipos, productos, movimientosStock,
       movimientosTesoreria, movimientosBancarios, ivaManualPorMes, ingresosBrutosManualPorMes,
       movimientosDiarios, tasaCrecimiento, nombreNegocio,
     ],
@@ -339,9 +330,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           setRemitos(d.remitos ?? [])
           setSectores(d.sectores ?? [])
           setEmpleados(d.empleados ?? [])
-          setDatosEmpleador(d.datosEmpleador ?? DATOS_EMPLEADOR_VACIOS)
           setDatosEmisorFiscal(d.datosEmisorFiscal ?? DATOS_EMISOR_FISCAL_VACIOS)
-          setLiquidaciones(d.liquidaciones ?? [])
           setAnticipos(d.anticipos ?? [])
           setProductos(d.productos ?? [])
           setMovimientosStock(d.movimientosStock ?? [])
@@ -380,9 +369,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
       remitos,
       sectores,
       empleados,
-      datosEmpleador,
       datosEmisorFiscal,
-      liquidaciones,
       anticipos,
       productos,
       movimientosStock,
@@ -412,9 +399,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     remitos,
     sectores,
     empleados,
-    datosEmpleador,
     datosEmisorFiscal,
-    liquidaciones,
     anticipos,
     productos,
     movimientosStock,
@@ -446,9 +431,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
       remitos,
       sectores,
       empleados,
-      datosEmpleador,
       datosEmisorFiscal,
-      liquidaciones,
       anticipos,
       productos,
       movimientosStock,
@@ -506,9 +489,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     remitos,
     sectores,
     empleados,
-    datosEmpleador,
     datosEmisorFiscal,
-    liquidaciones,
     anticipos,
     productos,
     movimientosStock,
@@ -1020,15 +1001,6 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     setFacturas((prev) =>
       prev.map((f) => (f.id === id ? { ...f, receptor, emision, ...(numero ? { numero } : {}) } : f)),
     )
-  }
-
-  function handleCerrarLiquidacion(mes: string, tipo: TipoLiquidacion) {
-    setLiquidaciones((prev) => [...prev, cerrarLiquidacion(empleados, mes, tipo, prev, generarId)])
-  }
-
-  /** Reabrir no devuelve los números al pool: la numeración sigue desde el mayor emitido. */
-  function handleReabrirLiquidacion(id: string) {
-    setLiquidaciones((prev) => prev.filter((l) => l.id !== id))
   }
 
   function handlePagarSueldos(concepto: ConceptoPagoSueldos, mes: string, monto: number, cuentaId: string, fecha: string) {
@@ -1661,12 +1633,6 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           onQuieroPremium={abrirPlanes}
         >
           <Sueldos
-            nombreNegocio={nombreNegocio}
-            datosEmpleador={datosEmpleador}
-            liquidaciones={liquidaciones}
-            onCerrarLiquidacion={handleCerrarLiquidacion}
-            onReabrirLiquidacion={handleReabrirLiquidacion}
-            onCambiarDatosEmpleador={setDatosEmpleador}
             empleados={empleados}
             nomina={nominaTotal}
             aguinaldo={aguinaldo}
