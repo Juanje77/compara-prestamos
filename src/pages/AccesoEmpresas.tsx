@@ -35,11 +35,15 @@ export function AccesoEmpresas() {
     if (!habilitado || !user?.uid || cargandoPlan || !puedeIntentarPrueba) return
     if (pruebaIniciada.current) return
     pruebaIniciada.current = true
-    fetch('/api/iniciar-prueba', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uid: user.uid }),
-    })
+    // El servidor saca el uid del token, no del cuerpo — ver api/iniciar-prueba.js.
+    user
+      .getIdToken()
+      .then((idToken) =>
+        fetch('/api/iniciar-prueba', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${idToken}` },
+        }),
+      )
       .then(async (r) => {
         // `fetch` no rechaza ante un 500: sólo ante un error de red. Sin este chequeo, un endpoint
         // caído dejaba al usuario mirando "Activando tu prueba…" para siempre y en silencio.
@@ -64,7 +68,7 @@ export function AccesoEmpresas() {
         pruebaIniciada.current = false
         setPruebaFallo(e.message || 'sin respuesta')
       })
-  }, [habilitado, user?.uid, cargandoPlan, puedeIntentarPrueba, reintentoNonce])
+  }, [habilitado, user, cargandoPlan, puedeIntentarPrueba, reintentoNonce])
 
   // Red de seguridad: si después de unos segundos el plan sigue sin aparecer, algo salió mal aunque
   // el pedido no haya dado error. Mejor mostrar una salida que dejar a alguien mirando un cartel
@@ -89,7 +93,8 @@ export function AccesoEmpresas() {
       if (cancelado) return
       intentos += 1
       try {
-        await fetch(`/api/verificar-suscripcion?uid=${encodeURIComponent(user.uid)}`)
+        const idToken = await user.getIdToken()
+        await fetch('/api/verificar-suscripcion', { headers: { Authorization: `Bearer ${idToken}` } })
       } catch {
         // se reintenta en el próximo tick
       }
@@ -108,7 +113,7 @@ export function AccesoEmpresas() {
       cancelado = true
       clearTimeout(primerIntento)
     }
-  }, [user?.uid, plan.estado])
+  }, [user, plan.estado])
 
   if (!habilitado) {
     // Sin Firebase configurado (entorno de desarrollo, por ejemplo): dejamos pasar sin bloqueo,

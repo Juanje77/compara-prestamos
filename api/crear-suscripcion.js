@@ -1,6 +1,7 @@
 // Crea una suscripción recurrente en Mercado Pago (Preapproval) para un plan pago de FinCorp.
 // El Access Token vive solo acá (variable de entorno del servidor) — nunca llega al navegador.
 import { obtenerFirestoreAdmin } from './_firebaseAdmin.js'
+import { sesionAutenticada } from './_auth.js'
 
 const PLANES = {
   basico: { reason: 'FinCorp para empresas - Plan Básico', monto: 20000 },
@@ -22,16 +23,22 @@ export default async function handler(req, res) {
     return
   }
 
-  const { uid, email, plan } = req.body || {}
+  // Usuario y email salen del ID token verificado, nunca del cuerpo: este endpoint escribe en el
+  // documento de plan del uid que reciba, así que creerle al navegador dejaba que cualquiera le
+  // metiera un "pendiente" en el plan a una cuenta ajena.
+  const sesion = await sesionAutenticada(req)
+  if (!sesion) {
+    res.status(401).json({ error: 'Sesión no válida.' })
+    return
+  }
+  const { uid, email } = sesion
 
-  if (!uid || typeof uid !== 'string') {
-    res.status(400).json({ error: 'Falta el usuario.' })
+  if (!email) {
+    res.status(400).json({ error: 'Tu cuenta no tiene un email asociado para el pago.' })
     return
   }
-  if (!email || typeof email !== 'string') {
-    res.status(400).json({ error: 'Falta el email del usuario.' })
-    return
-  }
+
+  const { plan } = req.body || {}
   const planConfig = PLANES[plan]
   if (!planConfig) {
     res.status(400).json({ error: 'Plan inválido.' })

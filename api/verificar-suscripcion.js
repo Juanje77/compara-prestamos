@@ -2,6 +2,7 @@
 // nosotros mismos el estado real de la preapproval en vez de esperar (a veces en modo de
 // prueba el webhook nunca llega) y actualizamos Firestore igual que haría el webhook.
 import { obtenerFirestoreAdmin } from './_firebaseAdmin.js'
+import { uidAutenticado } from './_auth.js'
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store')
@@ -17,9 +18,11 @@ export default async function handler(req, res) {
     return
   }
 
-  const uid = req.query?.uid
-  if (!uid || typeof uid !== 'string') {
-    res.status(400).json({ error: 'Falta el usuario.' })
+  // El uid sale del ID token verificado, no de la query: si no, cualquiera podría consultar —y
+  // hacer reescribir— el estado del plan de una cuenta ajena.
+  const uid = await uidAutenticado(req)
+  if (!uid) {
+    res.status(401).json({ error: 'Sesión no válida.' })
     return
   }
 

@@ -165,6 +165,22 @@ function PanelEmisor({ datos, onCambiar }: Props) {
         <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
           Ya podés emitir desde Comprobantes, una vez completado el circuito de ARCA.
         </span>
+        {/* Si al emitir te pide volver a registrarlo, es porque tu CUIT quedó guardado con el
+            método viejo y hay que re-registrarlo una vez — ver emisorDe en api/_auth.js. */}
+        <button
+          type="button"
+          onClick={handleAlta}
+          disabled={!listo || dando}
+          className="ml-auto shrink-0 text-xs font-medium underline"
+          style={{ color: 'var(--text-secondary)' }}
+        >
+          {dando ? 'Registrando…' : 'Volver a registrar'}
+        </button>
+        {error && (
+          <p className="w-full text-xs" style={{ color: 'var(--status-critical)' }}>
+            {error}
+          </p>
+        )}
       </div>
     )
   }

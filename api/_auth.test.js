@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { emisorIdDe, planHabilitaEmitir, refPlan } from './_auth.js'
+import { emisorDe, planHabilitaEmitir, refFiscal, refPlan } from './_auth.js'
 
 const AHORA = new Date('2026-09-17T12:00:00Z')
 
@@ -54,30 +54,49 @@ describe('refPlan', () => {
   it('el plan sigue donde ya lo leen las otras funciones', () => {
     expect(refPlan(db, 'u1')).toBe('users/u1/meta/plan')
   })
+
+  it('el emisor vive en meta, que solo escribe el servidor', () => {
+    expect(refFiscal(db, 'u1')).toBe('users/u1/meta/fiscal')
+  })
 })
 
-describe('emisorIdDe', () => {
-  const dbCon = (datos) => ({
-    collection: () => ({ doc: () => ({ get: async () => ({ data: () => datos }) }) }),
+describe('emisorDe', () => {
+  /** `fiscal` es lo que hay en meta/fiscal (lo escribe el servidor) y `usuario` el documento del
+   * negocio (lo escribe el navegador). */
+  const dbCon = (fiscal, usuario) => ({
+    collection: () => ({
+      doc: () => ({
+        get: async () => ({ data: () => usuario }),
+        collection: () => ({ doc: () => ({ get: async () => ({ data: () => fiscal }) }) }),
+      }),
+    }),
   })
 
-  it('devuelve el emisor guardado del usuario', async () => {
-    const db = dbCon({ negocioData: { datosEmisorFiscal: { emisorId: 123 } } })
-    expect(await emisorIdDe(db, 'u1')).toBe(123)
+  it('devuelve el emisor que registró el servidor', async () => {
+    expect(await emisorDe(dbCon({ emisorId: 123 }, undefined), 'u1')).toEqual({ emisorId: 123, legado: false })
   })
 
-  it('devuelve null cuando el usuario todavía no registró su CUIT', async () => {
-    expect(await emisorIdDe(dbCon(undefined), 'u1')).toBeNull()
-    expect(await emisorIdDe(dbCon({}), 'u1')).toBeNull()
-    expect(await emisorIdDe(dbCon({ negocioData: {} }), 'u1')).toBeNull()
-    expect(await emisorIdDe(dbCon({ negocioData: { datosEmisorFiscal: {} } }), 'u1')).toBeNull()
+  it('ignora lo que el usuario se haya escrito en su propio documento', async () => {
+    // Éste es el punto del cambio: negocioData lo escribe el navegador, así que un emisor puesto
+    // ahí no puede valer — si valiera, cualquiera factura con el CUIT de otro poniendo su número.
+    const db = dbCon(undefined, { negocioData: { datosEmisorFiscal: { emisorId: 999 } } })
+    expect((await emisorDe(db, 'u1')).emisorId).toBeNull()
+  })
+
+  it('marca como legado a quien lo tenía guardado del lado del navegador', async () => {
+    const db = dbCon(undefined, { negocioData: { datosEmisorFiscal: { emisorId: 999 } } })
+    expect((await emisorDe(db, 'u1')).legado).toBe(true)
+  })
+
+  it('no es legado quien nunca registró nada', async () => {
+    for (const usuario of [undefined, {}, { negocioData: {} }, { negocioData: { datosEmisorFiscal: {} } }]) {
+      expect(await emisorDe(dbCon(undefined, usuario), 'u1')).toEqual({ emisorId: null, legado: false })
+    }
   })
 
   it('rechaza un emisorId que no sea un entero positivo', async () => {
-    // Si alguien escribiera basura en su propio documento, no se convierte en un emisor ajeno.
     for (const basura of ['7', 0, -3, 1.5, true, null, {}]) {
-      const db = dbCon({ negocioData: { datosEmisorFiscal: { emisorId: basura } } })
-      expect(await emisorIdDe(db, 'u1')).toBeNull()
+      expect((await emisorDe(dbCon({ emisorId: basura }, undefined), 'u1')).emisorId).toBeNull()
     }
   })
 })

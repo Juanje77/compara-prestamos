@@ -96,10 +96,12 @@ export function PlanesEmpresa({ motivoVencimiento }: Props) {
     setError(null)
     setCargando(plan)
     try {
+      // El uid y el email salen del token del lado del servidor — ver api/crear-suscripcion.js.
+      const idToken = await user.getIdToken()
       const resp = await fetch('/api/crear-suscripcion', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uid: user.uid, email: user.email, plan }),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ plan }),
       })
       const data = await resp.json()
       if (!resp.ok || !data.initPoint) throw new Error(data.error || 'No se pudo iniciar la suscripción.')

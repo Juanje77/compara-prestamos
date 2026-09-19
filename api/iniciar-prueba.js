@@ -3,6 +3,7 @@
 // Pago, esto corre con permisos de administrador para que el usuario no pueda reiniciarse la
 // prueba a sí mismo escribiendo directamente en Firestore.
 import { obtenerFirestoreAdmin } from './_firebaseAdmin.js'
+import { uidAutenticado } from './_auth.js'
 import { datosDePrueba, puedeOtorgarsePrueba } from './_prueba.js'
 
 const DURACION_PRUEBA_DIAS = 15
@@ -15,9 +16,12 @@ export default async function handler(req, res) {
     return
   }
 
-  const { uid } = req.body || {}
-  if (!uid || typeof uid !== 'string') {
-    res.status(400).json({ error: 'Falta el usuario.' })
+  // El uid sale del ID token verificado y nunca del cuerpo: cuando venía en el cuerpo, cualquiera
+  // podía dispararle la prueba a una cuenta ajena y quemársela, porque la marca de "ya la usó" es
+  // para siempre.
+  const uid = await uidAutenticado(req)
+  if (!uid) {
+    res.status(401).json({ error: 'Sesión no válida.' })
     return
   }
 

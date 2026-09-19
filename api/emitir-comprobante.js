@@ -7,7 +7,7 @@
 // El `emisor_id` se resuelve acá y pisa cualquier valor que viniera del navegador: si el cliente
 // pudiera elegirlo, estaría facturando con el CUIT de otro contribuyente de la misma cuenta.
 import { obtenerFirestoreAdmin } from './_firebaseAdmin.js'
-import { emisorIdDe, planHabilitaEmitir, refPlan, uidAutenticado } from './_auth.js'
+import { emisorDe, planHabilitaEmitir, refPlan, uidAutenticado } from './_auth.js'
 import { llamarApiFiscal } from './_sistemas360.js'
 
 export default async function handler(req, res) {
@@ -39,24 +39,33 @@ export default async function handler(req, res) {
   }
 
   let db
-  let emisorId
+  let emisor
   try {
     db = obtenerFirestoreAdmin()
-    const [planSnap, id] = await Promise.all([refPlan(db, uid).get(), emisorIdDe(db, uid)])
+    const [planSnap, encontrado] = await Promise.all([refPlan(db, uid).get(), emisorDe(db, uid)])
 
     if (!planHabilitaEmitir(planSnap.data())) {
       res.status(403).json({ error: 'La facturación electrónica es parte del plan Full.' })
       return
     }
-    emisorId = id
+    emisor = encontrado
   } catch {
     res.status(500).json({ error: 'No se pudo leer la configuración fiscal.' })
     return
   }
 
+  // Emisor registrado cuando todavía se guardaba del lado del navegador: no es confiable. Antes
+  // que emitir con el emisor por defecto de la cuenta —o sea, con el CUIT de otro— se corta acá.
+  if (emisor.legado) {
+    res.status(409).json({
+      error: 'Volvé a registrar tu CUIT en Facturación electrónica antes de emitir. Es por única vez, por un cambio de seguridad.',
+    })
+    return
+  }
+
   const payload = { ...recibido }
   delete payload.emisor_id
-  if (emisorId) payload.emisor_id = emisorId
+  if (emisor.emisorId) payload.emisor_id = emisor.emisorId
 
   let respuesta
   try {

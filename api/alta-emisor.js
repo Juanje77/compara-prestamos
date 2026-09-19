@@ -28,8 +28,9 @@ export default async function handler(req, res) {
     return
   }
 
+  let db
   try {
-    const db = obtenerFirestoreAdmin()
+    db = obtenerFirestoreAdmin()
     const planSnap = await refPlan(db, uid).get()
 
     if (!planHabilitaEmitir(planSnap.data())) {
@@ -57,5 +58,22 @@ export default async function handler(req, res) {
     return
   }
 
-  res.status(200).json({ emisor: cuerpo?.data ?? null })
+  const emisor = cuerpo?.data ?? null
+
+  // El emisor se guarda acá, del lado del servidor, y no lo guarda el navegador: es el dato que
+  // después decide con qué CUIT sale cada factura, así que tiene que quedar donde el usuario no
+  // pueda tocarlo (meta/fiscal es de escritura exclusiva del servidor) — ver emisorDe.
+  if (Number.isInteger(emisor?.emisor_id) && emisor.emisor_id > 0) {
+    try {
+      await refFiscal(db, uid).set(
+        { emisorId: emisor.emisor_id, cuit, actualizadoEn: new Date().toISOString() },
+        { merge: true },
+      )
+    } catch {
+      res.status(500).json({ error: 'El CUIT se dio de alta, pero no se pudo registrar de este lado. Probá de nuevo.' })
+      return
+    }
+  }
+
+  res.status(200).json({ emisor })
 }

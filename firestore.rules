@@ -1,0 +1,48 @@
+rules_version = '2';
+
+// Reglas de seguridad de Firestore.
+//
+// Son la ÚNICA frontera real de este sistema: la app es un cliente que habla directo con
+// Firestore, así que cualquiera puede saltearse el código del navegador y pegarle a la base por
+// su cuenta. Lo que no esté permitido acá, no pasa.
+//
+// Ojo con lo que más se olvida: las reglas NO se heredan a las subcolecciones. Un
+// `match /users/{userId}` cubre ese documento y nada más. Cada subcolección nueva necesita su
+// propio bloque, o queda denegada (que es el default, y se nota como una función que "no anda"
+// sin ningún error visible).
+//
+// Para desplegarlas: firebase deploy --only firestore:rules
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Los datos del negocio: cada quien los suyos y nada más. Al exigir que el uid del token
+    // coincida con el del documento, una consulta a toda la colección tampoco puede probar que
+    // cumple la regla, así que listar usuarios queda denegado de entrada.
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      // Plan contratado y datos fiscales del emisor: el dueño los lee, pero solo el servidor
+      // (Admin SDK, que no pasa por estas reglas) los escribe. Si el navegador pudiera tocarlos,
+      // cualquiera se asignaría el plan Full, o se pondría el emisor de otro contribuyente para
+      // facturar con un CUIT ajeno.
+      match /meta/{documento} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow write: if false;
+      }
+
+      // Copias diarias automáticas del negocio (ver guardarBackupAutomaticoSiHaceFalta): las
+      // escribe y las lee el propio dueño, igual que sus datos.
+      match /backups/{backupId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Respaldo de cada emisión con su CAE, que guarda el servidor al emitir. Es un registro
+      // fiscal: el dueño puede consultarlo, pero no falsearlo ni borrarlo.
+      match /emisiones/{referenciaExterna} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow write: if false;
+      }
+    }
+  }
+}
