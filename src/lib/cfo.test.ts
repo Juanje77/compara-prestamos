@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest'
 import {
   CARGAS_SOCIALES_ADICIONALES_PCT_DEFAULT,
   MARGEN_DIAS_CONCILIACION,
+  agregarProductoALineas,
   aplicarMovimientoStock,
   aplicarMovimientoTesoreria,
   buscarCoincidenciasAutomaticas,
+  buscarProductoPorCodigo,
   calcularAguinaldo,
   calcularCostoEmpleado,
   calcularDesvioVentas,
@@ -31,6 +33,7 @@ import {
   type CuentaBancaria,
   type Empleado,
   type Factura,
+  type LineaProducto,
   type MovimientoBancario,
   type MovimientoTesoreria,
   type Producto,
@@ -467,6 +470,42 @@ describe('listarProductosBajoMinimo', () => {
     const bajoMinimo = listarProductosBajoMinimo(productos)
     expect(bajoMinimo).toHaveLength(1)
     expect(bajoMinimo[0].id).toBe('p1')
+  })
+})
+
+describe('lector de código de barras', () => {
+  const catalogo: Producto[] = [
+    { id: 'p1', codigo: '7790895000997', nombre: 'Gaseosa 1.5L', costoUnitario: 800, precioVenta: 1500, stockActual: 20 },
+    { id: 'p2', nombre: 'Producto sin código', costoUnitario: 100, stockActual: 5 },
+  ]
+
+  it('encuentra el producto por su código, tolerando el espacio que agrega el lector', () => {
+    expect(buscarProductoPorCodigo(catalogo, '7790895000997 ')?.id).toBe('p1')
+  })
+
+  it('no confunde un código vacío con un producto sin código cargado', () => {
+    expect(buscarProductoPorCodigo(catalogo, '   ')).toBeUndefined()
+  })
+
+  it('un código desconocido no devuelve nada', () => {
+    expect(buscarProductoPorCodigo(catalogo, '0000000000000')).toBeUndefined()
+  })
+
+  it('el primer escaneo crea la línea con cantidad 1', () => {
+    const lineas = agregarProductoALineas([], catalogo[0], 1500)
+    expect(lineas).toEqual([{ productoId: 'p1', cantidad: 1, precioUnitario: 1500 }])
+  })
+
+  it('escanear de nuevo el mismo producto suma cantidad en vez de repetir la línea', () => {
+    const unaVez = agregarProductoALineas([], catalogo[0], 1500)
+    const dosVeces = agregarProductoALineas(unaVez, catalogo[0], 1500)
+    expect(dosVeces).toHaveLength(1)
+    expect(dosVeces[0].cantidad).toBe(2)
+  })
+
+  it('al sumar cantidad respeta el precio que ya tenía la línea, por si lo ajustaron a mano', () => {
+    const conPrecioEditado: LineaProducto[] = [{ productoId: 'p1', cantidad: 1, precioUnitario: 1200 }]
+    expect(agregarProductoALineas(conPrecioEditado, catalogo[0], 1500)[0].precioUnitario).toBe(1200)
   })
 })
 

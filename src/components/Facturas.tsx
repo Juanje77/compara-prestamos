@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { AlertTriangle, FileDown, FileSpreadsheet, FileUp, Search, Trash2 } from 'lucide-react'
+import { AlertTriangle, FileDown, FileSpreadsheet, FileUp, ScanBarcode, Search, Trash2 } from 'lucide-react'
 import { Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type {
   CuentaBancaria,
@@ -17,6 +17,8 @@ import type {
 } from '../lib/cfo'
 import {
   MEDIOS_PAGO_LABEL,
+  agregarProductoALineas,
+  buscarProductoPorCodigo,
   calcularAgingCuentas,
   calcularDSOyDPO,
   calcularMargenBrutoTotal,
@@ -160,6 +162,8 @@ export function Facturas({ facturas, pagos = [], cuentas, sectores = [], product
   const [cuotas, setCuotas] = useState('1')
   const [sectorId, setSectorId] = useState('')
   const [lineas, setLineas] = useState<LineaProducto[]>([])
+  const [codigoEscaneado, setCodigoEscaneado] = useState('')
+  const [avisoEscaneo, setAvisoEscaneo] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const [tipoLinea, setTipoLinea] = useState<'producto' | 'otro'>('producto')
   const [productoElegido, setProductoElegido] = useState('')
   const [descripcionLinea, setDescripcionLinea] = useState('')
@@ -214,6 +218,23 @@ export function Facturas({ facturas, pagos = [], cuentas, sectores = [], product
     if (producto) setPrecioLinea((tipo === 'emitida' ? producto.precioVenta : producto.costoUnitario) ?? 0)
   }
 
+  /** El lector de código de barras se comporta como un teclado: escribe el código y manda Enter.
+   * Acá se resuelve ese Enter — se busca el producto, se suma la línea y el campo queda vacío y
+   * enfocado para el siguiente escaneo, sin tocar el mouse. */
+  function handleEscanear() {
+    const codigo = codigoEscaneado.trim()
+    if (!codigo) return
+    setCodigoEscaneado('')
+    const producto = buscarProductoPorCodigo(productos, codigo)
+    if (!producto) {
+      setAvisoEscaneo({ tipo: 'error', texto: `No hay ningún producto con el código ${codigo} en tu lista de precios.` })
+      return
+    }
+    const precio = (tipo === 'emitida' ? producto.precioVenta : producto.costoUnitario) ?? 0
+    setLineas((prev) => agregarProductoALineas(prev, producto, precio))
+    setAvisoEscaneo({ tipo: 'ok', texto: `${producto.nombre} — ${formatoMoneda(precio)}` })
+  }
+
   function limpiarFormularioLinea() {
     setProductoElegido('')
     setDescripcionLinea('')
@@ -263,6 +284,7 @@ export function Facturas({ facturas, pagos = [], cuentas, sectores = [], product
     setSectorId('')
     setLineas([])
     setEsInterna(false)
+    setAvisoEscaneo(null)
   }
 
   function handleVaciar() {
@@ -486,6 +508,45 @@ export function Facturas({ facturas, pagos = [], cuentas, sectores = [], product
               tu lista de precios en vez de tipear el monto a mano. Solo los productos (no los servicios){' '}
               {tipo === 'emitida' ? 'descuentan' : 'suman'} stock al guardarse.
             </p>
+
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <div className="relative min-w-[220px] flex-1">
+                <ScanBarcode
+                  size={15}
+                  className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2"
+                  style={{ color: 'var(--text-muted)' }}
+                  aria-hidden="true"
+                />
+                <input
+                  type="text"
+                  placeholder="Escaneá el código de barras"
+                  value={codigoEscaneado}
+                  onChange={(e) => setCodigoEscaneado(e.target.value)}
+                  onKeyDown={(e) => {
+                    // El Enter lo manda el lector al terminar de "tipear" el código. Se frena acá
+                    // para que no se escape al formulario del comprobante.
+                    if (e.key !== 'Enter') return
+                    e.preventDefault()
+                    handleEscanear()
+                  }}
+                  className="w-full rounded-lg border py-1.5 pr-3 pl-8 text-sm"
+                  style={{ borderColor: 'var(--series-blue)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+                />
+              </div>
+              {avisoEscaneo ? (
+                <span
+                  className="text-xs"
+                  style={{ color: avisoEscaneo.tipo === 'ok' ? 'var(--status-good-text)' : 'var(--status-critical)' }}
+                >
+                  {avisoEscaneo.texto}
+                </span>
+              ) : (
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  Con el cursor acá, pasá el lector: cada producto se suma solo (y repetirlo suma cantidad).
+                </span>
+              )}
+            </div>
+
             <div className="flex flex-wrap gap-2">
               <select
                 value={tipoLinea}

@@ -1964,6 +1964,47 @@ export function listarProductosBajoMinimo(productos: Producto[]): Producto[] {
   return productos.filter((p) => !p.esServicio && p.stockMinimo !== undefined && p.stockActual <= p.stockMinimo)
 }
 
+// ---------------------------------------------------------------------------
+// Lector de código de barras
+// ---------------------------------------------------------------------------
+//
+// Un lector USB o Bluetooth de mostrador se comporta como un teclado: "tipea" el código muy rápido
+// y lo termina con un Enter. No hace falta driver, permiso ni librería — alcanza con leer lo que
+// quedó escrito y buscarlo acá. El código de barras vive en el mismo campo `codigo` del catálogo
+// de Stock que ya se usaba como SKU, así que un catálogo ya cargado (o importado desde Excel)
+// sirve sin migrar nada.
+
+/** Normaliza un código para compararlo: los lectores suelen mandar un espacio al final, y uno
+ * tipeado a mano puede venir en otra caja. */
+function normalizarCodigo(codigo: string): string {
+  return codigo.trim().toLowerCase()
+}
+
+/** El producto del catálogo que tenga este código. Si hubiera más de uno con el mismo código (el
+ * catálogo no lo impide), gana el primero. */
+export function buscarProductoPorCodigo(productos: Producto[], codigo: string): Producto | undefined {
+  const buscado = normalizarCodigo(codigo)
+  if (!buscado) return undefined
+  return productos.find((p) => p.codigo !== undefined && normalizarCodigo(p.codigo) === buscado)
+}
+
+/**
+ * Suma un producto escaneado a las líneas de un comprobante. Pasar dos veces el mismo producto no
+ * repite la línea: le suma 1 a la cantidad, que es lo que espera quien está en el mostrador
+ * pasando varias unidades iguales. Si la línea ya existía no se le toca el precio, para no pisar
+ * un precio que hayan ajustado a mano.
+ */
+export function agregarProductoALineas(
+  lineas: LineaProducto[],
+  producto: Producto,
+  precioUnitario: number,
+): LineaProducto[] {
+  if (!lineas.some((l) => l.productoId === producto.id)) {
+    return [...lineas, { productoId: producto.id, cantidad: 1, precioUnitario }]
+  }
+  return lineas.map((l) => (l.productoId === producto.id ? { ...l, cantidad: l.cantidad + 1 } : l))
+}
+
 /** Una línea mueve stock si tiene productoId y ese producto no es un servicio. */
 function lineaMueveStock(l: LineaProducto, productos: Producto[]): l is LineaProducto & { productoId: string } {
   return Boolean(l.productoId) && !productos.find((p) => p.id === l.productoId)?.esServicio
