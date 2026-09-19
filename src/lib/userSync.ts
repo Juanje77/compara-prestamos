@@ -34,9 +34,20 @@ export interface NegocioDataUsuario {
   actualizadoEn?: number
 }
 
+export interface BackupAutomaticoEntry {
+  /** Fecha ISO (YYYY-MM-DD) del snapshot — también el id del documento en la subcolección
+   * `backups`, así nunca hay dos backups automáticos el mismo día. */
+  id: string
+  creadoEn: number
+}
+
 export interface DatosUsuario {
   negocioData?: NegocioDataUsuario
   movimientosSemana?: Movimiento[]
+  /** Historial de backups automáticos diarios — ver guardarBackupAutomaticoSiHaceFalta. El cuerpo
+   * de cada uno vive aparte, en users/{uid}/backups/{id}, para no traer todo ese peso cada vez que
+   * se lee el documento principal del usuario. */
+  backupsIndex?: BackupAutomaticoEntry[]
 }
 
 type FirestoreApi = {
@@ -44,6 +55,7 @@ type FirestoreApi = {
   doc: typeof import('firebase/firestore').doc
   getDoc: typeof import('firebase/firestore').getDoc
   setDoc: typeof import('firebase/firestore').setDoc
+  deleteDoc: typeof import('firebase/firestore').deleteDoc
   onSnapshot: typeof import('firebase/firestore').onSnapshot
 }
 
@@ -53,12 +65,14 @@ function obtenerApi(): Promise<FirestoreApi | null> {
   if (!apiPromise) {
     apiPromise = (async () => {
       if (!firebaseHabilitado || !app) return null
-      const { getFirestore, doc, getDoc, setDoc, onSnapshot } = await import('firebase/firestore')
-      return { db: getFirestore(app), doc, getDoc, setDoc, onSnapshot }
+      const { getFirestore, doc, getDoc, setDoc, deleteDoc, onSnapshot } = await import('firebase/firestore')
+      return { db: getFirestore(app), doc, getDoc, setDoc, deleteDoc, onSnapshot }
     })()
   }
   return apiPromise
 }
+
+export const MAX_BACKUPS_AUTOMATICOS = 14
 
 /** Trae los datos guardados del usuario logueado, o null si todavía no tiene nada guardado. */
 export async function cargarDatosUsuario(uid: string): Promise<DatosUsuario | null> {
@@ -99,4 +113,46 @@ export function suscribirseADatosUsuario(uid: string, onDatos: (datos: DatosUsua
     cancelado = true
     dejarDeEscuchar?.()
   }
+}
+
+/**
+ * Si hoy todavía no hay un backup automático guardado, guarda uno con el `negocioData` que se
+ * acaba de leer de la nube — no hace falta esperar a que el estado local termine de asentarse,
+ * porque esto se llama justo al conectar, con datos recién traídos y ya coherentes entre sí.
+ * Guarda como mucho uno por día y no deja crecer el historial más allá de
+ * MAX_BACKUPS_AUTOMATICOS, borrando los más viejos. Es best-effort: si algo falla acá (sin
+ * conexión, permisos) no debe romper la carga normal de la app — el backup manual sigue andando.
+ */
+export async function guardarBackupAutomaticoSiHaceFalta(
+  uid: string,
+  negocioData: NegocioDataUsuario,
+  indiceActual: BackupAutomaticoEntry[],
+): Promise<void> {
+  const hoy = new Date().toISOString().slice(0, 10)
+  if (indiceActual.some((b) => b.id === hoy)) return
+  try {
+    const api = await obtenerApi()
+    if (!api) return
+    await api.setDoc(api.doc(api.db, 'users', uid, 'backups', hoy), negocioData)
+
+    const indiceOrdenado = [...indiceActual.filter((b) => b.id !== hoy), { id: hoy, creadoEn: Date.now() }].sort(
+      (a, b) => a.id.localeCompare(b.id),
+    )
+    const excedente = indiceOrdenado.length - MAX_BACKUPS_AUTOMATICOS
+    const aBorrar = excedente > 0 ? indiceOrdenado.slice(0, excedente) : []
+    const vigentes = excedente > 0 ? indiceOrdenado.slice(excedente) : indiceOrdenado
+
+    await api.setDoc(api.doc(api.db, 'users', uid), { backupsIndex: vigentes }, { merge: true })
+    await Promise.all(aBorrar.map((b) => api.deleteDoc(api.doc(api.db, 'users', uid, 'backups', b.id))))
+  } catch {
+    // Best-effort — ver comentario de la función.
+  }
+}
+
+/** Trae el cuerpo completo de un backup automático puntual, para descargarlo o restaurarlo. */
+export async function cargarBackupAutomatico(uid: string, id: string): Promise<NegocioDataUsuario | null> {
+  const api = await obtenerApi()
+  if (!api) return null
+  const snap = await api.getDoc(api.doc(api.db, 'users', uid, 'backups', id))
+  return snap.exists() ? (snap.data() as NegocioDataUsuario) : null
 }

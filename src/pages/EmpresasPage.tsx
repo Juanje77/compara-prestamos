@@ -117,7 +117,13 @@ import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
 import { exportarParaContador } from '../lib/contadorExport'
 import { abrirInformeFinanciero, abrirInformeSaludFinanciera } from '../lib/htmlReport'
 import { cargarNegocioData, guardarNegocioData, type NegocioData } from '../lib/negocioData'
-import { guardarDatosUsuario, suscribirseADatosUsuario } from '../lib/userSync'
+import {
+  guardarDatosUsuario,
+  suscribirseADatosUsuario,
+  guardarBackupAutomaticoSiHaceFalta,
+  cargarBackupAutomatico,
+  type BackupAutomaticoEntry,
+} from '../lib/userSync'
 import { numeroComprobanteFormateado } from '../lib/facturacionElectronica'
 import { useAuth } from '../lib/AuthContext'
 
@@ -306,6 +312,11 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   const [nubeLista, setNubeLista] = useState(false)
   const cargaNubeHecha = useRef(false)
 
+  // Historial de backups automáticos diarios — ver guardarBackupAutomaticoSiHaceFalta en
+  // userSync.ts. Llega junto con el resto de los datos del usuario, así que se actualiza solo con
+  // el mismo listener de más abajo.
+  const [backupsAutomaticos, setBackupsAutomaticos] = useState<BackupAutomaticoEntry[]>([])
+
   // Siempre el actualizadoEn más reciente que ya está en pantalla — se lee dentro del listener de
   // abajo, que se suscribe una sola vez por login y no puede depender de "actualizadoEn" directo
   // sin resuscribirse en cada cambio.
@@ -364,6 +375,11 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           setTasaCrecimiento(d.tasaCrecimiento ?? 0)
           setNombreNegocio(d.nombreNegocio ?? '')
         }
+        setBackupsAutomaticos(datos.backupsIndex ?? [])
+        // Se dispara con el dato recién leído de la nube (coherente entre sí, no hace falta
+        // esperar a que el estado local termine de asentarse) y es best-effort: si falla, no
+        // afecta nada más de la carga.
+        guardarBackupAutomaticoSiHaceFalta(user.uid, d, datos.backupsIndex ?? [])
       }
       if (primerDato) {
         primerDato = false
@@ -439,6 +455,10 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     setMovimientosDiarios(d.movimientosDiarios ?? [])
     setTasaCrecimiento(d.tasaCrecimiento ?? 0)
     setNombreNegocio(d.nombreNegocio ?? '')
+  }
+
+  function handleObtenerBackupAutomatico(id: string) {
+    return user ? cargarBackupAutomatico(user.uid, id) : Promise.resolve(null)
   }
 
   function cambiarMonto(key: string, monto: number) {
@@ -1722,7 +1742,14 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
         </PremiumLock>
       )}
 
-      {seccion === 'backup' && <Backup datos={negocioDataActual} onRestaurar={handleRestaurarBackup} />}
+      {seccion === 'backup' && (
+        <Backup
+          datos={negocioDataActual}
+          onRestaurar={handleRestaurarBackup}
+          backupsAutomaticos={backupsAutomaticos}
+          onObtenerBackupAutomatico={handleObtenerBackupAutomatico}
+        />
+      )}
 
       {seccion === 'ayuda' && <Ayuda esPremium={esPremium} esFull={esFull} />}
 
