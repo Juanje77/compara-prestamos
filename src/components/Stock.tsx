@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { AlertTriangle, FileUp, Trash2 } from 'lucide-react'
+import { AlertTriangle, Download, FileUp, Trash2 } from 'lucide-react'
 import type { MovimientoStock, Producto, TipoMovimientoStock } from '../lib/cfo'
 import { calcularValorInventario, listarProductosBajoMinimo } from '../lib/cfo'
 import { importarProductosDesdeExcel } from '../lib/excelImport'
+import { descargarPlantillaProductos } from '../lib/plantillasImportacion'
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
 import { IconButton } from './IconButton'
@@ -444,7 +445,16 @@ export function Stock({
               mueve stock).
             </p>
           </div>
-          <ImportarExcelButton onImportar={handleImportar} />
+          <div className="flex shrink-0 flex-col items-end gap-1">
+            <ImportarExcelButton onImportar={handleImportar} />
+            <button
+              onClick={() => descargarPlantillaProductos()}
+              className="inline-flex items-center gap-1 text-[11px] font-medium"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              <Download size={11} aria-hidden="true" /> Descargar plantilla
+            </button>
+          </div>
         </div>
 
         {error && (

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, Check, Cloud, FileDown, FileUp, Landmark, Receipt, Trash2, Users } from 'lucide-react'
+import { AlertTriangle, Check, Cloud, Download, FileDown, FileUp, Landmark, Receipt, Trash2, Users } from 'lucide-react'
 import {
   agregarMovimiento,
   agregarMovimientos,
@@ -15,6 +15,7 @@ import {
 } from '../lib/movimientosSemana'
 import { agruparPorSemana, indiceDeSemana, type RangoSemana } from '../lib/semanas'
 import { importarMovimientosDesdeExcel } from '../lib/excelImport'
+import { descargarPlantillaMovimientos } from '../lib/plantillasImportacion'
 import { formatoMoneda } from '../lib/finance'
 import { descargarPdfCobranzasSemanal } from '../lib/pdf'
 import { cargarDatosUsuario, guardarDatosUsuario } from '../lib/userSync'
@@ -826,7 +827,16 @@ export function CobranzasPagosSemanal({
           cuentas={cuentas}
           onCambiarCuentaFactura={handleCambiarCuentaFactura}
           extra={
-            <ImportarExcelButton activo={importandoTipo === 'cobro'} onImportar={handleImportarExcel('cobro')} />
+            <div className="flex flex-col items-end gap-1">
+              <ImportarExcelButton activo={importandoTipo === 'cobro'} onImportar={handleImportarExcel('cobro')} />
+              <button
+                onClick={() => descargarPlantillaMovimientos('cobro')}
+                className="inline-flex items-center gap-1 text-[11px] font-medium"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                <Download size={11} aria-hidden="true" /> Descargar plantilla
+              </button>
+            </div>
           }
         />
         <ColumnaMovimientos
@@ -842,7 +852,16 @@ export function CobranzasPagosSemanal({
           cuentas={cuentas}
           onCambiarCuentaFactura={handleCambiarCuentaFactura}
           extra={
-            <ImportarExcelButton activo={importandoTipo === 'pago'} onImportar={handleImportarExcel('pago')} />
+            <div className="flex flex-col items-end gap-1">
+              <ImportarExcelButton activo={importandoTipo === 'pago'} onImportar={handleImportarExcel('pago')} />
+              <button
+                onClick={() => descargarPlantillaMovimientos('pago')}
+                className="inline-flex items-center gap-1 text-[11px] font-medium"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                <Download size={11} aria-hidden="true" /> Descargar plantilla
+              </button>
+            </div>
           }
         />
       </div>

@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Check, FileUp, Landmark, Trash2 } from 'lucide-react'
+import { Check, Download, FileUp, Landmark, Trash2 } from 'lucide-react'
 import type { CuentaBancaria, MovimientoBancario, MovimientoTesoreria } from '../lib/cfo'
 import { MARGEN_DIAS_CONCILIACION, calcularResumenConciliacion, calcularSaldoTotalBancos, deltaDeMovimientoTesoreria, resumenPorCuenta } from '../lib/cfo'
 import { importarExtractoBancario } from '../lib/excelImport'
+import { descargarPlantillaExtracto } from '../lib/plantillasImportacion'
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
 import { IconButton } from './IconButton'
@@ -393,7 +394,16 @@ function PanelConciliacion({
           con el mismo monto y hasta {MARGEN_DIAS_CONCILIACION} días de diferencia. Lo que no matchea, lo
           resolvés a mano abajo.
         </p>
-        <ImportarExtractoButton onImportar={handleImportar} />
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <ImportarExtractoButton onImportar={handleImportar} />
+          <button
+            onClick={() => descargarPlantillaExtracto()}
+            className="inline-flex items-center gap-1 text-[11px] font-medium"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            <Download size={11} aria-hidden="true" /> Descargar plantilla
+          </button>
+        </div>
       </div>
 
       {error && (
