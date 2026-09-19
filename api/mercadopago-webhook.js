@@ -2,6 +2,7 @@
 // actualiza el plan del usuario en Firestore (con permisos de administrador, sin pasar
 // por las reglas de seguridad — por eso el usuario nunca puede activarse el plan él mismo).
 import { obtenerFirestoreAdmin } from './_firebaseAdmin.js'
+import { firmaWebhookValida } from './_mercadopago.js'
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store')
@@ -10,6 +11,24 @@ export default async function handler(req, res) {
   if (!accessToken) {
     res.status(500).json({ error: 'Mercado Pago no está configurado en el servidor.' })
     return
+  }
+
+  // La firma se exige sólo si hay secreto cargado, a propósito: sin MERCADOPAGO_WEBHOOK_SECRET en
+  // el entorno, exigirla dejaría de procesar todas las suscripciones de golpe. Y este endpoint
+  // nunca le creyó al cuerpo igual —más abajo vuelve a consultarle el estado real a Mercado Pago—,
+  // así que la firma suma contra el abuso, no contra el fraude. Para activarla, cargá el secreto
+  // que da el panel de Mercado Pago.
+  const secretoWebhook = process.env.MERCADOPAGO_WEBHOOK_SECRET
+  if (secretoWebhook) {
+    const firmada = firmaWebhookValida(secretoWebhook, {
+      xSignature: req.headers?.['x-signature'],
+      requestId: req.headers?.['x-request-id'],
+      dataId: req.query?.['data.id'] ?? req.query?.id ?? req.body?.data?.id,
+    })
+    if (!firmada) {
+      res.status(401).json({ error: 'Firma inválida.' })
+      return
+    }
   }
 
   const tipo = req.body?.type || req.query?.topic

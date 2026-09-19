@@ -1,8 +1,20 @@
 // Proxy sin estado hacia la API pública del BCRA (Central de Deudores).
 // No se guarda ni se loggea el CUIT/CUIL consultado ni la respuesta en ningún lado:
 // esta función solo reenvía la consulta y devuelve el resultado tal cual.
+//
+// No pide sesión porque lo usa el comparador de préstamos, que es público. Lo que sí tiene es un
+// tope por IP: sin eso, cualquiera puede usarlo como proxy gratis contra el BCRA a nuestro nombre.
+import { dentroDelLimite, ipDe } from './_rateLimit.js'
+
+const LIMITE = { maximo: 20, ventanaMs: 60_000 }
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store')
+
+  if (!dentroDelLimite(`bcra:${ipDe(req)}`, LIMITE).permitido) {
+    res.status(429).json({ error: 'Demasiadas consultas seguidas. Esperá un minuto y volvé a intentar.' })
+    return
+  }
 
   const cuit = String(req.query?.cuit || '').replace(/\D/g, '')
 
