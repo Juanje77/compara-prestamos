@@ -20,9 +20,14 @@ interface Props {
   onImportarExtracto: (cuentaId: string, filas: Omit<MovimientoBancario, 'id' | 'cuentaId' | 'conciliado'>[]) => void
   onConciliarManual: (bancarioId: string, movimientoId: string) => void
   onDesconciliar: (bancarioId: string) => void
-  onCrearAjusteDesdeBancario: (bancarioId: string) => void
+  /** Sin concepto, usa la descripción tal cual vino del extracto. */
+  onCrearAjusteDesdeBancario: (bancarioId: string, concepto?: string) => void
   onEliminarMovimientoBancario: (id: string) => void
 }
+
+/** Los gastos bancarios más comunes que un extracto trae y el sistema nunca cargó — un atajo para
+ * no tener que escribir el concepto a mano cada vez que aparecen. */
+const GASTOS_BANCARIOS_COMUNES = ['Impuesto al débito y crédito', 'Comisiones bancarias', 'IVA sobre comisiones']
 
 const ORIGEN_LABEL: Record<MovimientoTesoreria['origen'], string> = {
   factura: 'Factura',
@@ -290,14 +295,28 @@ function FilaBancario({
       >
         Vincular
       </button>
-      <button
-        onClick={() => onCrearAjusteDesdeBancario(bancario.id)}
+      <select
+        defaultValue=""
+        onChange={(e) => {
+          const valor = e.target.value
+          if (!valor) return
+          onCrearAjusteDesdeBancario(bancario.id, valor === '__otro__' ? undefined : valor)
+          e.target.value = ''
+        }}
+        title="No corresponde a nada cargado — registrarlo como un gasto en Tesorería con este monto"
         className="shrink-0 rounded border px-2 py-0.5 text-xs font-semibold"
-        style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
-        title="No corresponde a nada cargado — crear un ajuste en Tesorería con este monto"
+        style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-secondary)' }}
       >
-        + Ajuste
-      </button>
+        <option value="" disabled>
+          + Ajuste…
+        </option>
+        {GASTOS_BANCARIOS_COMUNES.map((g) => (
+          <option key={g} value={g}>
+            {g}
+          </option>
+        ))}
+        <option value="__otro__">Otro (usar descripción del banco)</option>
+      </select>
       <IconButton icon={Trash2} onClick={() => onEliminarMovimientoBancario(bancario.id)} label="Descartar fila del extracto" className="shrink-0" />
     </li>
   )

@@ -608,8 +608,9 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   }
 
   /** Una fila del banco que no tiene nada cargado del lado del sistema (un gasto, un interés) pasa
-   * directo a ser un ajuste real de Tesorería, y la fila queda conciliada contra ese ajuste. */
-  function handleCrearAjusteDesdeBancario(bancarioId: string) {
+   * directo a ser un ajuste real de Tesorería, y la fila queda conciliada contra ese ajuste. Sin
+   * concepto (el usuario eligió "Otro"), se usa la descripción tal cual vino del extracto. */
+  function handleCrearAjusteDesdeBancario(bancarioId: string, concepto?: string) {
     if (!esFull) return
     const bancario = movimientosBancarios.find((b) => b.id === bancarioId)
     if (!bancario) return
@@ -619,7 +620,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
       tipo: 'ajuste',
       monto: bancario.monto,
       fecha: bancario.fecha,
-      concepto: bancario.descripcion,
+      concepto: concepto ?? bancario.descripcion,
       origen: 'manual',
     }
     setCuentas((prev) => aplicarMovimientoTesoreria(prev, movimiento))
