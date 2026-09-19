@@ -269,8 +269,22 @@ const SECCIONES: SeccionAyuda[] = [
     ],
   },
   {
-    id: 'backup',
+    id: 'punto-de-venta',
     numero: '19',
+    titulo: 'Punto de venta',
+    tier: 'full',
+    descripcion: 'La pantalla del mostrador: pasás los productos con el lector y cobrás, sin frenar la atención.',
+    pasos: [
+      'Antes que nada, cargá tus productos en Stock con su código de barras en el campo `Código` (o importalos del Excel, que acepta la columna `codigo`/`sku`).',
+      'Entrá a Punto de venta y pasá los productos por el lector: cada uno se suma solo, y pasarlo de nuevo suma cantidad. Con los botones + y − corregís a mano.',
+      'Elegí a quién le vendés (si lo dejás vacío queda como consumidor final), si es `Para ARCA` o `Interna`, el medio de pago y a qué cuenta entra la plata.',
+      'Tocá `Cobrar`: queda un comprobante emitido y ya cobrado, con el stock descontado y el ingreso registrado en Tesorería.',
+    ],
+    tip: 'No hace falta ningún programa ni driver: un lector USB o Bluetooth se comporta como un teclado. Lo único importante es que el cursor esté en el campo de escaneo — la pantalla lo devuelve solo ahí después de cada acción.',
+  },
+  {
+    id: 'backup',
+    numero: '20',
     titulo: 'Backup',
     tier: 'basico',
     descripcion: 'Una copia completa de todo lo que cargaste en FinCorp, para descargar cuando quieras.',

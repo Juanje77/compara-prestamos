@@ -30,6 +30,7 @@ import { Sueldos } from '../components/Sueldos'
 import { FacturacionElectronica } from '../components/FacturacionElectronica'
 import { Stock } from '../components/Stock'
 import { Tesoreria } from '../components/Tesoreria'
+import { PuntoDeVenta, type VentaMostrador } from '../components/PuntoDeVenta'
 import {
   CATEGORIAS_GASTO,
   agruparCuentaCorriente,
@@ -144,6 +145,7 @@ function hoyISO(): string {
 const SECCIONES = [
   { key: 'dashboard', label: 'Dashboard' },
   { key: 'facturas', label: 'Comprobantes' },
+  { key: 'puntoDeVenta', label: 'Punto de venta' },
   { key: 'facturacionElectronica', label: 'Facturación electrónica' },
   { key: 'ingresosGastos', label: 'Ingresos y gastos' },
   { key: 'cobranzas', label: 'Cobranzas y pagos' },
@@ -166,7 +168,7 @@ const SECCIONES = [
 
 /** Secciones exclusivas del plan Full (el sistema de gestión de uso diario) — el resto que
  * requiere pago sigue disponible desde el plan Medio. */
-const SECCIONES_FULL = new Set(['facturacionElectronica', 'cuentasCorrientes', 'remitos', 'margenes', 'sueldos', 'cheques', 'stock', 'tesoreria'])
+const SECCIONES_FULL = new Set(['facturacionElectronica', 'puntoDeVenta', 'cuentasCorrientes', 'remitos', 'margenes', 'sueldos', 'cheques', 'stock', 'tesoreria'])
 
 type Seccion = (typeof SECCIONES)[number]['key']
 
@@ -180,7 +182,7 @@ const GRUPOS: { key: string; label: string; secciones: Seccion[] }[] = [
   {
     key: 'ventas',
     label: 'Ventas y compras',
-    secciones: ['facturacionElectronica', 'cobranzas', 'cuentasCorrientes', 'remitos', 'margenes', 'clientes', 'proveedores', 'presupuesto'],
+    secciones: ['puntoDeVenta', 'facturacionElectronica', 'cobranzas', 'cuentasCorrientes', 'remitos', 'margenes', 'clientes', 'proveedores', 'presupuesto'],
   },
   { key: 'tesoreria', label: 'Tesorería y stock', secciones: ['tesoreria', 'cheques', 'stock'] },
   { key: 'rrhh', label: 'RRHH', secciones: ['sueldos'] },
@@ -668,6 +670,49 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
 
   function handleVaciarFacturas() {
     setFacturas([])
+  }
+
+  /**
+   * Cobro del mostrador (ver PuntoDeVenta): deja registrado un comprobante emitido y ya cobrado,
+   * con el stock descontado y —si eligieron cuenta— la plata entrando a Tesorería. Va todo junto
+   * acá en vez de encadenar handleAgregarFactura + handleCambiarFactura porque ese segundo paso
+   * busca la factura en el estado, y la recién creada todavía no llegó ahí.
+   */
+  function handleCobrarEnMostrador(venta: VentaMostrador) {
+    const factura: Factura = {
+      id: generarId(),
+      tipo: 'emitida',
+      tipoComprobante: 'factura',
+      contraparte: venta.contraparte,
+      monto: venta.monto,
+      fecha: hoyISO(),
+      cumplido: true,
+      medioPago: venta.medioPago,
+      lineas: venta.lineas,
+      esInterna: venta.esInterna || undefined,
+    }
+    setFacturas((prev) => [...prev, factura])
+
+    const movimientos = generarMovimientosDeFactura(factura, productos, generarId)
+    if (movimientos.length > 0) {
+      setMovimientosStock((prev) => [...prev, ...movimientos])
+      setProductos((prev) => movimientos.reduce((acc, mov) => aplicarMovimientoStock(acc, mov), prev))
+    }
+
+    if (venta.cuentaId && esFull) {
+      const movimiento: MovimientoTesoreria = {
+        id: generarId(),
+        cuentaId: venta.cuentaId,
+        tipo: 'ingreso',
+        monto: venta.monto,
+        fecha: factura.fecha,
+        concepto: `Venta de mostrador — ${venta.contraparte}`,
+        origen: 'factura',
+        origenId: factura.id,
+      }
+      setCuentas((prev) => aplicarMovimientoTesoreria(prev, movimiento))
+      setMovimientosTesoreria((prev) => [...prev, movimiento])
+    }
   }
 
   function handleClasificarProveedor(proveedor: string, categoria: string) {
@@ -1604,6 +1649,18 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
             onPagar={handlePagarSueldos}
             onDeshacerPago={handleDeshacerPagoSueldos}
           />
+        </PremiumLock>
+      )}
+
+      {seccion === 'puntoDeVenta' && (
+        <PremiumLock
+          activo={esFull}
+          nivelRequerido="full"
+          titulo="Punto de venta"
+          descripcion="Vendé en el mostrador con lector de código de barras: pasás los productos, la lista se arma sola y al cobrar queda el comprobante hecho, con el stock descontado y la plata en Tesorería."
+          onQuieroPremium={abrirPlanes}
+        >
+          <PuntoDeVenta productos={productos} cuentas={cuentas} onCobrar={handleCobrarEnMostrador} />
         </PremiumLock>
       )}
 
