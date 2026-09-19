@@ -103,7 +103,18 @@ export function suscribirseADatosUsuario(uid: string, onDatos: (datos: DatosUsua
     if (!api || cancelado) return
     dejarDeEscuchar = api.onSnapshot(
       api.doc(api.db, 'users', uid),
-      (snap) => onDatos(snap.exists() ? (snap.data() as DatosUsuario) : null),
+      (snap) => {
+        // Un snapshot "fromCache" es la respuesta que da el SDK cuando todavía no hubo ida y
+        // vuelta al servidor (por ejemplo, sin red en el instante de conectar) — no es un "no
+        // existe" confirmado. En un dispositivo sin nada guardado en caché local, eso llega vacío,
+        // y si lo tratáramos como definitivo, EmpresasPage lo toma como "no hay nada" y —peor—
+        // habilita el guardado hacia la nube con ese vacío, pudiendo pisar datos reales que sí
+        // están en el servidor. Por eso se espera al primer snapshot confirmado por el servidor:
+        // si no hay red, no se llama a onDatos, y este mismo listener se vuelve a disparar solo
+        // en cuanto la conexión se restablezca.
+        if (snap.metadata.fromCache) return
+        onDatos(snap.exists() ? (snap.data() as DatosUsuario) : null)
+      },
       () => {
         // Firestore puede no estar disponible todavía (sin conexión, etc.) — seguimos con lo local.
       },

@@ -87,6 +87,12 @@ function suscribirsePlanUsuario(uid: string, callback: (plan: PlanUsuario) => vo
       unsubscribe = api.onSnapshot(
         api.doc(api.db, 'users', uid, 'meta', 'plan'),
         (snap) => {
+          // Un snapshot "fromCache" (sin red en el instante de conectar, típico de un dispositivo
+          // que recién arranca) puede llegar vacío aunque el usuario sí tenga un plan real en el
+          // servidor. Tratarlo como definitivo mostraría "sin plan" por un instante y podría
+          // disparar la activación de la prueba gratis de más — se espera al snapshot confirmado
+          // por el servidor, que llega solo apenas hay conexión.
+          if (snap.metadata.fromCache) return
           const data = snap.data() as Partial<PlanUsuario> | undefined
           callback({
             plan: data?.plan ?? null,
