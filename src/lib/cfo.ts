@@ -586,6 +586,15 @@ export interface Factura {
    * llevar un registro propio (por ejemplo, movimientos entre sectores de un mismo negocio) sin que
    * impacte en ninguna obligación fiscal. Si falta, se asume que es un comprobante fiscal normal. */
   esInterna?: boolean
+  /** De dónde salió este comprobante. "carga-diaria" marca los que se cargaron desde Ingresos y
+   * gastos: se guardan como comprobantes internos —en vez de en un registro aparte— para que
+   * alimenten el resto del sistema, y este campo es lo que permite volver a mostrarlos en esa
+   * pantalla sin mezclarlos con el resto de los comprobantes. */
+  origen?: 'carga-diaria'
+  /** Con qué se cobró, en el detalle que usa Ingresos y gastos (efectivo, transferencia, QR,
+   * débito, crédito). Es más fino que `medioPago`, que solo distingue caja, cheque y
+   * transferencia, y es lo que permite ver cuánto entró en efectivo contra cuánto fue digital. */
+  medioCobro?: MedioCobro
 }
 
 /** Suma (o resta, con un número negativo) una cantidad de días a una fecha ISO (YYYY-MM-DD). */
@@ -1514,6 +1523,47 @@ export interface MovimientoDiario {
   fecha: string
   /** Con qué se cobró — solo aplica a ingresos (ventas), no a gastos. */
   medioCobro?: MedioCobro
+}
+
+// Un movimiento diario no se guarda aparte: se guarda como un comprobante interno (ver
+// Factura.origen). Así lo que se carga en Ingresos y gastos alimenta el Dashboard, el margen y la
+// caja como cualquier otra venta o compra, en vez de morir en un registro suelto — pero al ser
+// interno no toca IVA ni Ingresos Brutos, que es lo correcto para una venta anotada sin factura.
+// Estas dos funciones son la ida y la vuelta entre las dos formas de ver lo mismo.
+
+/** El comprobante interno que corresponde a un movimiento diario. Un ingreso es una venta y un
+ * gasto una compra, y en ambos casos la plata ya se movió (por eso van como cumplidos). */
+export function facturaDesdeMovimientoDiario(mov: MovimientoDiario, id: string): Factura {
+  return {
+    id,
+    tipo: mov.tipo === 'ingreso' ? 'emitida' : 'recibida',
+    tipoComprobante: 'factura',
+    contraparte: mov.concepto,
+    monto: mov.monto,
+    fecha: mov.fecha,
+    cumplido: true,
+    esInterna: true,
+    origen: 'carga-diaria',
+    medioCobro: mov.medioCobro,
+  }
+}
+
+/** La vuelta: cómo se ve ese comprobante en la pantalla de Ingresos y gastos. */
+export function movimientoDiarioDesdeFactura(f: Factura): MovimientoDiario {
+  return {
+    id: f.id,
+    tipo: f.tipo === 'emitida' ? 'ingreso' : 'gasto',
+    concepto: f.contraparte,
+    monto: f.monto,
+    fecha: f.fecha,
+    medioCobro: f.medioCobro,
+  }
+}
+
+/** Los comprobantes que se cargaron desde Ingresos y gastos, vistos como movimientos diarios —
+ * el resto de los comprobantes (incluidos otros internos) no aparecen en esa pantalla. */
+export function listarMovimientosDiarios(facturas: Factura[]): MovimientoDiario[] {
+  return facturas.filter((f) => f.origen === 'carga-diaria').map(movimientoDiarioDesdeFactura)
 }
 
 export interface ResumenMovimientosDiarios {

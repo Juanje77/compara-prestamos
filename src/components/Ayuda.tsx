@@ -64,12 +64,14 @@ const SECCIONES: SeccionAyuda[] = [
     numero: '03',
     titulo: 'Ingresos y gastos',
     tier: 'basico',
-    descripcion: 'Carga diaria simple, para un control rápido del día a día — independiente de Comprobantes, no impacta en IVA.',
+    descripcion: 'Carga diaria simple, para un control rápido del día a día — sin IVA ni cuotas, útil si todavía no facturás formalmente.',
     pasos: [
       'Elegí si es un ingreso o un gasto.',
       'Cargá el monto, la fecha y un concepto corto.',
-      'Se van sumando en un resumen simple, útil si todavía no facturás formalmente.',
+      'Cada ingreso queda registrado como una venta y cada gasto como una compra, así alimentan tu Dashboard, el margen y la proyección de caja en vez de quedar en una lista suelta.',
+      'Se guardan como comprobantes internos: **no tributan**, así que no aparecen en Posición de IVA, Ingresos Brutos ni en el Excel para el contador.',
     ],
+    tip: 'Si después empezás a facturar formalmente, lo que cargues acá sigue contando para tus indicadores, pero nunca se mezcla con lo que sí va a ARCA.',
   },
   {
     id: 'cobranzas',

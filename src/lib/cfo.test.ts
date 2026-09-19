@@ -22,12 +22,15 @@ import {
   calcularResumenConciliacion,
   calcularRunwayMeses,
   distribuirEnCuotas,
+  facturaDesdeMovimientoDiario,
   gastosAguinaldoProyectados,
   generarMovimientosDeFactura,
   generarMovimientosDeRemito,
   imputarPagoAFIFO,
+  listarMovimientosDiarios,
   listarProductosBajoMinimo,
   montoConSigno,
+  movimientoDiarioDesdeFactura,
   proyectarFlujoCaja,
   revertirMovimientoTesoreria,
   type CuentaBancaria,
@@ -35,6 +38,7 @@ import {
   type Factura,
   type LineaProducto,
   type MovimientoBancario,
+  type MovimientoDiario,
   type MovimientoTesoreria,
   type Producto,
   type RemitoPresupuesto,
@@ -506,6 +510,42 @@ describe('lector de código de barras', () => {
   it('al sumar cantidad respeta el precio que ya tenía la línea, por si lo ajustaron a mano', () => {
     const conPrecioEditado: LineaProducto[] = [{ productoId: 'p1', cantidad: 1, precioUnitario: 1200 }]
     expect(agregarProductoALineas(conPrecioEditado, catalogo[0], 1500)[0].precioUnitario).toBe(1200)
+  })
+})
+
+describe('Ingresos y gastos guardados como comprobantes internos', () => {
+  const ingreso: MovimientoDiario = {
+    id: 'viejo', tipo: 'ingreso', concepto: 'Venta mostrador', monto: 15000, fecha: '2026-03-04', medioCobro: 'qr',
+  }
+
+  it('un ingreso se guarda como una venta interna ya cobrada', () => {
+    const f = facturaDesdeMovimientoDiario(ingreso, 'f1')
+    expect(f.tipo).toBe('emitida')
+    expect(f.esInterna).toBe(true)
+    expect(f.cumplido).toBe(true)
+    expect(f.origen).toBe('carga-diaria')
+    expect(f.monto).toBe(15000)
+  })
+
+  it('un gasto se guarda como una compra', () => {
+    expect(facturaDesdeMovimientoDiario({ ...ingreso, tipo: 'gasto' }, 'f1').tipo).toBe('recibida')
+  })
+
+  it('la ida y vuelta no pierde nada, ni siquiera un medio de cobro que medioPago no sabe expresar', () => {
+    const vuelta = movimientoDiarioDesdeFactura(facturaDesdeMovimientoDiario(ingreso, 'f1'))
+    expect(vuelta).toEqual({ ...ingreso, id: 'f1' })
+  })
+
+  it('no tributa: una venta cargada así queda afuera de IVA e Ingresos Brutos', () => {
+    const f = { ...facturaDesdeMovimientoDiario(ingreso, 'f1'), iva: 2000 }
+    expect(calcularPosicionIvaPorMes([f])).toEqual([])
+    expect(calcularPosicionIngresosBrutosPorMes([f])).toEqual([])
+  })
+
+  it('la pantalla solo muestra lo cargado ahí, no cualquier comprobante interno', () => {
+    const delMostrador = factura({ id: 'pos', tipo: 'emitida', monto: 500, fecha: '2026-03-04', esInterna: true })
+    const delDiario = facturaDesdeMovimientoDiario(ingreso, 'f1')
+    expect(listarMovimientosDiarios([delMostrador, delDiario]).map((m) => m.id)).toEqual(['f1'])
   })
 })
 

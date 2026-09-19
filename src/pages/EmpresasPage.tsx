@@ -73,6 +73,8 @@ import {
   calcularValorTotalBienes,
   generarAlertas,
   generarRecomendaciones,
+  facturaDesdeMovimientoDiario,
+  listarMovimientosDiarios,
   generarMovimientosDeFactura,
   generarMovimientosDeRemito,
   imputarPagoAFIFO,
@@ -289,6 +291,10 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     ],
   )
 
+  // Lo que muestra Ingresos y gastos sale de los comprobantes que se cargaron desde ahí — es la
+  // misma información, vista como el registro diario simple que espera esa pantalla.
+  const movimientosDiariosVista = useMemo(() => listarMovimientosDiarios(facturas), [facturas])
+
   // El snapshot completo del negocio — se arma una sola vez acá y de acá salen tanto el guardado
   // local como el de Firestore como la descarga de Backup, en vez de repetir la misma lista de 27
   // campos tres veces.
@@ -425,6 +431,25 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
       window.removeEventListener('pagehide', enviarAhora)
     }
   }, [user, nubeLista, negocioDataActual])
+
+  // Migración única: Ingresos y gastos guardaba sus movimientos en una lista aparte, y ahora los
+  // guarda como comprobantes internos (ver facturaDesdeMovimientoDiario). Los que ya estaban
+  // cargados se convierten acá, conservando su id y todos sus campos, para que no desaparezcan de
+  // la pantalla al cambiar de dónde sale la lista. Espera a que la nube haya cargado —si no, se
+  // correría sobre los datos locales antes de conocer los reales— y saltea los que ya estén
+  // convertidos, así no puede duplicar nada si llega a correr dos veces.
+  useEffect(() => {
+    if (!nubeLista && user) return
+    if (movimientosDiarios.length === 0) return
+    setFacturas((prev) => {
+      const yaConvertidos = new Set(prev.map((f) => f.id))
+      const nuevas = movimientosDiarios
+        .filter((m) => !yaConvertidos.has(m.id))
+        .map((m) => facturaDesdeMovimientoDiario(m, m.id))
+      return nuevas.length > 0 ? [...prev, ...nuevas] : prev
+    })
+    setMovimientosDiarios([])
+  }, [nubeLista, user, movimientosDiarios])
 
   /** Pisa todo el negocio con lo que venga en un backup restaurado desde Backup — mismos defaults
    * que la carga inicial y la del listener de Firestore, por si el archivo es de una versión
@@ -1110,12 +1135,17 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     setProductos((prev) => revertirMovimientoStock(prev, movimiento))
   }
 
+  /** Lo que se carga en Ingresos y gastos no se guarda aparte: se guarda como un comprobante
+   * interno (una venta si es ingreso, una compra si es gasto), para que alimente el Dashboard, el
+   * margen y la caja como cualquier otro comprobante en vez de quedar en un registro suelto. Al
+   * ser interno no toca IVA ni Ingresos Brutos — ver facturaDesdeMovimientoDiario. */
   function handleAgregarMovimientoDiario(movimiento: Omit<MovimientoDiario, 'id'>) {
-    setMovimientosDiarios((prev) => [...prev, { ...movimiento, id: generarId() }])
+    const id = generarId()
+    setFacturas((prev) => [...prev, facturaDesdeMovimientoDiario({ ...movimiento, id }, id)])
   }
 
   function handleEliminarMovimientoDiario(id: string) {
-    setMovimientosDiarios((prev) => prev.filter((m) => m.id !== id))
+    setFacturas((prev) => prev.filter((f) => f.id !== id))
   }
 
   function handleCambiarIvaManual(mes: string, campo: keyof IvaManualMes, valor: number | undefined) {
@@ -1492,7 +1522,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
 
       {seccion === 'ingresosGastos' && (
         <IngresosGastos
-          movimientos={movimientosDiarios}
+          movimientos={movimientosDiariosVista}
           onAgregar={handleAgregarMovimientoDiario}
           onEliminar={handleEliminarMovimientoDiario}
         />
