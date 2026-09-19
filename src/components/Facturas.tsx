@@ -152,6 +152,7 @@ export function Facturas({ facturas, pagos = [], cuentas, sectores = [], product
   const [facturaANotear, setFacturaANotear] = useState<Factura | null>(null)
   const [tipo, setTipo] = useState<TipoFactura>('emitida')
   const [tipoComprobante, setTipoComprobante] = useState<TipoComprobante>('factura')
+  const [esInterna, setEsInterna] = useState(false)
   const [contraparte, setContraparte] = useState('')
   const [monto, setMonto] = useState(0)
   const [iva, setIva] = useState(0)
@@ -253,6 +254,7 @@ export function Facturas({ facturas, pagos = [], cuentas, sectores = [], product
       iva: iva > 0 ? iva : undefined,
       sectorId: sectorId || undefined,
       lineas: lineas.length > 0 ? lineas : undefined,
+      esInterna: esInterna || undefined,
     })
     setContraparte('')
     setMonto(0)
@@ -260,6 +262,7 @@ export function Facturas({ facturas, pagos = [], cuentas, sectores = [], product
     setCuotas('1')
     setSectorId('')
     setLineas([])
+    setEsInterna(false)
   }
 
   function handleVaciar() {
@@ -376,6 +379,16 @@ export function Facturas({ facturas, pagos = [], cuentas, sectores = [], product
             <option value="factura">Factura</option>
             <option value="nota_credito">Nota de Crédito</option>
             <option value="nota_debito">Nota de Débito</option>
+          </select>
+          <select
+            value={esInterna ? 'interna' : 'arca'}
+            onChange={(e) => setEsInterna(e.target.value === 'interna')}
+            title="Para ARCA: un comprobante fiscal, que después se puede emitir con CAE. Interna: solo queda registrada acá, no tributa ni se puede emitir."
+            className="shrink-0 rounded-lg border px-3 py-1.5 text-sm"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+          >
+            <option value="arca">Para ARCA</option>
+            <option value="interna">Interna (no tributa)</option>
           </select>
           <input
             type="text"
@@ -958,6 +971,15 @@ export function Facturas({ facturas, pagos = [], cuentas, sectores = [], product
                     <span className="shrink-0 text-xs" style={{ color: 'var(--text-muted)' }}>
                       {TIPO_COMPROBANTE_LABEL[f.tipoComprobante]}
                     </span>
+                    {f.esInterna && (
+                      <span
+                        className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                        style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}
+                        title="Comprobante interno: no tributa y no se puede emitir ante ARCA"
+                      >
+                        Interna
+                      </span>
+                    )}
                     <span className="min-w-[100px] flex-1 truncate" style={{ color: 'var(--text-primary)' }}>
                       {f.contraparte}
                       {f.numero && (
@@ -1098,6 +1120,7 @@ export function Facturas({ facturas, pagos = [], cuentas, sectores = [], product
                           CAE {f.emision.cae}
                         </span>
                       ) : (
+                        !f.esInterna &&
                         emisorFiscal &&
                         onEmitida && (
                           <button

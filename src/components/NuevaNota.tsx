@@ -39,6 +39,7 @@ export function NuevaNota({ original, facturas, onCrear, onCerrar }: Props) {
     detalle: detalle.trim() || undefined,
     receptor: original.receptor,
     comprobanteAsociadoId: original.id,
+    esInterna: original.esInterna,
   }
 
   const problemas = validarNota({ ...borrador, id: 'nueva' }, original, facturas)

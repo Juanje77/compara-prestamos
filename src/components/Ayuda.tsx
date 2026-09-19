@@ -50,6 +50,7 @@ const SECCIONES: SeccionAyuda[] = [
     descripcion: 'Tus facturas, notas de crédito y débito. De acá salen ventas y compras netas, margen bruto, IVA, y qué falta cobrar o pagar.',
     pasos: [
       'Elegí `Emitida (venta)` o `Recibida (compra)` y el tipo de comprobante.',
+      'Elegí si es `Para ARCA` (un comprobante fiscal, que después se puede emitir con CAE) o `Interna (no tributa)` — un registro propio que no sale en la Posición de IVA, ni en Ingresos Brutos, ni en el Excel para el contador.',
       'Cargá cliente o proveedor, monto, IVA y fecha — o traé todo de una con `Importar desde ARCA`.',
       'Cuando la cobres o la pagues de verdad, tildá `Cobrada` / `Pagada`.',
       'Elegí el medio (Caja, Transferencia o Cheque) y, si ya tenés cuentas cargadas en Tesorería, elegí a cuál entró o salió la plata.',

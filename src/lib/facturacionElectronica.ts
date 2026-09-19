@@ -176,6 +176,11 @@ function diasDeDiferencia(fechaISO: string, hoy: Date): number {
 export function validarFacturaParaEmision(f: Factura, opciones: OpcionesEmision): string[] {
   const problemas: string[] = []
 
+  if (f.esInterna) {
+    problemas.push('Este comprobante está marcado como interno (no tributa): no se puede emitir ante ARCA.')
+    return problemas
+  }
+
   if (f.tipo !== 'emitida') {
     problemas.push('Sólo se pueden emitir comprobantes propios: éste está cargado como recibido.')
   }

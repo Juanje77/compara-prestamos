@@ -581,6 +581,11 @@ export interface Factura {
    * calcularMontoDesdeLineas — y los productos con stock (no servicios) lo descuentan/suman al
    * guardarse — ver generarMovimientosDeFactura. */
   lineas?: LineaProducto[]
+  /** Comprobante interno (no fiscal): no se puede emitir ante ARCA y no tributa, así que queda
+   * afuera de la Posición de IVA, de Ingresos Brutos y del Excel para el contador. Sirve para
+   * llevar un registro propio (por ejemplo, movimientos entre sectores de un mismo negocio) sin que
+   * impacte en ninguna obligación fiscal. Si falta, se asume que es un comprobante fiscal normal. */
+  esInterna?: boolean
 }
 
 /** Suma (o resta, con un número negativo) una cantidad de días a una fecha ISO (YYYY-MM-DD). */
@@ -957,13 +962,15 @@ export interface IvaManualMes {
 }
 
 /** Posición de IVA mes a mes, arrastrando el saldo a favor de un mes al siguiente. Cualquier valor
- * cargado a mano en `manual` pisa el que sale de sumar el IVA de los comprobantes. */
+ * cargado a mano en `manual` pisa el que sale de sumar el IVA de los comprobantes. Los comprobantes
+ * internos (`esInterna`) no tributan, así que no entran en la suma. */
 export function calcularPosicionIvaPorMes(
   facturas: Factura[],
   manual: Record<string, IvaManualMes> = {},
 ): PosicionIvaMes[] {
   const porMes = new Map<string, { debito: number; credito: number }>()
   for (const f of facturas) {
+    if (f.esInterna) continue
     const mes = f.fecha.slice(0, 7)
     const actual = porMes.get(mes) ?? { debito: 0, credito: 0 }
     if (f.tipo === 'emitida') actual.debito += ivaConSigno(f)
@@ -1038,14 +1045,15 @@ export interface PosicionIngresosBrutosMes {
 }
 
 /** Posición de Ingresos Brutos mes a mes: base imponible (ventas netas de IVA) × alícuota, menos
- * las retenciones del mes — ambas editables a mano, sin arrastre de saldo entre meses. */
+ * las retenciones del mes — ambas editables a mano, sin arrastre de saldo entre meses. Los
+ * comprobantes internos (`esInterna`) no tributan, así que no entran en la base imponible. */
 export function calcularPosicionIngresosBrutosPorMes(
   facturas: Factura[],
   manual: Record<string, IngresosBrutosManualMes> = {},
 ): PosicionIngresosBrutosMes[] {
   const basePorMes = new Map<string, number>()
   for (const f of facturas) {
-    if (f.tipo !== 'emitida') continue
+    if (f.tipo !== 'emitida' || f.esInterna) continue
     const mes = f.fecha.slice(0, 7)
     basePorMes.set(mes, (basePorMes.get(mes) ?? 0) + montoNetoConSigno(f))
   }

@@ -25,7 +25,7 @@ function encabezado(...columnas: string[]) {
 
 function hojaIva(facturas: Factura[], tipo: 'emitida' | 'recibida', etiquetaContraparte: string) {
   const filas = facturas
-    .filter((f) => f.tipo === tipo)
+    .filter((f) => f.tipo === tipo && !f.esInterna)
     .sort((a, b) => a.fecha.localeCompare(b.fecha))
 
   const filasDatos: FilaCelda[][] = filas.map((f) => [

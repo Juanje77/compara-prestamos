@@ -240,6 +240,12 @@ describe('validarFacturaParaEmision', () => {
     expect(problemas.some((p) => p.includes('recibido'))).toBe(true)
   })
 
+  it('rechaza emitir un comprobante interno', () => {
+    const problemas = validarFacturaParaEmision(factura({ esInterna: true }), RI)
+
+    expect(problemas.some((p) => p.includes('interno'))).toBe(true)
+  })
+
   it('no deja re-emitir una factura que ya tiene CAE', () => {
     const emitida = factura({
       emision: {

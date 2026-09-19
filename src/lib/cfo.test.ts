@@ -189,6 +189,14 @@ describe('calcularPosicionIvaPorMes', () => {
     expect(mes.debitoFiscal).toBe(5000)
     expect(mes.debitoFiscalEsManual).toBe(true)
   })
+
+  it('un comprobante interno no tributa: no entra en el débito ni el crédito fiscal', () => {
+    const posicion = calcularPosicionIvaPorMes([
+      factura({ id: '1', tipo: 'emitida', monto: 12100, iva: 2100, fecha: '2026-07-01', esInterna: true }),
+      factura({ id: '2', tipo: 'recibida', monto: 12100, iva: 2100, fecha: '2026-07-01', esInterna: true }),
+    ])
+    expect(posicion).toEqual([])
+  })
 })
 
 describe('calcularPosicionIngresosBrutosPorMes', () => {
@@ -200,6 +208,13 @@ describe('calcularPosicionIngresosBrutosPorMes', () => {
     expect(mes.baseImponible).toBe(100000)
     expect(mes.impuestoDeterminado).toBe(3000)
     expect(mes.saldoAPagar).toBe(2000)
+  })
+
+  it('un comprobante interno no tributa: no entra en la base imponible', () => {
+    const posicion = calcularPosicionIngresosBrutosPorMes([
+      factura({ id: '1', tipo: 'emitida', monto: 121000, iva: 21000, fecha: '2026-08-10', esInterna: true }),
+    ])
+    expect(posicion).toEqual([])
   })
 })
 
