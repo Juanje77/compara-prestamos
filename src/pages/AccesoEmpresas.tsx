@@ -10,15 +10,29 @@ export function AccesoEmpresas() {
   const { plan, cargando: cargandoPlan } = usePlanUsuario(user?.uid)
   const pruebaIniciada = useRef(false)
   const [pruebaFallo, setPruebaFallo] = useState<string | null>(null)
+  const [pruebaDenegada, setPruebaDenegada] = useState(false)
+  // Cambiarlo es lo que hace que "Reintentar" vuelva a disparar el efecto de abajo: sin esto en
+  // sus dependencias, limpiar pruebaFallo no alcanzaba para que el fetch se repitiera, y el botón
+  // se quedaba mostrando el mismo error 12 segundos después sin haber vuelto a intentar nada.
+  const [reintentoNonce, setReintentoNonce] = useState(0)
   const [confirmacionAgotada, setConfirmacionAgotada] = useState(false)
   const [verPlanesManual, setVerPlanesManual] = useState(false)
 
-  // Un usuario que nunca tuvo ningún plan registrado arranca automáticamente una prueba gratis
-  // de 15 días con acceso Full completo — sin que tenga que elegir nada. Se activa en el
-  // servidor (con permisos de administrador) para que no se pueda reiniciar la prueba a mano.
+  // Quién puede necesitar que le arranquemos la prueba gratis: un usuario que nunca tuvo ningún
+  // plan, o uno que dejó un checkout de Mercado Pago a medias (crear-suscripcion ya escribe
+  // "pendiente" apenas se toca un plan, antes de pagar nada) y esa suscripción nunca se confirmó
+  // — ver la verificación de más abajo. Sin este segundo caso, un checkout abandonado dejaba a la
+  // persona sin prueba para siempre, porque el cliente nunca volvía a intentarla.
+  const sinPlan = plan.plan === null && plan.estado === null
+  const checkoutAbandonado = plan.estado === 'pendiente' && confirmacionAgotada
+  const puedeIntentarPrueba = sinPlan || checkoutAbandonado
+
+  // Arranca automáticamente una prueba gratis de 15 días con acceso Full completo — sin que el
+  // usuario tenga que elegir nada. Se activa en el servidor (con permisos de administrador) para
+  // que no se pueda reiniciar la prueba a mano; el propio servidor decide si corresponde o no
+  // (por ejemplo, si ya usó una prueba antes, este mismo pedido no cambia nada).
   useEffect(() => {
-    if (!habilitado || !user?.uid || cargandoPlan) return
-    if (plan.plan !== null || plan.estado !== null) return
+    if (!habilitado || !user?.uid || cargandoPlan || !puedeIntentarPrueba) return
     if (pruebaIniciada.current) return
     pruebaIniciada.current = true
     fetch('/api/iniciar-prueba', {
@@ -35,27 +49,33 @@ export function AccesoEmpresas() {
           // el rewrite de la SPA. Se ve igual que un éxito, pero no escribió nada.
           throw new Error(`${r.status} · respuesta no-JSON (${tipo.split(';')[0] || 'sin tipo'})`)
         }
-        if (r.ok) return
         const cuerpo = await r.json().catch(() => null)
-        throw new Error(`${r.status}${cuerpo?.motivo ? ` · ${cuerpo.motivo}` : ''}`)
+        if (!r.ok) {
+          throw new Error(`${r.status}${cuerpo?.motivo ? ` · ${cuerpo.motivo}` : ''}`)
+        }
+        // Un 200 no siempre significa "prueba otorgada": si el servidor decide que no corresponde
+        // (ya usó una antes), devuelve el plan tal cual estaba, sin tocar nada. Sin este chequeo,
+        // ese caso se quedaba esperando para siempre un cambio en Firestore que nunca iba a llegar.
+        if (cuerpo?.estado !== 'activo') {
+          setPruebaDenegada(true)
+        }
       })
       .catch((e: Error) => {
         pruebaIniciada.current = false
         setPruebaFallo(e.message || 'sin respuesta')
       })
-  }, [habilitado, user?.uid, cargandoPlan, plan.plan, plan.estado])
+  }, [habilitado, user?.uid, cargandoPlan, puedeIntentarPrueba, reintentoNonce])
 
   // Red de seguridad: si después de unos segundos el plan sigue sin aparecer, algo salió mal aunque
   // el pedido no haya dado error. Mejor mostrar una salida que dejar a alguien mirando un cartel
   // que no avanza nunca.
   useEffect(() => {
-    if (!habilitado || !user?.uid || cargandoPlan) return
-    if (plan.plan !== null || plan.estado !== null) return
-    if (pruebaFallo !== null) return
+    if (!habilitado || !user?.uid || cargandoPlan || !puedeIntentarPrueba) return
+    if (pruebaFallo !== null || pruebaDenegada) return
 
     const reloj = setTimeout(() => setPruebaFallo('sin respuesta a tiempo'), 12000)
     return () => clearTimeout(reloj)
-  }, [habilitado, user?.uid, cargandoPlan, plan.plan, plan.estado, pruebaFallo])
+  }, [habilitado, user?.uid, cargandoPlan, puedeIntentarPrueba, pruebaFallo, pruebaDenegada])
 
   // Respaldo del webhook: si el plan quedó "pendiente" (ya se creó la suscripción pero
   // todavía no se confirmó), consultamos nosotros mismos a Mercado Pago cada pocos segundos
@@ -117,10 +137,10 @@ export function AccesoEmpresas() {
     )
   }
 
-  if (user && plan.plan === null && plan.estado === null && pruebaFallo === null) {
-    // Recién llegó y no tiene ningún plan registrado: la prueba gratis se está activando en
-    // segundo plano (ver el useEffect de arriba) — en cuanto se cree el documento, este mismo
-    // componente se vuelve a renderizar solo, gracias al listener en tiempo real de usePlanUsuario.
+  if (user && puedeIntentarPrueba && pruebaFallo === null && !pruebaDenegada) {
+    // La prueba gratis se está activando en segundo plano (ver el useEffect de arriba) — en
+    // cuanto se cree o actualice el documento, este mismo componente se vuelve a renderizar
+    // solo, gracias al listener en tiempo real de usePlanUsuario.
     return (
       <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
         Activando tu prueba gratis de 15 días…
@@ -128,7 +148,7 @@ export function AccesoEmpresas() {
     )
   }
 
-  if (user && pruebaFallo !== null && plan.plan === null) {
+  if (user && pruebaFallo !== null && puedeIntentarPrueba) {
     return (
       <div className="mx-auto max-w-md py-16 text-center">
         <h1 className="text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
@@ -140,7 +160,10 @@ export function AccesoEmpresas() {
         </p>
         <button
           type="button"
-          onClick={() => setPruebaFallo(null)}
+          onClick={() => {
+            setPruebaFallo(null)
+            setReintentoNonce((n) => n + 1)
+          }}
           className="mt-4 rounded-full px-6 py-2.5 text-sm font-semibold text-white"
           style={{ background: 'var(--series-blue)' }}
         >
@@ -156,7 +179,11 @@ export function AccesoEmpresas() {
   const vencida = pruebaVencida(plan)
   const enGracia = enPeriodoDeGracia(plan)
   if ((plan.estado !== 'activo' && !enGracia) || vencida) {
-    return <PlanesEmpresa motivoVencimiento={vencida ? 'prueba' : plan.estado ? 'suscripcion' : undefined} />
+    // Si la prueba se denegó estando en "pendiente" (ver puedeOtorgarsePrueba en _prueba.js), el
+    // único motivo posible es que este usuario ya había usado una prueba antes.
+    return (
+      <PlanesEmpresa motivoVencimiento={vencida || pruebaDenegada ? 'prueba' : plan.estado ? 'suscripcion' : undefined} />
+    )
   }
 
   if (verPlanesManual) {
