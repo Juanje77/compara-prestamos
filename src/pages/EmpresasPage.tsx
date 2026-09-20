@@ -18,6 +18,7 @@ import { Clientes } from '../components/Clientes'
 import { Cheques } from '../components/Cheques'
 import { PosicionIva } from '../components/PosicionIva'
 import { PosicionIngresosBrutos } from '../components/PosicionIngresosBrutos'
+import { Monotributo } from '../components/Monotributo'
 import { IngresosGastos } from '../components/IngresosGastos'
 import { InputMoneda } from '../components/InputMoneda'
 import { Patrimonio } from '../components/Patrimonio'
@@ -120,6 +121,7 @@ import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
 import { exportarParaContador } from '../lib/contadorExport'
 import { abrirInformeFinanciero, abrirInformeSaludFinanciera } from '../lib/htmlReport'
 import { cargarNegocioData, guardarNegocioData, type NegocioData } from '../lib/negocioData'
+import { DATOS_MONOTRIBUTO_VACIOS, type DatosMonotributo } from '../lib/monotributo'
 import {
   guardarDatosUsuario,
   suscribirseADatosUsuario,
@@ -163,6 +165,7 @@ const SECCIONES = [
   { key: 'cheques', label: 'Cheques' },
   { key: 'iva', label: 'Posición de IVA' },
   { key: 'iibb', label: 'Ingresos Brutos' },
+  { key: 'monotributo', label: 'Monotributo' },
   { key: 'patrimonio', label: 'Patrimonio' },
   { key: 'backup', label: 'Backup' },
   { key: 'ayuda', label: 'Ayuda' },
@@ -188,7 +191,7 @@ const GRUPOS: { key: string; label: string; secciones: Seccion[] }[] = [
   },
   { key: 'tesoreria', label: 'Tesorería y stock', secciones: ['tesoreria', 'cheques', 'stock'] },
   { key: 'rrhh', label: 'RRHH', secciones: ['sueldos'] },
-  { key: 'impuestos', label: 'Impuestos', secciones: ['iva', 'iibb'] },
+  { key: 'impuestos', label: 'Impuestos', secciones: ['iva', 'iibb', 'monotributo'] },
   { key: 'negocio', label: 'Negocio', secciones: ['patrimonio', 'backup', 'ayuda'] },
 ]
 
@@ -213,7 +216,8 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   function seccionBloqueada(key: Seccion): boolean {
     return SECCIONES_FULL.has(key)
       ? !esFull
-      : !esPremium && (['presupuesto', 'facturas', 'proveedores', 'clientes', 'iva', 'iibb', 'patrimonio'] as Seccion[]).includes(key)
+      : !esPremium &&
+        (['presupuesto', 'facturas', 'proveedores', 'clientes', 'iva', 'iibb', 'monotributo', 'patrimonio'] as Seccion[]).includes(key)
   }
   const [mostrarPlanes, setMostrarPlanes] = useState(false)
   const [ingresos, setIngresos] = useState(() => cargarNegocioData()?.ingresos ?? 7000000)
@@ -272,6 +276,9 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   const [movimientosDiarios, setMovimientosDiarios] = useState<MovimientoDiario[]>(
     () => cargarNegocioData()?.movimientosDiarios ?? [],
   )
+  const [monotributo, setMonotributo] = useState<DatosMonotributo>(
+    () => cargarNegocioData()?.monotributo ?? DATOS_MONOTRIBUTO_VACIOS,
+  )
   const [tasaCrecimiento, setTasaCrecimiento] = useState(() => cargarNegocioData()?.tasaCrecimiento ?? 0)
   const [nombreNegocio, setNombreNegocio] = useState(() => cargarNegocioData()?.nombreNegocio ?? '')
 
@@ -287,7 +294,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
       facturas, clasificaciones, clientesManual, cheques, pagos, remitos, sectores, empleados,
       datosEmisorFiscal, anticipos, productos, movimientosStock,
       movimientosTesoreria, movimientosBancarios, ivaManualPorMes, ingresosBrutosManualPorMes,
-      movimientosDiarios, tasaCrecimiento, nombreNegocio,
+      movimientosDiarios, monotributo, tasaCrecimiento, nombreNegocio,
     ],
   )
 
@@ -304,14 +311,14 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
       facturas, clasificaciones, clientesManual, cheques, pagos, remitos, sectores, empleados,
       datosEmisorFiscal, anticipos, productos, movimientosStock,
       movimientosTesoreria, movimientosBancarios, ivaManualPorMes, ingresosBrutosManualPorMes,
-      movimientosDiarios, tasaCrecimiento, nombreNegocio, actualizadoEn,
+      movimientosDiarios, monotributo, tasaCrecimiento, nombreNegocio, actualizadoEn,
     }),
     [
       ingresos, meses, montos, cuentas, deudas, bienes, realManualPorMes, ventasManualPorMes,
       facturas, clasificaciones, clientesManual, cheques, pagos, remitos, sectores, empleados,
       datosEmisorFiscal, anticipos, productos, movimientosStock,
       movimientosTesoreria, movimientosBancarios, ivaManualPorMes, ingresosBrutosManualPorMes,
-      movimientosDiarios, tasaCrecimiento, nombreNegocio, actualizadoEn,
+      movimientosDiarios, monotributo, tasaCrecimiento, nombreNegocio, actualizadoEn,
     ],
   )
 
@@ -380,6 +387,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           setIvaManualPorMes(d.ivaManualPorMes ?? {})
           setIngresosBrutosManualPorMes(d.ingresosBrutosManualPorMes ?? {})
           setMovimientosDiarios(d.movimientosDiarios ?? [])
+          setMonotributo(d.monotributo ?? DATOS_MONOTRIBUTO_VACIOS)
           setTasaCrecimiento(d.tasaCrecimiento ?? 0)
           setNombreNegocio(d.nombreNegocio ?? '')
         }
@@ -480,6 +488,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     setIvaManualPorMes(d.ivaManualPorMes ?? {})
     setIngresosBrutosManualPorMes(d.ingresosBrutosManualPorMes ?? {})
     setMovimientosDiarios(d.movimientosDiarios ?? [])
+    setMonotributo(d.monotributo ?? DATOS_MONOTRIBUTO_VACIOS)
     setTasaCrecimiento(d.tasaCrecimiento ?? 0)
     setNombreNegocio(d.nombreNegocio ?? '')
   }
@@ -1815,6 +1824,17 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
             onCambiarManual={handleCambiarIngresosBrutosManual}
             onEliminarMes={handleEliminarMesIngresosBrutos}
           />
+        </PremiumLock>
+      )}
+
+      {seccion === 'monotributo' && (
+        <PremiumLock
+          activo={esPremium}
+          titulo="Monotributo"
+          descripcion="En qué categoría estás según tus últimos 12 meses y en cuál vas a quedar en la próxima recategorización, con la cuota que te corresponde."
+          onQuieroPremium={abrirPlanes}
+        >
+          <Monotributo facturas={facturas} datos={monotributo} onCambiar={setMonotributo} />
         </PremiumLock>
       )}
 

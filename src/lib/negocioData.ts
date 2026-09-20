@@ -1,4 +1,5 @@
 import type { Anticipo, Bien, Cheque, ClasificacionesProveedores, CuentaBancaria, DatosEmisorFiscal, Deuda, Empleado, Factura, IngresosBrutosManualMes, IvaManualMes, MovimientoBancario, MovimientoDiario, MovimientoStock, MovimientoTesoreria, Pago, Producto, RemitoPresupuesto, Sector } from './cfo'
+import type { DatosMonotributo } from './monotributo'
 
 export interface NegocioData {
   ingresos: number
@@ -47,6 +48,9 @@ export interface NegocioData {
   ingresosBrutosManualPorMes: Record<string, IngresosBrutosManualMes>
   /** Carga diaria simple de ingresos y gastos (Básico) — ver calcularResumenMovimientosDiarios. */
   movimientosDiarios: MovimientoDiario[]
+  /** Parámetros del monotributo que no salen de los comprobantes (alquiler, energía, superficie)
+   * y la actividad — ver encuadrar en monotributo.ts. */
+  monotributo?: DatosMonotributo
   tasaCrecimiento: number
   nombreNegocio: string
   /** Instante (Date.now()) de este snapshot — para no dejar que una carga de la nube, más vieja

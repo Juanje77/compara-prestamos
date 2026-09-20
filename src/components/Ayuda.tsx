@@ -248,8 +248,22 @@ const SECCIONES: SeccionAyuda[] = [
     ],
   },
   {
-    id: 'patrimonio',
+    id: 'monotributo',
     numero: '17',
+    titulo: 'Monotributo',
+    tier: 'medio',
+    descripcion: 'En qué categoría estás y en cuál vas a quedar en la próxima recategorización, con la cuota que te corresponde.',
+    pasos: [
+      'Elegí si tu actividad es `Locaciones y prestaciones de servicios` o `Venta de cosas muebles`: la cuota cambia bastante entre una y otra.',
+      'La facturación de los últimos 12 meses se calcula sola con tus comprobantes emitidos (los internos no cuentan, porque no son fiscales). Si necesitás otro número, escribilo y pisa al calculado.',
+      'Cargá alquileres devengados, luz consumida y superficie del último año. Lo que dejes vacío no se usa para categorizar.',
+      'Arriba te muestra la categoría, la cuota desglosada (impuesto + jubilación + obra social), la fecha de la próxima recategorización y cuánto te falta facturar para subir de escalón.',
+    ],
+    tip: 'La categoría no la define solo lo que facturás: cada parámetro exige su propia categoría mínima y manda el más exigente. Alguien que factura poco pero alquila un local caro se categoriza por el alquiler. La pantalla te dice cuál te está ubicando.',
+  },
+  {
+    id: 'patrimonio',
+    numero: '18',
     titulo: 'Patrimonio',
     tier: 'medio',
     descripcion: 'Bienes que no son caja del día a día, pero que podrías vender ante un quiebre de caja.',
@@ -260,7 +274,7 @@ const SECCIONES: SeccionAyuda[] = [
   },
   {
     id: 'contador',
-    numero: '18',
+    numero: '19',
     titulo: 'Exportar para el contador',
     tier: 'medio',
     descripcion: 'Un Excel prolijo, listo para mandar al estudio contable o importar en su sistema.',
@@ -272,7 +286,7 @@ const SECCIONES: SeccionAyuda[] = [
   },
   {
     id: 'punto-de-venta',
-    numero: '19',
+    numero: '20',
     titulo: 'Punto de venta',
     tier: 'full',
     descripcion: 'La pantalla del mostrador: pasás los productos con el lector y cobrás, sin frenar la atención.',
@@ -286,7 +300,7 @@ const SECCIONES: SeccionAyuda[] = [
   },
   {
     id: 'backup',
-    numero: '20',
+    numero: '21',
     titulo: 'Backup',
     tier: 'basico',
     descripcion: 'Una copia completa de todo lo que cargaste en FinCorp, para descargar cuando quieras.',
