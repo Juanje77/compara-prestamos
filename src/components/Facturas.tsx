@@ -47,6 +47,8 @@ interface Props {
   pagos?: Pago[]
   /** Solo se pasa con el plan Full — habilita elegir con qué cuenta se cobró/pagó cada factura. */
   cuentas?: CuentaBancaria[]
+  /** Con qué cuenta quedó registrado el cobro/pago de cada factura, por id — ver cuentaPorFactura. */
+  cuentaPorFactura?: Record<string, string>
   /** Sectores (divisiones/centros de costo) creados en Márgenes por sector, para asignar cada
    * comprobante a uno al cargarlo — ver calcularMargenPorSector. */
   sectores?: Sector[]
@@ -149,7 +151,7 @@ function BotonExportarContador({ onExportar }: { onExportar: Props['onExportarCo
   )
 }
 
-export function Facturas({ facturas, pagos = [], cuentas, sectores = [], productos = [], onAgregar, onImportarVarias, onCambiar, onEliminar, emisorFiscal, onEmitida, onVaciar, onExportarContador, onDescargarInforme }: Props) {
+export function Facturas({ facturas, pagos = [], cuentas, cuentaPorFactura = {}, sectores = [], productos = [], onAgregar, onImportarVarias, onCambiar, onEliminar, emisorFiscal, onEmitida, onVaciar, onExportarContador, onDescargarInforme }: Props) {
   const [facturaAEmitir, setFacturaAEmitir] = useState<Factura | null>(null)
   const [facturaANotear, setFacturaANotear] = useState<Factura | null>(null)
   const [tipo, setTipo] = useState<TipoFactura>('emitida')
@@ -1121,7 +1123,11 @@ export function Facturas({ facturas, pagos = [], cuentas, sectores = [], product
                     )}
                     {f.cumplido && f.medioPago && f.medioPago !== 'cheque' && cuentas && cuentas.length > 0 && (
                       <select
-                        defaultValue=""
+                        // Controlado contra Tesorería: la cuenta elegida se lee del movimiento que
+                        // se generó, que es donde queda registrada. Cuando era no controlado, el
+                        // selector volvía a "Cuenta…" apenas se re-renderizaba y parecía que no
+                        // había guardado nada, aunque la plata sí se hubiera movido.
+                        value={cuentaPorFactura[f.id] ?? ''}
                         onChange={(e) => {
                           if (e.target.value) onCambiar(f.id, { cuentaId: e.target.value })
                         }}

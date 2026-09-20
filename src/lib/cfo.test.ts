@@ -21,6 +21,7 @@ import {
   calcularRealAutomaticoPorMes,
   calcularResumenConciliacion,
   calcularRunwayMeses,
+  cuentaPorFactura,
   distribuirEnCuotas,
   facturaDesdeMovimientoDiario,
   gastosAguinaldoProyectados,
@@ -546,6 +547,28 @@ describe('Ingresos y gastos guardados como comprobantes internos', () => {
     const delMostrador = factura({ id: 'pos', tipo: 'emitida', monto: 500, fecha: '2026-03-04', esInterna: true })
     const delDiario = facturaDesdeMovimientoDiario(ingreso, 'f1')
     expect(listarMovimientosDiarios([delMostrador, delDiario]).map((m) => m.id)).toEqual(['f1'])
+  })
+})
+
+describe('cuentaPorFactura', () => {
+  const mov = (id: string, origenId: string, cuentaId: string): MovimientoTesoreria => ({
+    id, cuentaId, tipo: 'ingreso', monto: 100, fecha: '2026-09-01', origen: 'factura', origenId,
+  })
+
+  it('indexa por factura la cuenta con la que se registró el movimiento', () => {
+    expect(cuentaPorFactura([mov('m1', 'f1', 'c1'), mov('m2', 'f2', 'c2')])).toEqual({ f1: 'c1', f2: 'c2' })
+  })
+
+  it('ignora los movimientos que no vienen de una factura', () => {
+    const sueldo: MovimientoTesoreria = {
+      id: 'm3', cuentaId: 'c9', tipo: 'egreso', monto: 1, fecha: '2026-09-01',
+      origen: 'sueldo', origenId: '2026-09:netos',
+    }
+    expect(cuentaPorFactura([sueldo])).toEqual({})
+  })
+
+  it('si una factura cambió de cuenta, vale el último movimiento', () => {
+    expect(cuentaPorFactura([mov('m1', 'f1', 'vieja'), mov('m2', 'f1', 'nueva')])).toEqual({ f1: 'nueva' })
   })
 })
 

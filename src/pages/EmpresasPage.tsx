@@ -70,6 +70,7 @@ import {
   calcularRunwayMeses,
   calcularSaldoFactura,
   calcularSaldoTotalBancos,
+  cuentaPorFactura,
   calcularTendenciaMensual,
   calcularValorTotalBienes,
   generarAlertas,
@@ -301,6 +302,10 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   // Lo que muestra Ingresos y gastos sale de los comprobantes que se cargaron desde ahí — es la
   // misma información, vista como el registro diario simple que espera esa pantalla.
   const movimientosDiariosVista = useMemo(() => listarMovimientosDiarios(facturas), [facturas])
+
+  // Con qué cuenta quedó registrado el cobro/pago de cada factura, para que el selector de
+  // Comprobantes muestre la elegida en vez de volver siempre a "Cuenta…".
+  const cuentasDeFacturas = useMemo(() => cuentaPorFactura(movimientosTesoreria), [movimientosTesoreria])
 
   // El snapshot completo del negocio — se arma una sola vez acá y de acá salen tanto el guardado
   // local como el de Firestore como la descarga de Backup, en vez de repetir la misma lista de 27
@@ -1577,6 +1582,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
             facturas={facturas}
             pagos={pagos}
             cuentas={esFull ? cuentas : undefined}
+            cuentaPorFactura={cuentasDeFacturas}
             sectores={sectores}
             productos={productos}
             onAgregar={handleAgregarFactura}

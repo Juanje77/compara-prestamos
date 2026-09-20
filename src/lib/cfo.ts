@@ -52,6 +52,22 @@ export function revertirMovimientoTesoreria(cuentas: CuentaBancaria[], m: Movimi
   return cuentas.map((c) => (c.id === m.cuentaId ? { ...c, saldo: c.saldo - deltaDeMovimientoTesoreria(m) } : c))
 }
 
+/**
+ * Con qué cuenta quedó registrado el cobro o pago directo de cada factura, indexado por su id.
+ *
+ * Sale de Tesorería y no de la factura a propósito: el movimiento es el registro real de dónde
+ * entró o salió la plata, así que no puede quedar desincronizado de lo que muestra la pantalla.
+ * Guardar además una copia en la factura sería un segundo lugar donde la misma verdad se puede
+ * desfasar.
+ */
+export function cuentaPorFactura(movimientos: MovimientoTesoreria[]): Record<string, string> {
+  const porFactura: Record<string, string> = {}
+  for (const m of movimientos) {
+    if (m.origen === 'factura' && m.origenId) porFactura[m.origenId] = m.cuentaId
+  }
+  return porFactura
+}
+
 export interface ResumenCuentaTesoreria {
   cuenta: CuentaBancaria
   ingresos: number
