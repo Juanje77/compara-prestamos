@@ -2169,8 +2169,8 @@ export interface MargenSector {
  * precio facturado, así que dan margen cero por sí solas — el costo real de esa mano de obra
  * entra por la nómina.
  *
- * El costo de la nómina es mensual, así que quien llama tiene que pasar los remitos de UN mes
- * para que ingreso y costo hablen del mismo período.
+ * El costo de la nómina es mensual, así que ingreso y costo tienen que hablar del mismo período:
+ * o se pasan los remitos de UN mes, o se pasan los de varios junto con `mesesDeNomina`.
  */
 export function calcularMargenPorSector(
   sectores: Sector[],
@@ -2182,6 +2182,9 @@ export function calcularMargenPorSector(
    * pasar por un remito. Los que ya estén vinculados a un remito de la lista de arriba se
    * ignoran acá, porque su ingreso ya se cuenta a través de ese remito. */
   facturas: Factura[] = [],
+  /** Cuántos meses de nómina cargar. Es 1 cuando se mira un mes; en la vista acumulada se pasa la
+   * cantidad de meses que abarcan los documentos, para que el sueldo acompañe al período mirado. */
+  mesesDeNomina = 1,
 ): MargenSector[] {
   const productoPorId = new Map(productos.map((p) => [p.id, p]))
   const activos = empleados.filter((e) => e.activo)
@@ -2196,9 +2199,12 @@ export function calcularMargenPorSector(
     const comprobantesEmitidos = comprobantesDelSector.filter((f) => f.tipo === 'emitida')
     const comprobantesRecibidos = comprobantesDelSector.filter((f) => f.tipo === 'recibida')
 
-    const ingreso = emitidos.reduce((s, r) => s + r.monto, 0) + comprobantesEmitidos.reduce((s, f) => s + f.monto, 0)
+    // Los comprobantes van con montoConSigno: una nota de crédito de venta resta del ingreso del
+    // sector, y una de compra resta del costo. Los remitos no tienen notas de crédito.
+    const ingreso =
+      emitidos.reduce((s, r) => s + r.monto, 0) + comprobantesEmitidos.reduce((s, f) => s + montoConSigno(f), 0)
     const costoCompras =
-      recibidos.reduce((s, r) => s + r.monto, 0) + comprobantesRecibidos.reduce((s, f) => s + f.monto, 0)
+      recibidos.reduce((s, r) => s + r.monto, 0) + comprobantesRecibidos.reduce((s, f) => s + montoConSigno(f), 0)
     let costoLineas = 0
     let remitosSinLineas = 0
     for (const r of emitidos) {
@@ -2215,10 +2221,11 @@ export function calcularMargenPorSector(
       }
     }
 
-    const costoNomina = activos.reduce((total, e) => {
-      const porcentaje = (e.asignaciones ?? []).find((a) => a.sectorId === sector.id)?.porcentaje ?? 0
-      return total + calcularCostoEmpleado(e).costoEmpresa * (porcentaje / 100)
-    }, 0)
+    const costoNomina =
+      activos.reduce((total, e) => {
+        const porcentaje = (e.asignaciones ?? []).find((a) => a.sectorId === sector.id)?.porcentaje ?? 0
+        return total + calcularCostoEmpleado(e).costoEmpresa * (porcentaje / 100)
+      }, 0) * mesesDeNomina
 
     const costoTotal = costoCompras + costoLineas + costoNomina
     const ganancia = ingreso - costoTotal

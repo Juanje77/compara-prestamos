@@ -26,7 +26,7 @@ import { Backup } from '../components/Backup'
 import { Ayuda } from '../components/Ayuda'
 import { CuentasCorrientes } from '../components/CuentasCorrientes'
 import { RemitosPresupuestos } from '../components/RemitosPresupuestos'
-import { MargenesPorSector } from '../components/MargenesPorSector'
+import { MargenesPorSector, type PeriodoMargenes } from '../components/MargenesPorSector'
 import { Sueldos } from '../components/Sueldos'
 import { FacturacionElectronica } from '../components/FacturacionElectronica'
 import { Stock } from '../components/Stock'
@@ -244,6 +244,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   )
   const [mesPresupuesto, setMesPresupuesto] = useState(() => mesActualISO())
   const [mesMargenes, setMesMargenes] = useState(() => mesActualISO())
+  const [periodoMargenes, setPeriodoMargenes] = useState<PeriodoMargenes>('mes')
   const [facturas, setFacturas] = useState<Factura[]>(() => cargarNegocioData()?.facturas ?? [])
   const [clasificaciones, setClasificaciones] = useState<ClasificacionesProveedores>(
     () => cargarNegocioData()?.clasificaciones ?? {},
@@ -1318,18 +1319,28 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   )
   const remitosCobrar = useMemo(() => listarRemitosPendientes(remitos, anticipos, 'emitida'), [remitos, anticipos])
   const remitosPagar = useMemo(() => listarRemitosPendientes(remitos, anticipos, 'recibida'), [remitos, anticipos])
-  // Los remitos se filtran al mes elegido porque el costo de la nómina que se les suma es mensual:
-  // mezclar los remitos de todo el año con el sueldo de un mes daría un margen sin sentido.
+  // El costo de la nómina que se suma a cada sector es mensual, así que el período elegido define
+  // cuántos meses de sueldo entran: uno cuando se mira un mes, y en el acumulado tantos como meses
+  // con movimientos haya, para no comparar los remitos de todo el año contra un solo sueldo.
+  const remitosDeSectores = useMemo(
+    () => (periodoMargenes === 'mes' ? remitos.filter((r) => r.fecha.slice(0, 7) === mesMargenes) : remitos),
+    [remitos, periodoMargenes, mesMargenes],
+  )
+  const facturasDeSectores = useMemo(
+    () => (periodoMargenes === 'mes' ? facturas.filter((f) => f.fecha.slice(0, 7) === mesMargenes) : facturas),
+    [facturas, periodoMargenes, mesMargenes],
+  )
+  const mesesAcumulados = useMemo(() => {
+    if (periodoMargenes === 'mes') return 1
+    const meses = new Set<string>()
+    for (const r of remitosDeSectores) if (r.sectorId) meses.add(r.fecha.slice(0, 7))
+    for (const f of facturasDeSectores) if (f.sectorId) meses.add(f.fecha.slice(0, 7))
+    return Math.max(1, meses.size)
+  }, [periodoMargenes, remitosDeSectores, facturasDeSectores])
   const margenesPorSector = useMemo(
     () =>
-      calcularMargenPorSector(
-        sectores,
-        remitos.filter((r) => r.fecha.slice(0, 7) === mesMargenes),
-        productos,
-        empleados,
-        facturas.filter((f) => f.fecha.slice(0, 7) === mesMargenes),
-      ),
-    [sectores, remitos, productos, empleados, mesMargenes, facturas],
+      calcularMargenPorSector(sectores, remitosDeSectores, productos, empleados, facturasDeSectores, mesesAcumulados),
+    [sectores, remitosDeSectores, productos, empleados, facturasDeSectores, mesesAcumulados],
   )
   // Para el calendario semanal: los pagos que genera la nómina del mes en curso.
   const pagosSueldosMesActual = useMemo(
@@ -1655,6 +1666,9 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
             margenes={margenesPorSector}
             mes={mesMargenes}
             onCambiarMes={setMesMargenes}
+            periodo={periodoMargenes}
+            onCambiarPeriodo={setPeriodoMargenes}
+            mesesAcumulados={mesesAcumulados}
             onAgregarSector={handleAgregarSector}
             onEliminarSector={handleEliminarSector}
           />

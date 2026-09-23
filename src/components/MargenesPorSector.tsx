@@ -6,11 +6,17 @@ import { IconButton } from './IconButton'
 import { Card } from './Card'
 import { Button } from './Button'
 
+export type PeriodoMargenes = 'mes' | 'acumulado'
+
 interface Props {
   sectores: { id: string; nombre: string }[]
   margenes: MargenSector[]
   mes: string
   onCambiarMes: (mes: string) => void
+  periodo: PeriodoMargenes
+  onCambiarPeriodo: (periodo: PeriodoMargenes) => void
+  /** Cuántos meses de nómina entraron en el acumulado, para poder aclararlo en pantalla. */
+  mesesAcumulados: number
   onAgregarSector: (nombre: string) => void
   onEliminarSector: (id: string) => void
 }
@@ -122,8 +128,26 @@ function TarjetaMargen({ margen }: { margen: MargenSector }) {
   )
 }
 
-export function MargenesPorSector({ sectores, margenes, mes, onCambiarMes, onAgregarSector, onEliminarSector }: Props) {
+export function MargenesPorSector({
+  sectores,
+  margenes,
+  mes,
+  onCambiarMes,
+  periodo,
+  onCambiarPeriodo,
+  mesesAcumulados,
+  onAgregarSector,
+  onEliminarSector,
+}: Props) {
   const [nombreNuevo, setNombreNuevo] = useState('')
+  const totales = margenes.reduce(
+    (t, m) => ({
+      ingreso: t.ingreso + m.ingreso,
+      costoTotal: t.costoTotal + m.costoTotal,
+      ganancia: t.ganancia + m.ganancia,
+    }),
+    { ingreso: 0, costoTotal: 0, ganancia: 0 },
+  )
 
   function sumarMeses(delta: number) {
     const [anio, m] = mes.split('-').map(Number)
@@ -145,33 +169,59 @@ export function MargenesPorSector({ sectores, margenes, mes, onCambiarMes, onAgr
           <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
             Márgenes por sector
           </h2>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => sumarMeses(-1)}
-              aria-label="Mes anterior"
-              className="rounded-lg border px-2 py-1 text-sm"
-              style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
-            >
-              ←
-            </button>
-            <span className="min-w-[140px] text-center text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-              {etiquetaMes(mes)}
-            </span>
-            <button
-              onClick={() => sumarMeses(1)}
-              aria-label="Mes siguiente"
-              className="rounded-lg border px-2 py-1 text-sm"
-              style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
-            >
-              →
-            </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex gap-1">
+              {(['mes', 'acumulado'] as PeriodoMargenes[]).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => onCambiarPeriodo(p)}
+                  className="rounded-full border px-3 py-1 text-xs font-medium"
+                  style={
+                    periodo === p
+                      ? { background: 'var(--series-blue)', borderColor: 'var(--series-blue)', color: 'white' }
+                      : { borderColor: 'var(--border)', color: 'var(--text-secondary)' }
+                  }
+                >
+                  {p === 'mes' ? 'Por mes' : 'Acumulado'}
+                </button>
+              ))}
+            </div>
+            {periodo === 'mes' && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => sumarMeses(-1)}
+                  aria-label="Mes anterior"
+                  className="rounded-lg border px-2 py-1 text-sm"
+                  style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
+                >
+                  ←
+                </button>
+                <span
+                  className="min-w-[140px] text-center text-sm font-medium"
+                  style={{ color: 'var(--text-primary)' }}
+                >
+                  {etiquetaMes(mes)}
+                </span>
+                <button
+                  onClick={() => sumarMeses(1)}
+                  aria-label="Mes siguiente"
+                  className="rounded-lg border px-2 py-1 text-sm"
+                  style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
+                >
+                  →
+                </button>
+              </div>
+            )}
           </div>
         </div>
         <p className="mb-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
           Creá un sector por cada división o centro de costo del negocio y asignalo a tus remitos (en la solapa
           Remitos y presupuestos) o, si facturás sin pasar por un remito, directo al comprobante (en Comprobantes).
-          Solo se cuentan remitos (no presupuestos): un presupuesto todavía no es un compromiso real. Se mira un
-          mes por vez, porque el costo de la nómina asignada a cada sector (desde Sueldos) es mensual.
+          Solo se cuentan remitos (no presupuestos): un presupuesto todavía no es un compromiso real.{' '}
+          {periodo === 'mes'
+            ? 'Estás mirando un mes por vez; con "Acumulado" ves el total de cada sector desde que empezaste a cargar.'
+            : `Estás viendo el total de cada sector desde el primer movimiento cargado. La nómina asignada a cada sector (desde Sueldos) es mensual, así que se cuenta ${mesesAcumulados} ${mesesAcumulados === 1 ? 'vez' : 'veces'}, una por cada mes con movimientos, tomando los sueldos de hoy.`}
         </p>
 
         <form onSubmit={handleSubmit} className="flex flex-wrap gap-2">
@@ -209,11 +259,65 @@ export function MargenesPorSector({ sectores, margenes, mes, onCambiarMes, onAgr
           Todavía no creaste ningún sector.
         </p>
       ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {margenes.map((m) => (
-            <TarjetaMargen key={m.sector.id} margen={m} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {margenes.map((m) => (
+              <TarjetaMargen key={m.sector.id} margen={m} />
+            ))}
+          </div>
+
+          {margenes.length > 1 && (
+            <Card as="section" padding="sm">
+              <p className="mb-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+                Todos los sectores juntos
+              </p>
+              <div className="flex flex-wrap gap-x-8 gap-y-3">
+                <div>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    Ingreso
+                  </p>
+                  <p className="tabular font-semibold" style={{ color: 'var(--text-primary)' }}>
+                    {formatoMoneda(totales.ingreso)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    Costo total
+                  </p>
+                  <p className="tabular font-semibold" style={{ color: 'var(--text-secondary)' }}>
+                    {formatoMoneda(totales.costoTotal)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    Ganancia
+                  </p>
+                  <p
+                    className="tabular font-semibold"
+                    style={{
+                      color: totales.ganancia >= 0 ? 'var(--status-good-text)' : 'var(--status-critical)',
+                    }}
+                  >
+                    {formatoMoneda(totales.ganancia)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    Margen
+                  </p>
+                  <p
+                    className="tabular font-semibold"
+                    style={{
+                      color: totales.ganancia >= 0 ? 'var(--status-good-text)' : 'var(--status-critical)',
+                    }}
+                  >
+                    {totales.ingreso > 0 ? formatoPorcentaje((totales.ganancia / totales.ingreso) * 100) : '—'}
+                  </p>
+                </div>
+              </div>
+            </Card>
+          )}
+        </>
       )}
     </div>
   )

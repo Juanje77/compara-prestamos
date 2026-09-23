@@ -656,6 +656,31 @@ describe('calcularMargenPorSector', () => {
     expect(metal.cantidadComprobantes).toBe(1)
   })
 
+  it('una nota de crédito de venta resta del ingreso del sector', () => {
+    const facturas: Factura[] = [
+      { id: 'f1', tipo: 'emitida', tipoComprobante: 'factura', contraparte: 'Cliente', monto: 500000, fecha: '2026-09-10', sectorId: 's1' },
+      { id: 'f2', tipo: 'emitida', tipoComprobante: 'nota_credito', contraparte: 'Cliente', monto: 200000, fecha: '2026-09-11', sectorId: 's1' },
+    ]
+    const [metal] = calcularMargenPorSector(sectores, remitos, productos, empleados, facturas)
+    expect(metal.ingreso).toBe(3000000 + 300000)
+  })
+
+  it('una nota de crédito de compra resta del costo del sector', () => {
+    const facturas: Factura[] = [
+      { id: 'f1', tipo: 'recibida', tipoComprobante: 'factura', contraparte: 'Proveedor', monto: 500000, fecha: '2026-09-10', sectorId: 's1' },
+      { id: 'f2', tipo: 'recibida', tipoComprobante: 'nota_credito', contraparte: 'Proveedor', monto: 200000, fecha: '2026-09-11', sectorId: 's1' },
+    ]
+    const [metal] = calcularMargenPorSector(sectores, remitos, productos, empleados, facturas)
+    expect(metal.costoCompras).toBe(400000 + 300000)
+  })
+
+  it('en el acumulado la nómina se cuenta una vez por mes mirado', () => {
+    const unMes = calcularMargenPorSector(sectores, remitos, productos, empleados)[0]
+    const tresMeses = calcularMargenPorSector(sectores, remitos, productos, empleados, [], 3)[0]
+    cerca(tresMeses.costoNomina, unMes.costoNomina * 3)
+    expect(tresMeses.ingreso).toBe(unMes.ingreso) // los remitos son los mismos
+  })
+
   it('no duplica el ingreso de un comprobante ya vinculado a un remito del sector', () => {
     const remitoVinculado: RemitoPresupuesto[] = [{ ...remitos[0], facturaId: 'f1' }, remitos[1]]
     const facturas: Factura[] = [
