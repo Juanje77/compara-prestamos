@@ -34,6 +34,12 @@ npm run dev
 npm run build
 ```
 
+## Operación
+
+- [Cambiar el dominio](docs/CAMBIAR-DE-DOMINIO.md) — qué hay que actualizar en Google, Firebase,
+  Vercel y Mercado Pago para que el login, el backup en Drive y los pagos sigan funcionando.
+- [Reglas de Firestore](docs/REGLAS-FIRESTORE.md)
+
 ## Datos
 
 Las tasas en `src/data/loans.ts` son de referencia, relevadas de prensa especializada (ver fuentes citadas en cada oferta y en el footer de la app). Una rutina semanal automática revisa novedades y deja un Pull Request para revisión antes de publicar cualquier cambio. Las tasas reales dependen del perfil crediticio y cambian frecuentemente — siempre verificar contra el sitio oficial del banco antes de decidir.
