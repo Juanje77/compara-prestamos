@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest'
+import type { Factura } from './cfo'
 import {
   PRECIO_UNITARIO_MAXIMO,
   TABLA_MONOTRIBUTO,
+  comprasUltimos12Meses,
   cuotaMensual,
   encuadrar,
+  ingresosUltimos12Meses,
   proximaRecategorizacion,
+  relacionComprasVentas,
 } from './monotributo'
 
 /**
@@ -115,6 +119,75 @@ describe('proximaRecategorizacion', () => {
 
   it('pasada la de agosto, salta a febrero del año que viene', () => {
     expect(proximaRecategorizacion(new Date(2026, 8, 20))).toBe('2027-02-20')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Compras y ventas de los últimos 12 meses — la relación que cruza ARCA
+// ---------------------------------------------------------------------------
+
+function factura(parcial: Partial<Factura> & Pick<Factura, 'id' | 'tipo' | 'monto' | 'fecha'>): Factura {
+  return { tipoComprobante: 'factura', contraparte: 'Alguien', ...parcial }
+}
+
+const HOY = new Date(2026, 8, 23)
+
+describe('ingresosUltimos12Meses y comprasUltimos12Meses', () => {
+  it('suman cada tipo por separado', () => {
+    const facturas = [
+      factura({ id: '1', tipo: 'emitida', monto: 1_000_000, fecha: '2026-05-10' }),
+      factura({ id: '2', tipo: 'recibida', monto: 700_000, fecha: '2026-05-12' }),
+    ]
+    expect(ingresosUltimos12Meses(facturas, HOY)).toBe(1_000_000)
+    expect(comprasUltimos12Meses(facturas, HOY)).toBe(700_000)
+  })
+
+  it('dejan afuera los comprobantes internos, que ARCA no ve', () => {
+    const facturas = [
+      factura({ id: '1', tipo: 'emitida', monto: 1_000_000, fecha: '2026-05-10', esInterna: true }),
+      factura({ id: '2', tipo: 'recibida', monto: 700_000, fecha: '2026-05-12', esInterna: true }),
+    ]
+    expect(ingresosUltimos12Meses(facturas, HOY)).toBe(0)
+    expect(comprasUltimos12Meses(facturas, HOY)).toBe(0)
+  })
+
+  it('dejan afuera lo anterior a la ventana de 12 meses', () => {
+    const facturas = [factura({ id: '1', tipo: 'recibida', monto: 500_000, fecha: '2025-01-10' })]
+    expect(comprasUltimos12Meses(facturas, HOY)).toBe(0)
+  })
+
+  it('las notas de crédito restan', () => {
+    const facturas = [
+      factura({ id: '1', tipo: 'recibida', monto: 700_000, fecha: '2026-05-12' }),
+      factura({ id: '2', tipo: 'recibida', monto: 200_000, fecha: '2026-06-01', tipoComprobante: 'nota_credito' }),
+    ]
+    expect(comprasUltimos12Meses(facturas, HOY)).toBe(500_000)
+  })
+})
+
+describe('relacionComprasVentas', () => {
+  it('en venta de cosas muebles el mínimo es el 80% de las ventas', () => {
+    const r = relacionComprasVentas(1_000_000, 800_000, 'muebles')
+    expect(r.proporcion).toBeCloseTo(0.8, 4)
+    expect(r.cumple).toBe(true)
+    expect(r.faltante).toBe(0)
+  })
+
+  it('avisa cuánto falta cuando las compras no llegan', () => {
+    const r = relacionComprasVentas(1_000_000, 500_000, 'muebles')
+    expect(r.cumple).toBe(false)
+    expect(r.faltante).toBe(300_000)
+  })
+
+  it('en servicios el mínimo es más bajo, porque casi no hay compras', () => {
+    expect(relacionComprasVentas(1_000_000, 500_000, 'servicios').cumple).toBe(true)
+    expect(relacionComprasVentas(1_000_000, 300_000, 'servicios').cumple).toBe(false)
+  })
+
+  it('sin ventas no hay nada que medir', () => {
+    const r = relacionComprasVentas(0, 400_000, 'muebles')
+    expect(r.proporcion).toBeNull()
+    expect(r.cumple).toBe(true)
   })
 })
 

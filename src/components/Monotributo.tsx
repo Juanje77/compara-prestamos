@@ -6,14 +6,16 @@ import {
   MONOTRIBUTO_VIGENTE_DESDE,
   PRECIO_UNITARIO_MAXIMO,
   TABLA_MONOTRIBUTO,
+  comprasUltimos12Meses,
   cuotaMensual,
   encuadrar,
   ingresosUltimos12Meses,
   proximaRecategorizacion,
+  relacionComprasVentas,
   type ActividadMonotributo,
   type DatosMonotributo,
 } from '../lib/monotributo'
-import { formatoMoneda } from '../lib/finance'
+import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
 import { InfoTooltip } from './InfoTooltip'
 import { Card } from './Card'
@@ -54,6 +56,14 @@ export function Monotributo({ facturas, datos, onCambiar }: Props) {
         alquileres: datos.alquileres,
       }),
     [ingresos, datos.superficieM2, datos.energiaKw, datos.alquileres],
+  )
+
+  // Las compras y las ventas de este control salen siempre de los comprobantes fiscales, sin el
+  // pisado manual de ingresos: lo que se compara es lo que ve ARCA, no lo que se estima.
+  const compras = useMemo(() => comprasUltimos12Meses(facturas), [facturas])
+  const relacion = useMemo(
+    () => relacionComprasVentas(ingresosDeComprobantes, compras, datos.actividad),
+    [ingresosDeComprobantes, compras, datos.actividad],
   )
 
   const cambiar = (cambios: Partial<DatosMonotributo>) => onCambiar({ ...datos, ...cambios })
@@ -218,6 +228,62 @@ export function Monotributo({ facturas, datos, onCambiar }: Props) {
           </section>
         )
       )}
+
+      <Card as="section">
+        <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+          <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+            Compras sobre ventas (12 meses)
+          </h3>
+          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            Mínimo esperado para {ACTIVIDAD_MONOTRIBUTO_LABEL[datos.actividad].toLowerCase()}:{' '}
+            {formatoPorcentaje(relacion.minima * 100)}
+          </span>
+        </div>
+        <p className="mb-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+          Cuánto de lo que vendés está respaldado por compras que te facturaron. Cuentan los
+          comprobantes fiscales de los últimos 12 meses —los cargados a mano y los importados del
+          Excel de ARCA—, nunca los internos ni los gastos sin factura.
+        </p>
+
+        {relacion.proporcion === null ? (
+          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+            Todavía no hay ventas facturadas en los últimos 12 meses, así que no hay contra qué
+            medir las compras.
+          </p>
+        ) : (
+          <>
+            <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
+              <p
+                className="tabular text-3xl font-semibold"
+                style={{ color: relacion.cumple ? 'var(--series-blue)' : 'var(--status-warning)' }}
+              >
+                {formatoPorcentaje(relacion.proporcion * 100)}
+              </p>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                Compras {formatoMoneda(relacion.compras)} sobre ventas {formatoMoneda(relacion.ventas)}
+              </p>
+            </div>
+            {!relacion.cumple && (
+              <p
+                className="mt-2 inline-flex items-start gap-2 text-sm"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                <AlertTriangle
+                  size={16}
+                  className="mt-0.5 shrink-0"
+                  style={{ color: 'var(--status-warning)' }}
+                  aria-hidden="true"
+                />
+                <span>
+                  Las compras quedan {formatoMoneda(relacion.faltante)} por debajo del mínimo. Puede
+                  ser que falten cargar facturas de proveedores, o que haya ventas sin el respaldo de
+                  compra correspondiente. Es el cruce que mira ARCA, así que conviene revisarlo.
+                </span>
+              </p>
+            )}
+          </>
+        )}
+      </Card>
 
       <Card as="section">
         <h3 className="mb-1 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>

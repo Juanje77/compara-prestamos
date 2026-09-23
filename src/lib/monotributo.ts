@@ -9,7 +9,7 @@
 // no puede quedar desincronizado de sus partes al actualizar la tabla, y el test compara esa suma
 // contra los totales que publica ARCA, que es lo que atrapa un error de tipeo.
 
-import { montoConSigno, type Factura } from './cfo'
+import { montoConSigno, type Factura, type TipoFactura } from './cfo'
 
 export type ActividadMonotributo = 'servicios' | 'muebles'
 
@@ -127,22 +127,82 @@ export function encuadrar(parametros: ParametrosMonotributo): EncuadreMonotribut
 }
 
 /**
- * Ingresos brutos de los últimos 12 meses según los comprobantes emitidos, que es la ventana que
- * mira la recategorización. Las notas de crédito restan.
+ * Suma de los comprobantes fiscales de un tipo en los últimos 12 meses, que es la ventana que mira
+ * la recategorización. Las notas de crédito restan.
  *
  * Los comprobantes internos quedan afuera, igual que en Posición de IVA y en Ingresos Brutos: no
- * son comprobantes fiscales. Si igual se los quiere contar, la pantalla deja pisar el número a
- * mano.
+ * son comprobantes fiscales. Quedan adentro tanto los cargados a mano como los importados del
+ * Excel de ARCA, porque el importador no marca nada como interno.
  */
-export function ingresosUltimos12Meses(facturas: Factura[], hasta: Date = new Date()): number {
+function totalUltimos12Meses(facturas: Factura[], tipo: TipoFactura, hasta: Date): number {
   const desde = new Date(hasta)
   desde.setFullYear(desde.getFullYear() - 1)
   const desdeISO = desde.toISOString().slice(0, 10)
   const hastaISO = hasta.toISOString().slice(0, 10)
 
   return facturas
-    .filter((f) => f.tipo === 'emitida' && !f.esInterna && f.fecha > desdeISO && f.fecha <= hastaISO)
+    .filter((f) => f.tipo === tipo && !f.esInterna && f.fecha > desdeISO && f.fecha <= hastaISO)
     .reduce((total, f) => total + montoConSigno(f), 0)
+}
+
+/** Ingresos brutos de los últimos 12 meses: lo facturado a ARCA. Si se lo quiere pisar con otro
+ * número, la pantalla lo deja cargar a mano. */
+export function ingresosUltimos12Meses(facturas: Factura[], hasta: Date = new Date()): number {
+  return totalUltimos12Meses(facturas, 'emitida', hasta)
+}
+
+/** Compras de los últimos 12 meses: solo lo que le facturaron al usuario, es decir los
+ * comprobantes recibidos. Los gastos sin factura no entran, porque tampoco los ve ARCA. */
+export function comprasUltimos12Meses(facturas: Factura[], hasta: Date = new Date()): number {
+  return totalUltimos12Meses(facturas, 'recibida', hasta)
+}
+
+/** Qué proporción de las ventas tiene que estar respaldada por compras facturadas, según la
+ * actividad. Es la misma relación que mira ARCA para detectar ventas no declaradas: quien revende
+ * cosas muebles compra casi tanto como vende, mientras que un servicio casi no tiene compras. */
+export const PROPORCION_MINIMA_COMPRAS: Record<ActividadMonotributo, number> = {
+  muebles: 0.8,
+  servicios: 0.4,
+}
+
+export interface RelacionComprasVentas {
+  ventas: number
+  compras: number
+  /** compras / ventas, o null si no hubo ventas: sin ventas no hay contra qué medir. */
+  proporcion: number | null
+  /** La proporción mínima esperada para la actividad. */
+  minima: number
+  /** false solo cuando hubo ventas y las compras no llegan al mínimo. */
+  cumple: boolean
+  /** Cuánto más habría que tener en compras facturadas para llegar al mínimo. */
+  faltante: number
+}
+
+/**
+ * Relación entre compras facturadas y ventas de los últimos 12 meses.
+ *
+ * Es un control de coherencia, no una categoría: si las compras quedan muy por debajo de las
+ * ventas, o falta cargar facturas de proveedores, o hay ventas que no se están respaldando con
+ * compras — y eso es justamente lo que ARCA cruza.
+ */
+export function relacionComprasVentas(
+  ventas: number,
+  compras: number,
+  actividad: ActividadMonotributo,
+): RelacionComprasVentas {
+  const minima = PROPORCION_MINIMA_COMPRAS[actividad]
+  if (ventas <= 0) {
+    return { ventas, compras, proporcion: null, minima, cumple: true, faltante: 0 }
+  }
+  const proporcion = compras / ventas
+  return {
+    ventas,
+    compras,
+    proporcion,
+    minima,
+    cumple: proporcion >= minima,
+    faltante: Math.max(0, ventas * minima - compras),
+  }
 }
 
 /** Lo que el usuario carga a mano en la pantalla de Monotributo y queda guardado con su negocio. */
