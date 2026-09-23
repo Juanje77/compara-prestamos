@@ -308,6 +308,7 @@ const SECCIONES: SeccionAyuda[] = [
       'Tocá `Descargar backup` para bajar un archivo `.json` con absolutamente todo lo cargado — comprobantes, cuentas, cheques, sueldos, stock, tesorería, todo.',
       'Guardalo donde quieras: es tuyo, y no depende de que sigas usando FinCorp.',
       'Para restaurar, tocá `Restaurar desde un backup` y elegí ese mismo archivo — reemplaza todos los datos actuales, así que primero te pide confirmar.',
+      'En `Copia en tu Google Drive` conectás tu cuenta una vez y FinCorp deja una copia diaria en la carpeta "FinCorp backups" de tu Drive, que podés restaurar desde la misma lista. El permiso que se pide alcanza solo para los archivos que crea FinCorp: el resto de tu Drive no se toca ni se lee.',
     ],
     tip: 'Restaurar no combina: pisa todo lo que tenías cargado por lo que trae el archivo. Si hiciste cambios después de ese backup, se pierden.',
   },

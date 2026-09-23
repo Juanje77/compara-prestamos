@@ -1,7 +1,18 @@
-import { useState } from 'react'
-import { Download, RotateCcw, Upload } from 'lucide-react'
-import type { NegocioData } from '../lib/negocioData'
+import { useCallback, useEffect, useState } from 'react'
+import { CloudUpload, Download, HardDriveDownload, RotateCcw, Upload } from 'lucide-react'
+import { slugNegocio, type NegocioData } from '../lib/negocioData'
 import { MAX_BACKUPS_AUTOMATICOS, type BackupAutomaticoEntry } from '../lib/userSync'
+import {
+  MAX_BACKUPS_DRIVE,
+  conectarDrive,
+  desconectarDrive,
+  driveConectadoAlgunaVez,
+  driveDisponible,
+  guardarBackupEnDrive,
+  leerBackupDeDrive,
+  listarBackupsDrive,
+  type ArchivoDrive,
+} from '../lib/googleDrive'
 import { Card } from './Card'
 
 // Backup del negocio: un volcado completo de NegocioData a un .json que el cliente guarda donde
@@ -24,14 +35,6 @@ interface Props {
 /** Si el archivo no trae ni esto, no es un backup de FinCorp (o está corrupto) — mejor cortar acá
  * que restaurar un negocio a medio vaciar. */
 const CAMPOS_MINIMOS: (keyof NegocioData)[] = ['facturas', 'cuentas', 'movimientosTesoreria']
-
-function slugNegocio(nombreNegocio: string): string {
-  return nombreNegocio
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-}
 
 function descargarComoArchivo(datos: unknown, sufijo: string, nombreNegocio: string) {
   const slug = slugNegocio(nombreNegocio)
@@ -58,6 +61,73 @@ export function Backup({ datos, onRestaurar, backupsAutomaticos, onObtenerBackup
   /** Id del backup automático sobre el que hay una acción en curso (descargar o restaurar), para
    * deshabilitar solo los botones de esa fila y no todo el historial. */
   const [filaOcupada, setFilaOcupada] = useState<string | null>(null)
+
+  // --- Google Drive ---
+  const [driveConectado, setDriveConectado] = useState(driveConectadoAlgunaVez)
+  const [backupsDrive, setBackupsDrive] = useState<ArchivoDrive[] | null>(null)
+  const [driveOcupado, setDriveOcupado] = useState(false)
+  const [errorDrive, setErrorDrive] = useState<string | null>(null)
+
+  const refrescarDrive = useCallback(async () => {
+    try {
+      setBackupsDrive(await listarBackupsDrive())
+      setErrorDrive(null)
+    } catch {
+      // Lo más común es que el permiso de Google haya vencido: se pide de nuevo al usar un botón.
+      setBackupsDrive(null)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (driveDisponible() && driveConectado) void refrescarDrive()
+  }, [driveConectado, refrescarDrive])
+
+  async function conDrive(accion: () => Promise<void>) {
+    setErrorDrive(null)
+    setDriveOcupado(true)
+    try {
+      await accion()
+    } catch (err) {
+      setErrorDrive(err instanceof Error ? err.message : 'No se pudo hablar con Google Drive.')
+    } finally {
+      setDriveOcupado(false)
+    }
+  }
+
+  const handleConectarDrive = () =>
+    conDrive(async () => {
+      await conectarDrive()
+      setDriveConectado(true)
+      await refrescarDrive()
+    })
+
+  const handleGuardarEnDrive = () =>
+    conDrive(async () => {
+      await guardarBackupEnDrive(datos, datos.nombreNegocio)
+      setDriveConectado(true)
+      await refrescarDrive()
+    })
+
+  function handleDesconectarDrive() {
+    desconectarDrive()
+    setDriveConectado(false)
+    setBackupsDrive(null)
+    setErrorDrive(null)
+  }
+
+  const handleRestaurarDeDrive = (archivo: ArchivoDrive) =>
+    conDrive(async () => {
+      if (!window.confirm(CONFIRMACION_RESTAURAR)) return
+      const contenido = await leerBackupDeDrive(archivo.id)
+      if (typeof contenido !== 'object' || contenido === null || Array.isArray(contenido)) {
+        throw new Error('Ese archivo de Drive no tiene el formato de un backup de FinCorp.')
+      }
+      if (!CAMPOS_MINIMOS.every((campo) => campo in contenido)) {
+        throw new Error('Ese archivo de Drive no parece un backup de FinCorp: le faltan datos básicos.')
+      }
+      onRestaurar(contenido as Partial<NegocioData>)
+      setRestaurado(true)
+    })
 
   function handleDescargar() {
     descargarComoArchivo(datos, new Date().toISOString().slice(0, 10), datos.nombreNegocio)
@@ -173,6 +243,100 @@ export function Backup({ datos, onRestaurar, backupsAutomaticos, onObtenerBackup
         Restaurar un backup reemplaza los datos actuales, no los combina — si tenías algo cargado que
         todavía no respaldaste, se pierde.
       </p>
+
+      {driveDisponible() && (
+        <div className="mt-6 border-t pt-4" style={{ borderColor: 'var(--gridline)' }}>
+          <h3 className="mb-1 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+            Copia en tu Google Drive
+          </h3>
+          <p className="mb-3 text-xs" style={{ color: 'var(--text-secondary)' }}>
+            Una copia diaria en tu propio Drive, en la carpeta "FinCorp backups". Queda afuera de
+            FinCorp: la abrís vos aunque no puedas entrar acá. Se conservan las últimas{' '}
+            {MAX_BACKUPS_DRIVE}. FinCorp pide el permiso más acotado que da Google, que es ver y
+            tocar únicamente los archivos que crea esta app — no puede leer nada más de tu Drive.
+          </p>
+
+          <div className="flex flex-wrap gap-3">
+            {!driveConectado ? (
+              <button
+                type="button"
+                onClick={handleConectarDrive}
+                disabled={driveOcupado}
+                className="inline-flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-xs font-medium disabled:opacity-60"
+                style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
+              >
+                <CloudUpload size={14} aria-hidden="true" />
+                {driveOcupado ? 'Conectando…' : 'Conectar con Google Drive'}
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={handleGuardarEnDrive}
+                  disabled={driveOcupado}
+                  className="inline-flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-xs font-medium disabled:opacity-60"
+                  style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
+                >
+                  <CloudUpload size={14} aria-hidden="true" />
+                  {driveOcupado ? 'Guardando…' : 'Guardar copia en Drive ahora'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDesconectarDrive}
+                  className="inline-flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-xs font-medium"
+                  style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
+                >
+                  Desconectar
+                </button>
+              </>
+            )}
+          </div>
+
+          {errorDrive && (
+            <p className="mt-3 text-sm" style={{ color: 'var(--status-critical)' }}>
+              {errorDrive}
+            </p>
+          )}
+
+          {driveConectado && (
+            <div className="mt-3">
+              {backupsDrive === null ? (
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  Leyendo tu Drive… Si no aparece nada, tocá "Guardar copia en Drive ahora" para
+                  volver a dar el permiso.
+                </p>
+              ) : backupsDrive.length === 0 ? (
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  Todavía no hay ninguna copia en tu Drive.
+                </p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {backupsDrive.map((a) => (
+                    <li
+                      key={a.id}
+                      className="flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2 text-sm"
+                      style={{ borderColor: 'var(--border)' }}
+                    >
+                      <span className="flex-1" style={{ color: 'var(--text-primary)' }}>
+                        {a.nombre}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleRestaurarDeDrive(a)}
+                        disabled={driveOcupado}
+                        className="inline-flex shrink-0 items-center gap-1 rounded-md border px-2 py-1 text-xs disabled:opacity-60"
+                        style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
+                      >
+                        <HardDriveDownload size={12} aria-hidden="true" /> Restaurar
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="mt-6 border-t pt-4" style={{ borderColor: 'var(--gridline)' }}>
         <h3 className="mb-1 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>

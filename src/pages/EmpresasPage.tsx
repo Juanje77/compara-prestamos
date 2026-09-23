@@ -123,6 +123,7 @@ import { exportarParaContador } from '../lib/contadorExport'
 import { abrirInformeFinanciero, abrirInformeSaludFinanciera } from '../lib/htmlReport'
 import { cargarNegocioData, guardarNegocioData, negocioDataTieneCarga, type NegocioData } from '../lib/negocioData'
 import { DATOS_MONOTRIBUTO_VACIOS, type DatosMonotributo } from '../lib/monotributo'
+import { guardarBackupDiarioEnDrive } from '../lib/googleDrive'
 import {
   guardarDatosUsuario,
   suscribirseADatosUsuario,
@@ -479,6 +480,18 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
       window.removeEventListener('pagehide', enviarAhora)
     }
   }, [user, nubeLista, negocioDataActual])
+
+  // Copia diaria en el Drive del cliente, para los que lo conectaron desde Backup. Corre una sola
+  // vez por sesión y con los datos ya cargados de la nube, para no subir una foto a medio armar.
+  // Es del todo silenciosa: si el permiso de Google venció, no pasa nada y queda el botón manual.
+  const driveIntentado = useRef(false)
+  useEffect(() => {
+    if (!nubeLista || driveIntentado.current) return
+    driveIntentado.current = true
+    void guardarBackupDiarioEnDrive(negocioDataActual, nombreNegocio)
+    // negocioDataActual cambia con cada tecla: se lee el valor del momento, sin re-disparar.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nubeLista])
 
   // Migración única: Ingresos y gastos guardaba sus movimientos en una lista aparte, y ahora los
   // guarda como comprobantes internos (ver facturaDesdeMovimientoDiario). Los que ya estaban

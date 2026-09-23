@@ -77,6 +77,18 @@ export function negocioDataTieneCarga(d: Partial<NegocioData> | null | undefined
   return listas.some((l) => (l?.length ?? 0) > 0)
 }
 
+/** El nombre del negocio en forma de nombre de archivo: sin acentos, sin espacios ni símbolos.
+ * Lo usan la descarga del backup y la copia en Drive, para que los dos archivos se llamen igual. */
+export function slugNegocio(nombreNegocio: string): string {
+  return nombreNegocio
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+}
+
 const STORAGE_KEY = 'compara-prestamos.negocio-empresa'
 
 export function cargarNegocioData(): Partial<NegocioData> | null {
