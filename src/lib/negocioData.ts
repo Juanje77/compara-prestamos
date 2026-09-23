@@ -53,10 +53,28 @@ export interface NegocioData {
   monotributo?: DatosMonotributo
   tasaCrecimiento: number
   nombreNegocio: string
-  /** Instante (Date.now()) de este snapshot — para no dejar que una carga de la nube, más vieja
-   * porque el guardado en Firestore está debounceado, pise una edición local más reciente que
-   * todavía no llegó a viajar (ver el efecto de carga en EmpresasPage). */
+  /** Instante (Date.now()) de la última edición — para no dejar que una carga de la nube, más
+   * vieja porque el guardado en Firestore está debounceado, pise una edición local más reciente
+   * que todavía no llegó a viajar (ver el efecto de carga en EmpresasPage). Es la última EDICIÓN,
+   * no el momento en que se abrió la app: si se recalculara al abrir, cualquier dispositivo se
+   * declararía más nuevo que la nube y descartaría lo que se cargó en otra computadora. */
   actualizadoEn?: number
+}
+
+/**
+ * Si este snapshot tiene algo cargado de verdad. Se usa como red de seguridad al sincronizar: un
+ * dispositivo vacío nunca puede imponerse sobre datos que sí están en la nube, por más que los
+ * relojes digan que es más nuevo. Los números sueltos (ingresos estimados, tasa) no cuentan: el
+ * formulario los trae con valores por defecto aunque no se haya cargado nada.
+ */
+export function negocioDataTieneCarga(d: Partial<NegocioData> | null | undefined): boolean {
+  if (!d) return false
+  const listas = [
+    d.facturas, d.cuentas, d.deudas, d.bienes, d.cheques, d.pagos, d.remitos, d.sectores,
+    d.empleados, d.anticipos, d.productos, d.movimientosStock, d.movimientosTesoreria,
+    d.movimientosBancarios, d.movimientosDiarios, d.clientesManual,
+  ]
+  return listas.some((l) => (l?.length ?? 0) > 0)
 }
 
 const STORAGE_KEY = 'compara-prestamos.negocio-empresa'

@@ -121,7 +121,7 @@ import { Button } from '../components/Button'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
 import { exportarParaContador } from '../lib/contadorExport'
 import { abrirInformeFinanciero, abrirInformeSaludFinanciera } from '../lib/htmlReport'
-import { cargarNegocioData, guardarNegocioData, type NegocioData } from '../lib/negocioData'
+import { cargarNegocioData, guardarNegocioData, negocioDataTieneCarga, type NegocioData } from '../lib/negocioData'
 import { DATOS_MONOTRIBUTO_VACIOS, type DatosMonotributo } from '../lib/monotributo'
 import {
   guardarDatosUsuario,
@@ -284,21 +284,41 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   const [tasaCrecimiento, setTasaCrecimiento] = useState(() => cargarNegocioData()?.tasaCrecimiento ?? 0)
   const [nombreNegocio, setNombreNegocio] = useState(() => cargarNegocioData()?.nombreNegocio ?? '')
 
-  // Instante de este snapshot de datos — el mismo valor va tanto al guardado local (inmediato)
-  // como al de Firestore (debounceado 800ms). Sirve para que, al recargar la página, la carga
-  // desde la nube no pise con datos viejos una edición local que todavía no llegó a viajar (ver
-  // el efecto de carga más abajo).
-  const actualizadoEn = useMemo(
-    () => Date.now(),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [
+  // Instante de la última EDICIÓN — el mismo valor va tanto al guardado local (inmediato) como al
+  // de Firestore (debounceado 800ms). Sirve para que la carga desde la nube no pise con datos
+  // viejos una edición local que todavía no llegó a viajar (ver el efecto de carga más abajo).
+  //
+  // Arranca con el instante que quedó guardado en localStorage, NO con Date.now(): si se
+  // recalculara al abrir la app, este dispositivo se declararía más nuevo que la nube siempre, y
+  // descartaría lo que se hubiera cargado desde otra computadora. Un dispositivo que nunca cargó
+  // nada arranca en 0, así que la nube siempre le gana.
+  const [actualizadoEn, setActualizadoEn] = useState(() => cargarNegocioData()?.actualizadoEn ?? 0)
+  // Los valores tal como estaban la última vez que pasó por acá. Se compara contra ellos en vez de
+  // contar renders: en desarrollo StrictMode monta el componente dos veces, y un contador tomaría
+  // ese segundo montaje por una edición, moviendo el instante sin que el usuario haya tocado nada.
+  const valoresPrevios = useRef<unknown[] | null>(null)
+  useEffect(() => {
+    const actuales = [
       ingresos, meses, montos, cuentas, deudas, bienes, realManualPorMes, ventasManualPorMes,
       facturas, clasificaciones, clientesManual, cheques, pagos, remitos, sectores, empleados,
       datosEmisorFiscal, anticipos, productos, movimientosStock,
       movimientosTesoreria, movimientosBancarios, ivaManualPorMes, ingresosBrutosManualPorMes,
       movimientosDiarios, monotributo, tasaCrecimiento, nombreNegocio,
-    ],
-  )
+    ]
+    const previos = valoresPrevios.current
+    valoresPrevios.current = actuales
+    // Montaje: el instante que venía guardado sigue valiendo, no hubo edición.
+    if (previos === null) return
+    if (previos.every((v, i) => Object.is(v, actuales[i]))) return
+    setActualizadoEn(Date.now())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    ingresos, meses, montos, cuentas, deudas, bienes, realManualPorMes, ventasManualPorMes,
+    facturas, clasificaciones, clientesManual, cheques, pagos, remitos, sectores, empleados,
+    datosEmisorFiscal, anticipos, productos, movimientosStock,
+    movimientosTesoreria, movimientosBancarios, ivaManualPorMes, ingresosBrutosManualPorMes,
+    movimientosDiarios, monotributo, tasaCrecimiento, nombreNegocio,
+  ])
 
   // Lo que muestra Ingresos y gastos sale de los comprobantes que se cargaron desde ahí — es la
   // misma información, vista como el registro diario simple que espera esa pantalla.
@@ -346,6 +366,13 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     actualizadoEnRef.current = actualizadoEn
   }, [actualizadoEn])
 
+  // Idem para saber si esta pantalla tiene algo cargado: el listener lo mira para no dejar que un
+  // dispositivo vacío descarte datos reales de la nube.
+  const hayCargaLocalRef = useRef(false)
+  useEffect(() => {
+    hayCargaLocalRef.current = negocioDataTieneCarga(negocioDataActual)
+  }, [negocioDataActual])
+
   useEffect(() => {
     if (!user) {
       setNubeLista(false)
@@ -365,8 +392,15 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
         // Puede ser el eco de lo que este mismo dispositivo acaba de escribir, o una versión
         // vieja porque el guardado en Firestore está debounceado — en cualquier caso, si ya
         // tenemos algo igual de nuevo o más nuevo en pantalla, no lo pisamos.
+        //
+        // Y solo puede ganar una pantalla que tenga algo cargado: si acá no hay nada (un
+        // dispositivo nuevo, o uno al que le limpiaron el navegador), lo de la nube entra sí o sí,
+        // porque descartarlo sería perder los datos reales del usuario.
         const localMasReciente =
-          actualizadoEnRef.current != null && d.actualizadoEn != null && actualizadoEnRef.current > d.actualizadoEn
+          hayCargaLocalRef.current &&
+          actualizadoEnRef.current != null &&
+          d.actualizadoEn != null &&
+          actualizadoEnRef.current > d.actualizadoEn
         if (!localMasReciente) {
           setIngresos(d.ingresos)
           setMeses(d.meses)
