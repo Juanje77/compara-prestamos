@@ -315,6 +315,20 @@ const SECCIONES: SeccionAyuda[] = [
     ],
     tip: 'Restaurar no combina: pisa todo lo que tenías cargado por lo que trae el archivo. Si hiciste cambios después de ese backup, se pierden.',
   },
+  {
+    id: 'inversiones',
+    numero: '22',
+    titulo: 'Inversiones',
+    tier: 'basico',
+    descripcion: 'Cuánto de tu caja está de más, y qué se hace con esa plata en vez de dejarla quieta.',
+    pasos: [
+      'La pantalla toma la caja que tenés en cuentas y le resta un colchón de gastos fijos: lo que sobra es tu excedente.',
+      'El colchón viene en 3 meses, que es lo habitual para una PyME, pero podés subirlo o bajarlo según cuánto te muevan los cobros.',
+      'Abajo están los tipos de instrumento ordenados por plazo, para entender cuál corresponde según cuándo vas a necesitar la plata.',
+      'Con `Hablar con mi asesor` se abre WhatsApp con el monto de tu excedente ya escrito en el mensaje.',
+    ],
+    tip: 'Si todavía no cubrís el colchón, la pantalla te lo dice y no te muestra excedente: invertir la plata que después vas a necesitar para pagar sueldos suele salir más caro que lo que rinde.',
+  },
 ]
 
 const FLUJO = [

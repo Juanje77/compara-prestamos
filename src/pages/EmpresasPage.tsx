@@ -27,6 +27,7 @@ import { Ayuda } from '../components/Ayuda'
 import { CuentasCorrientes } from '../components/CuentasCorrientes'
 import { RemitosPresupuestos } from '../components/RemitosPresupuestos'
 import { MargenesPorSector, type PeriodoMargenes } from '../components/MargenesPorSector'
+import { Inversiones } from '../components/Inversiones'
 import { Sueldos } from '../components/Sueldos'
 import { FacturacionElectronica } from '../components/FacturacionElectronica'
 import { Stock } from '../components/Stock'
@@ -169,6 +170,7 @@ const SECCIONES = [
   { key: 'iibb', label: 'Ingresos Brutos' },
   { key: 'monotributo', label: 'Monotributo' },
   { key: 'patrimonio', label: 'Patrimonio' },
+  { key: 'inversiones', label: 'Inversiones' },
   { key: 'backup', label: 'Backup' },
   { key: 'ayuda', label: 'Ayuda' },
 ] as const
@@ -200,7 +202,7 @@ const GRUPOS: { key: string; label: string; secciones: Seccion[] }[] = [
   { key: 'tesoreria', label: 'Tesorería y stock', secciones: ['tesoreria', 'cheques', 'stock'] },
   { key: 'rrhh', label: 'RRHH', secciones: ['sueldos'] },
   { key: 'impuestos', label: 'Impuestos', secciones: ['iva', 'iibb', 'monotributo'] },
-  { key: 'negocio', label: 'Negocio', secciones: ['patrimonio', 'backup', 'ayuda'] },
+  { key: 'negocio', label: 'Negocio', secciones: ['patrimonio', 'inversiones', 'backup', 'ayuda'] },
 ]
 
 interface Props {
@@ -1891,6 +1893,8 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           <Patrimonio bienes={bienes} runwayExtendido={runwayExtendido} onAgregar={handleAgregarBien} onEliminar={handleEliminarBien} />
         </PremiumLock>
       )}
+
+      {seccion === 'inversiones' && <Inversiones caja={saldoInicial} gastosFijosMensuales={gastosFijos} />}
 
       {seccion === 'backup' && (
         <Backup
