@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Info, TrendingUp } from 'lucide-react'
+import { Building2, Info, TrendingUp, UserRound } from 'lucide-react'
 import {
   MESES_COLCHON_SUGERIDO,
   TIPOS_INSTRUMENTO,
@@ -15,6 +15,13 @@ import { Card } from './Card'
 // excedente con los datos que el negocio ya cargó, y explicar en qué se diferencian los tipos de
 // instrumento. El asesoramiento concreto sale de la conversación con el asesor, que es donde se
 // puede mirar el caso puntual — por eso el botón de contacto lleva el número ya calculado.
+
+// Los links de apertura llevan la referencia del asesor (`reference`): el que abre la cuenta por
+// acá queda asignado a Juan. Son dos formularios distintos y no intercambiables, así que se
+// ofrecen los dos y elige el cliente — un monotributista abre como persona física y una SRL o SA
+// como persona jurídica.
+const ALTA_PERSONA_FISICA = 'https://www.balanz.com/abrir-cuenta-2.aspx?reference=ifa6253@balanz.work'
+const ALTA_PERSONA_JURIDICA = 'https://www.balanz.com/abrir-cuenta-juridica.aspx?reference=ifa6253@balanz.work'
 
 interface Props {
   /** Lo que hay en cuentas y caja hoy. */
@@ -123,6 +130,44 @@ export function Inversiones({ caja, gastosFijosMensuales }: Props) {
             Balanz Capital, agente registrado ante la Comisión Nacional de Valores.
           </p>
         </div>
+      </Card>
+
+      <Card as="section">
+        <h3 className="mb-1 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+          Abrir tu cuenta en Balanz
+        </h3>
+        <p className="mb-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
+          La cuenta se abre online y queda a tu nombre: la plata es tuya y la movés vos. Abriéndola
+          desde acá quedo asignado como tu asesor, así puedo ver tu cuenta y acompañarte con las
+          decisiones. Elegí según a nombre de quién va:
+        </p>
+
+        <div className="flex flex-wrap gap-3">
+          <a
+            href={ALTA_PERSONA_FISICA}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-xs font-medium"
+            style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
+          >
+            <UserRound size={14} aria-hidden="true" /> A mi nombre (persona física)
+          </a>
+          <a
+            href={ALTA_PERSONA_JURIDICA}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-xs font-medium"
+            style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
+          >
+            <Building2 size={14} aria-hidden="true" /> A nombre de la empresa (persona jurídica)
+          </a>
+        </div>
+
+        <p className="mt-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+          Si sos monotributista o responsable inscripto sin sociedad, va la primera. Si el titular
+          va a ser una SRL, SA u otra sociedad, la segunda. Ante la duda, escribime antes de
+          arrancar el trámite: cambiar el titular después es más engorroso que elegir bien ahora.
+        </p>
       </Card>
 
       <Card as="section">

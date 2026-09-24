@@ -326,6 +326,7 @@ const SECCIONES: SeccionAyuda[] = [
       'El colchón viene en 3 meses, que es lo habitual para una PyME, pero podés subirlo o bajarlo según cuánto te muevan los cobros.',
       'Abajo están los tipos de instrumento ordenados por plazo, para entender cuál corresponde según cuándo vas a necesitar la plata.',
       'Con `Hablar con mi asesor` se abre WhatsApp con el monto de tu excedente ya escrito en el mensaje.',
+      'Para operar hace falta una cuenta en Balanz: se abre online desde los botones de la pantalla, eligiendo si va a tu nombre (persona física) o al de tu empresa (persona jurídica). Abriéndola desde ahí, Juan queda asignado como tu asesor.',
     ],
     tip: 'Si todavía no cubrís el colchón, la pantalla te lo dice y no te muestra excedente: invertir la plata que después vas a necesitar para pagar sueldos suele salir más caro que lo que rinde.',
   },
