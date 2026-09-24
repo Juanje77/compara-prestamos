@@ -1,5 +1,8 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { formatoMoneda } from '../lib/finance'
+import type { PlanTier } from '../lib/plan'
+import { ETIQUETA_PROMOCION, PRECIOS, porcentajeDescuento } from '../lib/precios'
 import type { LucideIcon } from 'lucide-react'
 import {
   ArrowRight,
@@ -193,19 +196,21 @@ function DashboardCard({ src, alt, rotar }: { src: string; alt: string; rotar?: 
 
 function PricingTier({
   eyebrow,
-  precio,
+  plan,
   texto,
   ctaLabel,
   acento,
   badge,
 }: {
   eyebrow: string
-  precio: string
+  plan: PlanTier
   texto: string
   ctaLabel: string
   acento?: boolean
   badge?: string
 }) {
+  const p = PRECIOS[plan]
+  const descuento = porcentajeDescuento(p)
   return (
     <div
       className="relative flex h-full flex-col rounded-2xl p-8 text-center sm:p-10"
@@ -225,10 +230,26 @@ function PricingTier({
       <Eyebrow>
         <span style={{ color: acento ? C.onDarkMuted : C.charcoal }}>{eyebrow}</span>
       </Eyebrow>
-      <p className="mt-3 text-4xl font-medium" style={{ ...serif, color: acento ? C.onDark : C.navy }}>
-        {precio}
+      {descuento > 0 && (
+        <p className="mt-3 text-sm" style={{ ...sans, color: acento ? C.onDarkMuted : C.stone }}>
+          <span style={{ textDecoration: 'line-through' }}>{formatoMoneda(p.precioLista!)}</span>{' '}
+          <span className="font-semibold" style={{ color: acento ? C.onDark : C.cobalt }}>
+            {descuento}% OFF
+          </span>
+        </p>
+      )}
+      <p
+        className={`text-4xl font-medium ${descuento > 0 ? 'mt-1' : 'mt-3'}`}
+        style={{ ...serif, color: acento ? C.onDark : C.navy }}
+      >
+        {formatoMoneda(p.precio)}
         <span className="text-base" style={{ ...sans, color: acento ? C.onDarkMuted : C.stone }}> /mes</span>
       </p>
+      {descuento > 0 && (
+        <p className="mt-1 text-xs" style={{ ...sans, color: acento ? C.onDarkMuted : C.stone }}>
+          {ETIQUETA_PROMOCION}
+        </p>
+      )}
       <p className="mx-auto mt-4 max-w-xs text-sm" style={{ ...sans, color: acento ? C.onDarkMuted : C.stone, lineHeight: 1.6 }}>
         {texto}
       </p>
@@ -255,9 +276,10 @@ export function HomePage() {
             Tu <Accent>CFO virtual</Accent>, para vos y para tu negocio
           </h1>
           <p className="mt-6 max-w-lg text-base sm:text-lg" style={{ color: C.stone, lineHeight: 1.65 }}>
-            Comparás préstamos de los principales bancos argentinos y gestionás las finanzas de tu empresa —
-            cuentas, flujo de caja, cobranzas, sueldos, IVA— y emitís tus facturas con CAE, todo en un solo
-            lugar y con explicaciones simples de cada indicador.
+            Comparás préstamos de los principales bancos argentinos, gestionás las finanzas de tu empresa —
+            cuentas, flujo de caja, cobranzas, sueldos, impuestos— emitís tus facturas con CAE, y ponés a
+            trabajar la plata que te sobra. Todo en un solo lugar y con explicaciones simples de cada
+            indicador.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <PillButton to="/empresas" variante="primario">
@@ -320,6 +342,70 @@ export function HomePage() {
       </section>
 
       {/* ------------------------------------------------------------------ */}
+      {/* Asesoramiento financiero */}
+      {/* ------------------------------------------------------------------ */}
+      <section
+        className="mb-24 rounded-3xl px-6 py-12 sm:px-12 sm:py-16"
+        style={{ background: C.paper, border: `1px solid ${C.cream}` }}
+      >
+        <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2">
+          <div>
+            <Eyebrow>Asesoramiento financiero</Eyebrow>
+            <h2 className="mt-4 text-3xl font-normal sm:text-4xl" style={{ ...serif, color: C.navy }}>
+              La plata quieta <Accent>pierde valor</Accent> todos los meses
+            </h2>
+            <p className="mt-5 text-base" style={{ color: C.stone, lineHeight: 1.65 }}>
+              El sistema ya sabe cuánta caja tenés y cuánto necesitás para operar tranquilo. Con eso te
+              dice cuánto te sobra de verdad, y de ahí en más te acompaño yo: abrís tu cuenta de inversión
+              y elegimos juntos dónde poner ese excedente según cuándo lo vas a necesitar.
+            </p>
+            <p className="mt-4 text-sm" style={{ color: C.stone, lineHeight: 1.6 }}>
+              Las operaciones se hacen a través de Balanz Capital, agente registrado ante la Comisión
+              Nacional de Valores. La cuenta queda a tu nombre y la plata la movés vos.
+            </p>
+            <div className="mt-7">
+              <PillButton to="/empresas" variante="primario">
+                Ver mi excedente <ArrowRight size={15} aria-hidden="true" />
+              </PillButton>
+            </div>
+          </div>
+
+          <ul className="space-y-4">
+            {[
+              {
+                titulo: 'Primero, cuánto te sobra',
+                texto:
+                  'Tu caja menos el colchón de gastos fijos que quieras mantener. Si todavía no lo cubrís, te lo decimos: eso va antes que cualquier inversión.',
+              },
+              {
+                titulo: 'Después, para cuándo lo necesitás',
+                texto:
+                  'No es lo mismo la plata de la semana que viene que la que podés dejar dos años. El plazo define el instrumento, más que cualquier otra cosa.',
+              },
+              {
+                titulo: 'Y recién ahí, dónde ponerlo',
+                texto:
+                  'Lo definimos hablando, mirando tu caso. Ningún cálculo automático reemplaza esa conversación, y no hay instrumento que sirva para todos.',
+              },
+            ].map((paso) => (
+              <li
+                key={paso.titulo}
+                className="rounded-2xl p-5"
+                style={{ background: C.cream, border: `1px solid ${C.cream}` }}
+              >
+                <p className="text-sm font-semibold" style={{ color: C.navy }}>
+                  {paso.titulo}
+                </p>
+                <p className="mt-1 text-sm" style={{ color: C.stone, lineHeight: 1.6 }}>
+                  {paso.texto}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------------------ */}
       {/* Planes */}
       {/* ------------------------------------------------------------------ */}
       <section className="mb-20 text-center">
@@ -332,19 +418,19 @@ export function HomePage() {
       <section className="mb-10 grid grid-cols-1 gap-6 lg:grid-cols-3">
         <PricingTier
           eyebrow="Plan Básico"
-          precio="$20.000"
+          plan="basico"
           texto="Todo lo que necesitás para gestionar las finanzas de tu negocio día a día."
           ctaLabel="Empezar con el Básico"
         />
         <PricingTier
           eyebrow="Plan Medio"
-          precio="$50.000"
+          plan="premium"
           texto="Herramientas de CFO para anticiparte a los problemas financieros."
           ctaLabel="Empezar con el Medio"
         />
         <PricingTier
           eyebrow="Plan Full"
-          precio="$100.000"
+          plan="full"
           texto="El sistema de gestión completo: facturación, sueldos, stock y caja."
           ctaLabel="Empezar con el Full"
           acento

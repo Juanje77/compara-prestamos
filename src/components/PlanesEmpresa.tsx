@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Calculator, Check } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 import { formatoMoneda } from '../lib/finance'
+import { ETIQUETA_PROMOCION, PRECIOS, porcentajeDescuento } from '../lib/precios'
 import type { PlanTier } from '../lib/plan'
 import { LoginModal } from './LoginModal'
 import { Card } from './Card'
@@ -10,7 +11,6 @@ import { Button } from './Button'
 interface PlanConfig {
   key: PlanTier
   nombre: string
-  precio: number
   descripcion: string
   features: string[]
 }
@@ -19,7 +19,6 @@ const PLANES: PlanConfig[] = [
   {
     key: 'basico',
     nombre: 'Básico',
-    precio: 20000,
     descripcion: 'Ideal para negocios chicos y monotributistas: cargá tus números día a día y armá tu tablero financiero.',
     features: [
       'Ingresos y gastos diarios, marcando qué facturaste y qué no, con el medio de cobro de cada venta (efectivo, transferencia, QR, débito, crédito)',
@@ -36,7 +35,6 @@ const PLANES: PlanConfig[] = [
   {
     key: 'premium',
     nombre: 'Medio',
-    precio: 50000,
     descripcion: 'Todo lo del plan Básico, más herramientas de CFO para anticiparte a los problemas financieros.',
     features: [
       'Todo lo incluido en el plan Básico',
@@ -53,7 +51,6 @@ const PLANES: PlanConfig[] = [
   {
     key: 'full',
     nombre: 'Full',
-    precio: 100000,
     descripcion:
       'Todo lo del plan Medio, más un sistema de gestión para usar todos los días: cuentas corrientes, remitos/presupuestos y cheques. Cuanto más lo usás, mejor quedan tus indicadores de CFO.',
     features: [
@@ -144,13 +141,28 @@ export function PlanesEmpresa({ motivoVencimiento }: Props) {
             <h2 className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>
               {p.nombre}
             </h2>
+            {porcentajeDescuento(PRECIOS[p.key]) > 0 && (
+              <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>
+                <span className="tabular" style={{ textDecoration: 'line-through' }}>
+                  {formatoMoneda(PRECIOS[p.key].precioLista!)}
+                </span>{' '}
+                <span className="font-semibold" style={{ color: 'var(--series-blue)' }}>
+                  {porcentajeDescuento(PRECIOS[p.key])}% OFF
+                </span>
+              </p>
+            )}
             <p className="mt-1 text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
-              <span className="tabular">{formatoMoneda(p.precio)}</span>
+              <span className="tabular">{formatoMoneda(PRECIOS[p.key].precio)}</span>
               <span className="text-sm font-normal" style={{ color: 'var(--text-muted)' }}>
                 {' '}
                 /mes
               </span>
             </p>
+            {porcentajeDescuento(PRECIOS[p.key]) > 0 && (
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                {ETIQUETA_PROMOCION}
+              </p>
+            )}
             <p className="mt-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
               {p.descripcion}
             </p>

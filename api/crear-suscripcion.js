@@ -3,6 +3,9 @@
 import { obtenerFirestoreAdmin } from './_firebaseAdmin.js'
 import { sesionAutenticada } from './_auth.js'
 
+// Estos importes son los que se cobran de verdad, y tienen que coincidir con los que muestra la
+// pantalla: src/lib/precios.ts. Son dos archivos porque este corre en el servidor y no puede
+// importar del front — al cambiar un precio, cambiar los dos.
 const PLANES = {
   basico: { reason: 'FinCorp para empresas - Plan Básico', monto: 20000 },
   premium: { reason: 'FinCorp para empresas - Plan Medio', monto: 50000 },
