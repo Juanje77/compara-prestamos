@@ -27,16 +27,17 @@ export function dispositivoId(): string {
   }
 }
 
-async function pedir<T>(ruta: string, cuerpo: Record<string, unknown>): Promise<T> {
+/** Los tres pasos viven en un mismo endpoint, elegidos por `accion` — ver api/mfa.js. */
+async function pedir<T>(accion: 'estado' | 'enviar' | 'verificar', cuerpo: Record<string, unknown> = {}): Promise<T> {
   const usuario = auth?.currentUser
   if (!usuario) throw new Error('Tenés que iniciar sesión.')
-  const respuesta = await fetch(ruta, {
+  const respuesta = await fetch('/api/mfa', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${await usuario.getIdToken()}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(cuerpo),
+    body: JSON.stringify({ accion, ...cuerpo }),
   })
   const datos = (await respuesta.json().catch(() => null)) as Record<string, unknown> | null
   if (!respuesta.ok) {
@@ -54,17 +55,17 @@ export interface EstadoMfa {
 /** Pregunta si este dispositivo ya está confiado. Si lo está, el servidor ya le renovó la marca
  * al token, así que hay que pedir uno nuevo para que el claim llegue actualizado. */
 export async function estadoMfa(): Promise<EstadoMfa> {
-  const estado = await pedir<EstadoMfa>('/api/mfa-estado', { dispositivoId: dispositivoId() })
+  const estado = await pedir<EstadoMfa>('estado', { dispositivoId: dispositivoId() })
   if (estado.configurado && !estado.haceFaltaCodigo) await refrescarToken()
   return estado
 }
 
 export function pedirCodigo(): Promise<{ enviado: boolean; mail: string }> {
-  return pedir('/api/mfa-enviar-codigo', {})
+  return pedir('enviar')
 }
 
 export async function verificarCodigo(codigo: string, recordar: boolean): Promise<void> {
-  await pedir('/api/mfa-verificar-codigo', { codigo, dispositivoId: dispositivoId(), recordar })
+  await pedir('verificar', { codigo, dispositivoId: dispositivoId(), recordar })
   await refrescarToken()
 }
 
