@@ -1752,8 +1752,6 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
         >
           <Sueldos
             empleados={empleados}
-            nomina={nominaTotal}
-            aguinaldo={aguinaldo}
             sectores={sectores}
             cuentas={cuentas}
             movimientosTesoreria={movimientosTesoreria}

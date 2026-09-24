@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Trash2 } from 'lucide-react'
 import {
   CONCEPTO_PAGO_SUELDOS_LABEL,
   CONTRIBUCIONES_PATRONALES_PCT_DEFAULT,
   CARGAS_SOCIALES_ADICIONALES_PCT_DEFAULT,
+  calcularAguinaldo,
   calcularCostoEmpleado,
+  calcularNominaTotal,
   calcularPagosSueldos,
   type ConceptoPagoSueldos,
   type CuentaBancaria,
@@ -22,9 +24,6 @@ import { Button } from './Button'
 
 interface Props {
   empleados: Empleado[]
-  nomina: NominaTotal
-  /** Medio sueldo por empleado con sus cargas — solo se paga en junio y diciembre. */
-  aguinaldo: NominaTotal
   /** Sectores creados en Márgenes por sector, para repartir el costo de cada empleado. */
   sectores: Sector[]
   /** Cajas y cuentas de Tesorería, para elegir de dónde sale la plata al pagar la nómina. */
@@ -49,17 +48,29 @@ function etiquetaMes(mesISO: string): string {
 
 function FilaEmpleado({
   empleado,
+  mes,
   sectores,
   onActualizar,
   onEliminar,
 }: {
   empleado: Empleado
+  /** El mes que se está mirando: lo que se muestra y se edita es lo de ese mes. */
+  mes: string
   sectores: Sector[]
   onActualizar: Props['onActualizar']
   onEliminar: Props['onEliminar']
 }) {
   const [abierto, setAbierto] = useState(false)
-  const costo = calcularCostoEmpleado(empleado)
+  const costo = calcularCostoEmpleado(empleado, mes)
+  const cargadoEsteMes = empleado.brutoPorMes?.[mes]
+
+  /** Guarda (o borra) lo cobrado en este mes, sin tocar los otros meses ni el sueldo fijo. */
+  function cambiarBrutoDelMes(valor: number | undefined) {
+    const resto = { ...(empleado.brutoPorMes ?? {}) }
+    if (valor === undefined) delete resto[mes]
+    else resto[mes] = valor
+    onActualizar(empleado.id, { brutoPorMes: resto })
+  }
   const asignaciones = empleado.asignaciones ?? []
   const totalAsignado = asignaciones.reduce((s, a) => s + a.porcentaje, 0)
 
@@ -104,7 +115,7 @@ function FilaEmpleado({
         <div className="flex shrink-0 items-center gap-4 text-right">
           <div>
             <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-              Sueldo bruto
+              {cargadoEsteMes !== undefined ? 'Cobró este mes' : 'Sueldo bruto'}
             </p>
             <p className="tabular text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
               {formatoMoneda(costo.sueldoBruto)}
@@ -134,7 +145,7 @@ function FilaEmpleado({
           <div className="mt-3 flex flex-wrap items-end gap-3">
             <label className="block">
               <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                Sueldo bruto
+                Sueldo bruto fijo
               </span>
               <InputMoneda
                 value={empleado.sueldoBruto}
@@ -142,6 +153,31 @@ function FilaEmpleado({
                 className="tabular mt-0.5 w-36 rounded-lg border px-2 py-1 text-sm"
                 style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
               />
+            </label>
+            <label className="block">
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                Cobró en {etiquetaMes(mes)}
+              </span>
+              <InputMoneda
+                value={cargadoEsteMes ?? empleado.sueldoBruto}
+                onChange={(v) => cambiarBrutoDelMes(v)}
+                className="tabular mt-0.5 w-36 rounded-lg border px-2 py-1 text-sm"
+                style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+              />
+              {cargadoEsteMes !== undefined ? (
+                <button
+                  type="button"
+                  onClick={() => cambiarBrutoDelMes(undefined)}
+                  className="mt-1 block text-[11px] underline"
+                  style={{ color: 'var(--series-blue)' }}
+                >
+                  Volver al sueldo fijo
+                </button>
+              ) : (
+                <span className="mt-1 block text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                  Cargalo si este mes cobró otra cosa
+                </span>
+              )}
             </label>
             <label className="block">
               <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
@@ -314,6 +350,8 @@ function FilaPago({
 function PanelPagos({
   nomina,
   aguinaldo,
+  mes,
+  onCambiarMes,
   cuentas,
   movimientosTesoreria,
   onPagar,
@@ -321,18 +359,20 @@ function PanelPagos({
 }: {
   nomina: NominaTotal
   aguinaldo: NominaTotal
+  /** El mismo mes que gobierna toda la pantalla — ver el selector en Sueldos. */
+  mes: string
+  onCambiarMes: (mes: string) => void
   cuentas: CuentaBancaria[]
   movimientosTesoreria: MovimientoTesoreria[]
   onPagar: Props['onPagar']
   onDeshacerPago: Props['onDeshacerPago']
 }) {
-  const [mes, setMes] = useState(mesActualISO)
   const pagos = calcularPagosSueldos(nomina, mes, movimientosTesoreria, aguinaldo)
 
   function sumarMeses(delta: number) {
     const [anio, m] = mes.split('-').map(Number)
     const fecha = new Date(anio, m - 1 + delta, 1)
-    setMes(`${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`)
+    onCambiarMes(`${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`)
   }
 
   return (
@@ -386,8 +426,6 @@ function PanelPagos({
 
 export function Sueldos({
   empleados,
-  nomina,
-  aguinaldo,
   sectores,
   cuentas,
   movimientosTesoreria,
@@ -399,6 +437,14 @@ export function Sueldos({
 }: Props) {
   const [nombre, setNombre] = useState('')
   const [sueldoBruto, setSueldoBruto] = useState(0)
+  // Un solo mes gobierna toda la pantalla: lo que cobró cada uno, los totales y los pagos. Tenerlo
+  // acá y no dentro del panel de pagos es lo que permite cargar un mes viejo completo de una.
+  const [mes, setMes] = useState(mesActualISO)
+
+  // La nómina que llega por props es la de hoy, sobre el sueldo fijo — la usan el Dashboard y la
+  // proyección. Acá se recalcula para el mes elegido, que es lo que de verdad se pagó ese mes.
+  const nominaDelMes = useMemo(() => calcularNominaTotal(empleados, mes), [empleados, mes])
+  const aguinaldoDelMes = useMemo(() => calcularAguinaldo(empleados, mes), [empleados, mes])
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -452,10 +498,10 @@ export function Sueldos({
         </form>
       </Card>
 
-      {nomina.cantidadActivos > 0 && (
+      {nominaDelMes.cantidadActivos > 0 && (
         <Card as="section">
           <p className="mb-3 text-xs font-semibold tracking-wide uppercase" style={{ color: 'var(--text-muted)' }}>
-            Nómina vigente ({nomina.cantidadActivos} activo{nomina.cantidadActivos === 1 ? '' : 's'})
+            Nómina de {etiquetaMes(mes)} ({nominaDelMes.cantidadActivos} activo{nominaDelMes.cantidadActivos === 1 ? '' : 's'})
           </p>
           <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:grid-cols-4">
             <div>
@@ -463,7 +509,7 @@ export function Sueldos({
                 Sueldos brutos
               </p>
               <p className="tabular text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-                {formatoMoneda(nomina.totalBruto)}
+                {formatoMoneda(nominaDelMes.totalBruto)}
               </p>
             </div>
             <div>
@@ -471,7 +517,7 @@ export function Sueldos({
                 Contribuciones patronales
               </p>
               <p className="tabular text-lg font-semibold" style={{ color: 'var(--text-secondary)' }}>
-                {formatoMoneda(nomina.totalContribucionesPatronales)}
+                {formatoMoneda(nominaDelMes.totalContribucionesPatronales)}
               </p>
             </div>
             <div>
@@ -479,7 +525,7 @@ export function Sueldos({
                 Cargas sociales adicionales
               </p>
               <p className="tabular text-lg font-semibold" style={{ color: 'var(--text-secondary)' }}>
-                {formatoMoneda(nomina.totalCargasSocialesAdicionales)}
+                {formatoMoneda(nominaDelMes.totalCargasSocialesAdicionales)}
               </p>
             </div>
             <div>
@@ -487,17 +533,19 @@ export function Sueldos({
                 Costo para la empresa
               </p>
               <p className="tabular text-lg font-semibold" style={{ color: 'var(--series-blue)' }}>
-                {formatoMoneda(nomina.totalCostoEmpresa)}
+                {formatoMoneda(nominaDelMes.totalCostoEmpresa)}
               </p>
             </div>
           </div>
         </Card>
       )}
 
-      {nomina.cantidadActivos > 0 && (
+      {nominaDelMes.cantidadActivos > 0 && (
         <PanelPagos
-          nomina={nomina}
-          aguinaldo={aguinaldo}
+          nomina={nominaDelMes}
+          aguinaldo={aguinaldoDelMes}
+          mes={mes}
+          onCambiarMes={setMes}
           cuentas={cuentas}
           movimientosTesoreria={movimientosTesoreria}
           onPagar={onPagar}
@@ -512,7 +560,7 @@ export function Sueldos({
       ) : (
         <div className="space-y-3">
           {ordenados.map((e) => (
-            <FilaEmpleado key={e.id} empleado={e} sectores={sectores} onActualizar={onActualizar} onEliminar={onEliminar} />
+            <FilaEmpleado key={e.id} empleado={e} mes={mes} sectores={sectores} onActualizar={onActualizar} onEliminar={onEliminar} />
           ))}
         </div>
       )}

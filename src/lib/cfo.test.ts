@@ -12,6 +12,9 @@ import {
   calcularDesvioVentas,
   calcularMargenBrutoTotal,
   calcularMargenPorSector,
+  brutoDelMes,
+  mesesDelSemestre,
+  mejorBrutoDelSemestre,
   calcularNominaTotal,
   calcularPagosSueldos,
   calcularPosicionIngresosBrutosPorMes,
@@ -764,5 +767,98 @@ describe('gastosAguinaldoProyectados', () => {
 
   it('sin nómina no agrega nada', () => {
     expect(gastosAguinaldoProyectados(0, 12)).toEqual([])
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Sueldos que no son fijos: lo pagado mes a mes
+// ---------------------------------------------------------------------------
+
+describe('brutoDelMes', () => {
+  const jornalero: Empleado = {
+    id: 'j1', nombre: 'Jornalero', sueldoBruto: 800000, contribucionesPatronalesPct: 24,
+    cargasSocialesAdicionalesPct: 3, activo: true,
+    brutoPorMes: { '2026-08': 950000, '2026-09': 620000 },
+  }
+
+  it('usa lo cargado para ese mes', () => {
+    expect(brutoDelMes(jornalero, '2026-08')).toBe(950000)
+    expect(brutoDelMes(jornalero, '2026-09')).toBe(620000)
+  })
+
+  it('un mes sin cargar cae al sueldo fijo', () => {
+    expect(brutoDelMes(jornalero, '2026-10')).toBe(800000)
+  })
+
+  it('sin mes, el fijo: así lo que miraba la nómina de hoy no cambia', () => {
+    expect(brutoDelMes(jornalero)).toBe(800000)
+  })
+
+  it('un cero cargado es un cero, no un mes sin datos: el que no trabajó no cobró', () => {
+    expect(brutoDelMes({ ...jornalero, brutoPorMes: { '2026-10': 0 } }, '2026-10')).toBe(0)
+  })
+
+  it('el mensualizado, que no carga nada, cobra siempre lo mismo', () => {
+    const { brutoPorMes: _sinCargar, ...mensualizado } = jornalero
+    expect(brutoDelMes(mensualizado, '2026-08')).toBe(800000)
+  })
+})
+
+describe('calcularNominaTotal por mes', () => {
+  const equipo: Empleado[] = [
+    {
+      id: 'e1', nombre: 'Mensualizado', sueldoBruto: 1000000, contribucionesPatronalesPct: 24,
+      cargasSocialesAdicionalesPct: 3, activo: true,
+    },
+    {
+      id: 'e2', nombre: 'Jornalero', sueldoBruto: 0, contribucionesPatronalesPct: 24,
+      cargasSocialesAdicionalesPct: 3, activo: true, brutoPorMes: { '2026-08': 500000 },
+    },
+  ]
+
+  it('mezcla fijos y variables en el mes que se mire', () => {
+    expect(calcularNominaTotal(equipo, '2026-08').totalBruto).toBe(1500000)
+  })
+
+  it('en un mes sin jornales, solo pesa el fijo', () => {
+    expect(calcularNominaTotal(equipo, '2026-09').totalBruto).toBe(1000000)
+  })
+
+  it('las contribuciones acompañan al bruto del mes', () => {
+    cerca(calcularNominaTotal(equipo, '2026-08').totalCostoEmpresa, 1500000 * 1.27)
+  })
+})
+
+describe('aguinaldo con sueldos variables', () => {
+  const jornalero: Empleado = {
+    id: 'j1', nombre: 'Jornalero', sueldoBruto: 400000, contribucionesPatronalesPct: 24,
+    cargasSocialesAdicionalesPct: 3, activo: true,
+    brutoPorMes: { '2026-07': 600000, '2026-08': 900000, '2026-09': 500000 },
+  }
+
+  it('mesesDelSemestre devuelve el semestre completo', () => {
+    expect(mesesDelSemestre('2026-09')).toEqual(['2026-07', '2026-08', '2026-09', '2026-10', '2026-11', '2026-12'])
+    expect(mesesDelSemestre('2026-02')[0]).toBe('2026-01')
+  })
+
+  it('toma la mejor remuneración del semestre, no la del último mes', () => {
+    expect(mejorBrutoDelSemestre(jornalero, '2026-12')).toBe(900000)
+  })
+
+  it('no mira el semestre de al lado', () => {
+    expect(mejorBrutoDelSemestre(jornalero, '2026-03')).toBe(400000)
+  })
+
+  it('sin nada cargado en el semestre, usa el sueldo fijo', () => {
+    const sinCargar: Empleado = { ...jornalero, brutoPorMes: {} }
+    expect(mejorBrutoDelSemestre(sinCargar, '2026-12')).toBe(400000)
+  })
+
+  it('el aguinaldo es la mitad de esa mejor remuneración', () => {
+    expect(calcularAguinaldo([jornalero], '2026-12').totalBruto).toBe(450000)
+  })
+
+  it('sin mes se comporta como antes, sobre el sueldo fijo', () => {
+    expect(calcularAguinaldo([jornalero]).totalBruto).toBe(200000)
   })
 })

@@ -1339,6 +1339,10 @@ export interface Empleado {
   /** % del bruto de otras cargas sociales a cargo de la empresa que NO son contribución
    * previsional — ART, seguro de vida obligatorio, cuota sindical patronal, etc. */
   cargasSocialesAdicionalesPct: number
+  /** Lo realmente pagado en un mes puntual (YYYY-MM → bruto de ese mes), para quien no cobra
+   * siempre lo mismo: jornales, horas, changas, comisiones. El mes que no esté acá usa
+   * sueldoBruto, así que un empleado mensualizado no necesita cargar nada. */
+  brutoPorMes?: Record<string, number>
   /** Un empleado inactivo (de baja) queda en el historial pero no suma a la nómina vigente. */
   activo: boolean
   /** Cómo se reparte su costo entre sectores — ver calcularMargenPorSector. */
@@ -1355,16 +1359,27 @@ export interface CostoEmpleado {
 }
 
 /** Costo de un empleado para la empresa: el bruto más las dos cargas que se pagan por encima. */
-export function calcularCostoEmpleado(e: Empleado): CostoEmpleado {
-  const contribucionesPatronales = e.sueldoBruto * (e.contribucionesPatronalesPct / 100)
+/**
+ * Lo que cobró este empleado en un mes. Si ese mes tiene un importe cargado a mano manda ese —es
+ * lo que efectivamente se le pagó—, y si no, el sueldo fijo. Sin mes, el fijo: así todo lo que ya
+ * miraba la nómina "de hoy" sigue funcionando igual.
+ */
+export function brutoDelMes(e: Empleado, mes?: string): number {
+  if (mes && e.brutoPorMes && e.brutoPorMes[mes] !== undefined) return e.brutoPorMes[mes]
+  return e.sueldoBruto
+}
+
+export function calcularCostoEmpleado(e: Empleado, mes?: string): CostoEmpleado {
+  const bruto = brutoDelMes(e, mes)
+  const contribucionesPatronales = bruto * (e.contribucionesPatronalesPct / 100)
   const cargasSocialesAdicionales =
-    e.sueldoBruto * ((e.cargasSocialesAdicionalesPct ?? CARGAS_SOCIALES_ADICIONALES_PCT_DEFAULT) / 100)
+    bruto * ((e.cargasSocialesAdicionalesPct ?? CARGAS_SOCIALES_ADICIONALES_PCT_DEFAULT) / 100)
   return {
     empleado: e,
-    sueldoBruto: e.sueldoBruto,
+    sueldoBruto: bruto,
     contribucionesPatronales,
     cargasSocialesAdicionales,
-    costoEmpresa: e.sueldoBruto + contribucionesPatronales + cargasSocialesAdicionales,
+    costoEmpresa: bruto + contribucionesPatronales + cargasSocialesAdicionales,
   }
 }
 
@@ -1378,8 +1393,8 @@ export interface NominaTotal {
 
 /** Totales de la nómina vigente (solo empleados activos) — el total de costoEmpresa es lo que se
  * usa como "real" automático de la categoría Sueldos en Presupuesto vs. Real y en el Dashboard. */
-export function calcularNominaTotal(empleados: Empleado[]): NominaTotal {
-  const costos = empleados.filter((e) => e.activo).map(calcularCostoEmpleado)
+export function calcularNominaTotal(empleados: Empleado[], mes?: string): NominaTotal {
+  const costos = empleados.filter((e) => e.activo).map((e) => calcularCostoEmpleado(e, mes))
   return {
     cantidadActivos: costos.length,
     totalBruto: costos.reduce((s, c) => s + c.sueldoBruto, 0),
@@ -1425,10 +1440,12 @@ const PAGO_EN_MES_SIGUIENTE: Record<ConceptoPagoSueldos, boolean> = {
 // ---------------------------------------------------------------------------
 //
 // El sueldo anual complementario se paga en dos cuotas: la primera vence el 30 de junio y la
-// segunda el 18 de diciembre, y cada una es la mitad de la mejor remuneración del semestre. Como
-// acá solo se guarda la nómina vigente (no hay histórico de sueldos mes a mes), se calcula sobre
-// el sueldo bruto actual, que es la mejor aproximación disponible. El SAC también paga
-// contribuciones, así que se trata igual que un medio sueldo extra.
+// segunda el 18 de diciembre, y cada una es la mitad de la MEJOR remuneración mensual del
+// semestre (art. 121 LCT). Para quien cobra siempre lo mismo da igual mirar la mejor o la actual;
+// para quien cobra distinto cada mes —jornales, comisiones— no da igual, y calcularlo sobre el
+// último mes puede quedar bastante corto. Por eso, cuando hay importes cargados por mes, se busca
+// el mejor del semestre; si no hay ninguno, se usa el sueldo fijo, que es la única referencia.
+// El SAC también paga contribuciones, así que se trata igual que un medio sueldo extra.
 
 /** Meses en los que vence cada cuota del aguinaldo. */
 export const MESES_AGUINALDO = [6, 12]
@@ -1437,9 +1454,30 @@ export function mesTieneAguinaldo(mesISO: string): boolean {
   return MESES_AGUINALDO.includes(Number(mesISO.split('-')[1]))
 }
 
-/** El aguinaldo es la mitad del sueldo bruto de cada empleado, con sus mismas contribuciones. */
-export function calcularAguinaldo(empleados: Empleado[]): NominaTotal {
-  return calcularNominaTotal(empleados.map((e) => ({ ...e, sueldoBruto: e.sueldoBruto / 2 })))
+/** Los seis meses del semestre al que pertenece un mes, como YYYY-MM. */
+export function mesesDelSemestre(mesISO: string): string[] {
+  const [anio, mes] = mesISO.split('-').map(Number)
+  const desde = mes <= 6 ? 1 : 7
+  return Array.from({ length: 6 }, (_, i) => `${anio}-${String(desde + i).padStart(2, '0')}`)
+}
+
+/**
+ * La mejor remuneración mensual del semestre de `mes`: el mayor importe cargado a mano en esos
+ * seis meses, y el sueldo fijo si no hay ninguno. Sin mes, el sueldo fijo.
+ */
+export function mejorBrutoDelSemestre(e: Empleado, mes?: string): number {
+  if (!mes || !e.brutoPorMes) return e.sueldoBruto
+  const cargados = mesesDelSemestre(mes)
+    .map((m) => e.brutoPorMes?.[m])
+    .filter((v): v is number => v !== undefined)
+  return cargados.length > 0 ? Math.max(...cargados) : e.sueldoBruto
+}
+
+/** El aguinaldo es la mitad de la mejor remuneración del semestre, con sus mismas contribuciones. */
+export function calcularAguinaldo(empleados: Empleado[], mes?: string): NominaTotal {
+  return calcularNominaTotal(
+    empleados.map((e) => ({ ...e, sueldoBruto: mejorBrutoDelSemestre(e, mes) / 2, brutoPorMes: undefined })),
+  )
 }
 
 /**
