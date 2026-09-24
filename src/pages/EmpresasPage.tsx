@@ -129,6 +129,7 @@ import { guardarBackupDiarioEnDrive } from '../lib/googleDrive'
 import {
   guardarDatosUsuario,
   suscribirseADatosUsuario,
+  guardarBackupAhora,
   guardarBackupAutomaticoSiHaceFalta,
   cargarBackupAutomatico,
   type BackupAutomaticoEntry,
@@ -555,6 +556,14 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
 
   function handleObtenerBackupAutomatico(id: string) {
     return user ? cargarBackupAutomatico(user.uid, id) : Promise.resolve(null)
+  }
+
+  /** Guarda una copia en la nube ahora mismo, porque el usuario la pidió desde Backup. Actualiza
+   * el índice en pantalla sin esperar al listener, para que la fila aparezca al toque. */
+  async function handleGuardarBackupAhora() {
+    if (!user) throw new Error('Tenés que iniciar sesión para guardar una copia en la nube.')
+    const entrada = await guardarBackupAhora(user.uid, negocioDataActual, backupsAutomaticos)
+    setBackupsAutomaticos((prev) => [...prev.filter((b) => b.id !== entrada.id), entrada])
   }
 
   function cambiarMonto(key: string, monto: number) {
@@ -1375,8 +1384,9 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   const remitosCobrar = useMemo(() => listarRemitosPendientes(remitos, anticipos, 'emitida'), [remitos, anticipos])
   const remitosPagar = useMemo(() => listarRemitosPendientes(remitos, anticipos, 'recibida'), [remitos, anticipos])
   // El costo de la nómina que se suma a cada sector es mensual, así que el período elegido define
-  // cuántos meses de sueldo entran: uno cuando se mira un mes, y en el acumulado tantos como meses
-  // con movimientos haya, para no comparar los remitos de todo el año contra un solo sueldo.
+  // qué meses de sueldo entran: uno cuando se mira un mes, y en el acumulado todos los que tengan
+  // movimientos, para no comparar los remitos de todo el año contra un solo sueldo. Van como lista
+  // de meses y no como cantidad porque de cada uno se toma lo que el empleado cobró realmente.
   const remitosDeSectores = useMemo(
     () => (periodoMargenes === 'mes' ? remitos.filter((r) => r.fecha.slice(0, 7) === mesMargenes) : remitos),
     [remitos, periodoMargenes, mesMargenes],
@@ -1385,17 +1395,17 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     () => (periodoMargenes === 'mes' ? facturas.filter((f) => f.fecha.slice(0, 7) === mesMargenes) : facturas),
     [facturas, periodoMargenes, mesMargenes],
   )
-  const mesesAcumulados = useMemo(() => {
-    if (periodoMargenes === 'mes') return 1
+  const mesesDeSectores = useMemo(() => {
+    if (periodoMargenes === 'mes') return [mesMargenes]
     const meses = new Set<string>()
     for (const r of remitosDeSectores) if (r.sectorId) meses.add(r.fecha.slice(0, 7))
     for (const f of facturasDeSectores) if (f.sectorId) meses.add(f.fecha.slice(0, 7))
-    return Math.max(1, meses.size)
-  }, [periodoMargenes, remitosDeSectores, facturasDeSectores])
+    return meses.size > 0 ? [...meses].sort() : [mesMargenes]
+  }, [periodoMargenes, mesMargenes, remitosDeSectores, facturasDeSectores])
   const margenesPorSector = useMemo(
     () =>
-      calcularMargenPorSector(sectores, remitosDeSectores, productos, empleados, facturasDeSectores, mesesAcumulados),
-    [sectores, remitosDeSectores, productos, empleados, facturasDeSectores, mesesAcumulados],
+      calcularMargenPorSector(sectores, remitosDeSectores, productos, empleados, facturasDeSectores, mesesDeSectores),
+    [sectores, remitosDeSectores, productos, empleados, facturasDeSectores, mesesDeSectores],
   )
   // Para el calendario semanal: los pagos que genera la nómina del mes en curso.
   const pagosSueldosMesActual = useMemo(
@@ -1723,7 +1733,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
             onCambiarMes={setMesMargenes}
             periodo={periodoMargenes}
             onCambiarPeriodo={setPeriodoMargenes}
-            mesesAcumulados={mesesAcumulados}
+            mesesAcumulados={mesesDeSectores.length}
             onAgregarSector={handleAgregarSector}
             onEliminarSector={handleEliminarSector}
           />
@@ -1913,6 +1923,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           onRestaurar={handleRestaurarBackup}
           backupsAutomaticos={backupsAutomaticos}
           onObtenerBackupAutomatico={handleObtenerBackupAutomatico}
+          onGuardarAhora={user ? handleGuardarBackupAhora : undefined}
         />
       )}
 

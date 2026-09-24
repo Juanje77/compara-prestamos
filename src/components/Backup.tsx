@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { CloudUpload, Download, HardDriveDownload, RotateCcw, Upload } from 'lucide-react'
+import { CloudUpload, Download, HardDriveDownload, RotateCcw, Save, Upload } from 'lucide-react'
 import { slugNegocio, type NegocioData } from '../lib/negocioData'
 import { MAX_BACKUPS_AUTOMATICOS, type BackupAutomaticoEntry } from '../lib/userSync'
 import {
@@ -30,6 +30,9 @@ interface Props {
   /** Trae el cuerpo completo de un backup automático puntual — se pide recién al tocar Descargar
    * o Restaurar en esa fila, no de entrada para todo el historial. */
   onObtenerBackupAutomatico: (id: string) => Promise<Partial<NegocioData> | null>
+  /** Guarda una copia en la nube en este momento. Sin esto (negocio sin login) el botón no se
+   * muestra: no habría dónde guardarla. */
+  onGuardarAhora?: () => Promise<void>
 }
 
 /** Si el archivo no trae ni esto, no es un backup de FinCorp (o está corrupto) — mejor cortar acá
@@ -47,20 +50,43 @@ function descargarComoArchivo(datos: unknown, sufijo: string, nombreNegocio: str
   URL.revokeObjectURL(url)
 }
 
+/** Los automáticos son de un día (2026-09-24); los pedidos a mano traen la hora
+ * (2026-09-24T14-30), y ahí se muestra, que es lo que los distingue entre sí. */
 function fechaLegible(id: string): string {
-  return new Date(`${id}T00:00:00`).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })
+  const [dia, hora] = id.split('T')
+  const fecha = new Date(`${dia}T${hora ? hora.replace('-', ':') : '00:00'}:00`)
+  const texto = fecha.toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })
+  if (!hora) return texto
+  return `${texto}, ${fecha.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`
 }
 
 const CONFIRMACION_RESTAURAR =
   'Esto reemplaza todos los datos actuales del negocio por los del backup. No se puede deshacer. ¿Confirmás?'
 
-export function Backup({ datos, onRestaurar, backupsAutomaticos, onObtenerBackupAutomatico }: Props) {
+export function Backup({ datos, onRestaurar, backupsAutomaticos, onObtenerBackupAutomatico, onGuardarAhora }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [restaurando, setRestaurando] = useState(false)
   const [restaurado, setRestaurado] = useState(false)
   /** Id del backup automático sobre el que hay una acción en curso (descargar o restaurar), para
    * deshabilitar solo los botones de esa fila y no todo el historial. */
   const [filaOcupada, setFilaOcupada] = useState<string | null>(null)
+  const [guardandoAhora, setGuardandoAhora] = useState(false)
+  const [guardado, setGuardado] = useState(false)
+
+  async function handleGuardarAhora() {
+    if (!onGuardarAhora) return
+    setError(null)
+    setGuardado(false)
+    setGuardandoAhora(true)
+    try {
+      await onGuardarAhora()
+      setGuardado(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo guardar la copia.')
+    } finally {
+      setGuardandoAhora(false)
+    }
+  }
 
   // --- Google Drive ---
   const [driveConectado, setDriveConectado] = useState(driveConectadoAlgunaVez)
@@ -344,8 +370,28 @@ export function Backup({ datos, onRestaurar, backupsAutomaticos, onObtenerBackup
         </h3>
         <p className="mb-3 text-xs" style={{ color: 'var(--text-secondary)' }}>
           Mientras estés logueado, FinCorp guarda solo una copia por día (las últimas{' '}
-          {MAX_BACKUPS_AUTOMATICOS}), sin que tengas que acordarte de nada.
+          {MAX_BACKUPS_AUTOMATICOS}), sin que tengas que acordarte de nada. Y si estás por hacer un
+          cambio grande, guardá una ahora mismo con el botón.
         </p>
+
+        {onGuardarAhora && (
+          <div className="mb-3 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={handleGuardarAhora}
+              disabled={guardandoAhora}
+              className="inline-flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-xs font-medium disabled:opacity-60"
+              style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
+            >
+              <Save size={14} aria-hidden="true" /> {guardandoAhora ? 'Guardando…' : 'Guardar una copia ahora'}
+            </button>
+            {guardado && (
+              <span className="text-xs" style={{ color: 'var(--status-good-text)' }}>
+                Copia guardada. Queda en la lista de abajo.
+              </span>
+            )}
+          </div>
+        )}
 
         {historial.length === 0 ? (
           <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
@@ -359,8 +405,16 @@ export function Backup({ datos, onRestaurar, backupsAutomaticos, onObtenerBackup
                 className="flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2 text-sm"
                 style={{ borderColor: 'var(--border)' }}
               >
-                <span className="flex-1 capitalize" style={{ color: 'var(--text-primary)' }}>
+                <span className="flex-1" style={{ color: 'var(--text-primary)' }}>
                   {fechaLegible(b.id)}
+                  {b.manual && (
+                    <span
+                      className="ml-2 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                      style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}
+                    >
+                      A mano
+                    </span>
+                  )}
                 </span>
                 <button
                   type="button"

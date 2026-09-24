@@ -124,9 +124,11 @@ const SECCIONES: SeccionAyuda[] = [
       'Creá un sector por cada división del negocio (ej: "Metalúrgica", "Instalaciones", "Service").',
       'Al cargar un remito en la solapa Remitos, asignale un sector desde el selector del formulario.',
       'En Sueldos repartí el costo de cada empleado entre los sectores con un porcentaje, para que la mano de obra entre en el margen.',
-      'Volvé acá para ver, por sector y mes a mes: el ingreso (remitos a clientes), el costo (remitos a proveedores + líneas de producto + nómina asignada) y la ganancia resultante.',
+      'Volvé acá para ver, por sector: el ingreso (remitos a clientes), el costo (remitos a proveedores + líneas de producto + nómina asignada) y la ganancia resultante.',
+      'Con el selector de arriba elegís `Por mes` o `Acumulado`. El acumulado totaliza cada sector desde el primer movimiento cargado, y suma la nómina mes a mes tomando lo que cobró realmente cada empleado en cada uno.',
+      'Cuando hay más de un sector, abajo aparece una fila con todos juntos: ingreso, costo, ganancia y margen del negocio entero.',
     ],
-    tip: 'Se mira un mes por vez, porque el costo de la nómina es mensual y mezclarlo con los remitos de todo el año daría un margen sin sentido. Solo cuenta remitos, nunca presupuestos. Las líneas de "mano de obra / otro costo" de un remito se cuentan al mismo precio facturado (margen cero): el costo real de esa mano de obra entra por la nómina asignada al sector.',
+    tip: 'Solo cuenta remitos, nunca presupuestos. Las líneas de "mano de obra / otro costo" de un remito se cuentan al mismo precio facturado (margen cero): el costo real de esa mano de obra entra por la nómina asignada al sector.',
   },
   {
     id: 'sueldos',
@@ -312,6 +314,7 @@ const SECCIONES: SeccionAyuda[] = [
     pasos: [
       'Tocá `Descargar backup` para bajar un archivo `.json` con absolutamente todo lo cargado — comprobantes, cuentas, cheques, sueldos, stock, tesorería, todo.',
       'Guardalo donde quieras: es tuyo, y no depende de que sigas usando FinCorp.',
+      'Con `Guardar una copia ahora` dejás una copia en la nube en el momento, sin esperar a la diaria. Útil justo antes de un cambio grande: si algo sale mal, volvés a ese punto exacto.',
       'Para restaurar, tocá `Restaurar desde un backup` y elegí ese mismo archivo — reemplaza todos los datos actuales, así que primero te pide confirmar.',
       'En `Copia en tu Google Drive` conectás tu cuenta una vez y FinCorp deja una copia diaria en la carpeta "FinCorp backups" de tu Drive, que podés restaurar desde la misma lista. El permiso que se pide alcanza solo para los archivos que crea FinCorp: el resto de tu Drive no se toca ni se lee.',
     ],

@@ -221,7 +221,7 @@ export function MargenesPorSector({
           Solo se cuentan remitos (no presupuestos): un presupuesto todavía no es un compromiso real.{' '}
           {periodo === 'mes'
             ? 'Estás mirando un mes por vez; con "Acumulado" ves el total de cada sector desde que empezaste a cargar.'
-            : `Estás viendo el total de cada sector desde el primer movimiento cargado. La nómina asignada a cada sector (desde Sueldos) es mensual, así que se cuenta ${mesesAcumulados} ${mesesAcumulados === 1 ? 'vez' : 'veces'}, una por cada mes con movimientos, tomando los sueldos de hoy.`}
+            : `Estás viendo el total de cada sector desde el primer movimiento cargado. La nómina asignada a cada sector (desde Sueldos) es mensual, así que se suma mes a mes: ${mesesAcumulados} ${mesesAcumulados === 1 ? 'mes' : 'meses'} con movimientos, tomando de cada uno lo que cobró de verdad cada empleado.`}
         </p>
 
         <form onSubmit={handleSubmit} className="flex flex-wrap gap-2">

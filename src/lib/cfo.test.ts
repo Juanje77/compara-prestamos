@@ -695,9 +695,27 @@ describe('calcularMargenPorSector', () => {
 
   it('en el acumulado la nómina se cuenta una vez por mes mirado', () => {
     const unMes = calcularMargenPorSector(sectores, remitos, productos, empleados)[0]
-    const tresMeses = calcularMargenPorSector(sectores, remitos, productos, empleados, [], 3)[0]
+    const meses = ['2026-07', '2026-08', '2026-09']
+    const tresMeses = calcularMargenPorSector(sectores, remitos, productos, empleados, [], meses)[0]
     cerca(tresMeses.costoNomina, unMes.costoNomina * 3)
     expect(tresMeses.ingreso).toBe(unMes.ingreso) // los remitos son los mismos
+  })
+
+  it('toma de cada mes lo que el empleado cobró de verdad, no el sueldo fijo multiplicado', () => {
+    const jornalero: Empleado[] = [
+      { ...empleados[0], sueldoBruto: 0, brutoPorMes: { '2026-08': 1000000, '2026-09': 400000 } },
+    ]
+    const dosMeses = calcularMargenPorSector(sectores, remitos, productos, jornalero, [], ['2026-08', '2026-09'])[0]
+    // 60% del costo empresa de 1.400.000 entre los dos meses.
+    cerca(dosMeses.costoNomina, 1400000 * 1.27 * 0.6)
+  })
+
+  it('un mes suelto usa lo de ese mes', () => {
+    const jornalero: Empleado[] = [
+      { ...empleados[0], sueldoBruto: 0, brutoPorMes: { '2026-08': 1000000, '2026-09': 400000 } },
+    ]
+    const soloAgosto = calcularMargenPorSector(sectores, remitos, productos, jornalero, [], ['2026-08'])[0]
+    cerca(soloAgosto.costoNomina, 1000000 * 1.27 * 0.6)
   })
 
   it('no duplica el ingreso de un comprobante ya vinculado a un remito del sector', () => {

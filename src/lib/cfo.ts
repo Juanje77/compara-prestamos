@@ -2216,7 +2216,7 @@ export interface MargenSector {
  * entra por la nómina.
  *
  * El costo de la nómina es mensual, así que ingreso y costo tienen que hablar del mismo período:
- * o se pasan los remitos de UN mes, o se pasan los de varios junto con `mesesDeNomina`.
+ * los remitos que se pasen y los meses de `mesesNomina` tienen que ser los mismos.
  */
 export function calcularMargenPorSector(
   sectores: Sector[],
@@ -2228,9 +2228,11 @@ export function calcularMargenPorSector(
    * pasar por un remito. Los que ya estén vinculados a un remito de la lista de arriba se
    * ignoran acá, porque su ingreso ya se cuenta a través de ese remito. */
   facturas: Factura[] = [],
-  /** Cuántos meses de nómina cargar. Es 1 cuando se mira un mes; en la vista acumulada se pasa la
-   * cantidad de meses que abarcan los documentos, para que el sueldo acompañe al período mirado. */
-  mesesDeNomina = 1,
+  /** Los meses (YYYY-MM) que abarca lo que se está mirando: uno en la vista mensual, varios en la
+   * acumulada. El costo de nómina se suma mes a mes, tomando de cada uno lo que cobró de verdad
+   * cada empleado (ver brutoDelMes), no el sueldo fijo multiplicado. Vacío = un mes al sueldo
+   * fijo, que es lo que corresponde cuando quien llama no sabe de qué mes habla. */
+  mesesNomina: string[] = [],
 ): MargenSector[] {
   const productoPorId = new Map(productos.map((p) => [p.id, p]))
   const activos = empleados.filter((e) => e.activo)
@@ -2267,11 +2269,13 @@ export function calcularMargenPorSector(
       }
     }
 
-    const costoNomina =
-      activos.reduce((total, e) => {
-        const porcentaje = (e.asignaciones ?? []).find((a) => a.sectorId === sector.id)?.porcentaje ?? 0
-        return total + calcularCostoEmpleado(e).costoEmpresa * (porcentaje / 100)
-      }, 0) * mesesDeNomina
+    const mesesACobrar = mesesNomina.length > 0 ? mesesNomina : [undefined]
+    const costoNomina = activos.reduce((total, e) => {
+      const porcentaje = (e.asignaciones ?? []).find((a) => a.sectorId === sector.id)?.porcentaje ?? 0
+      if (porcentaje === 0) return total
+      const delEmpleado = mesesACobrar.reduce((suma, mes) => suma + calcularCostoEmpleado(e, mes).costoEmpresa, 0)
+      return total + delEmpleado * (porcentaje / 100)
+    }, 0)
 
     const costoTotal = costoCompras + costoLineas + costoNomina
     const ganancia = ingreso - costoTotal

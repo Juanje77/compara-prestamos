@@ -37,10 +37,14 @@ export interface NegocioDataUsuario {
 }
 
 export interface BackupAutomaticoEntry {
-  /** Fecha ISO (YYYY-MM-DD) del snapshot — también el id del documento en la subcolección
-   * `backups`, así nunca hay dos backups automáticos el mismo día. */
+  /** Id del documento en la subcolección `backups`. Los automáticos usan la fecha (YYYY-MM-DD),
+   * así nunca hay dos el mismo día; los que se piden a mano llevan además la hora, para que se
+   * puedan guardar varios en el mismo día sin pisarse. Los dos empiezan con la fecha, así que
+   * ordenar por id sigue siendo ordenar cronológicamente. */
   id: string
   creadoEn: number
+  /** true si lo pidió el usuario con el botón, en vez de salir de la copia diaria. */
+  manual?: boolean
 }
 
 export interface DatosUsuario {
@@ -160,6 +164,45 @@ export async function guardarBackupAutomaticoSiHaceFalta(
   } catch {
     // Best-effort — ver comentario de la función.
   }
+}
+
+/** El id del backup que se guarda ahora a pedido: fecha y hora, para que dos del mismo día no se
+ * pisen. Los dos puntos no se llevan bien con los ids de documento, así que van como guiones. */
+function idBackupManual(ahora = new Date()): string {
+  return ahora.toISOString().slice(0, 16).replace(':', '-')
+}
+
+/**
+ * Guarda una copia ahora, porque el usuario la pidió. A diferencia de la diaria, no pregunta si ya
+ * hay una: cuando alguien toca el botón es porque quiere justo este estado guardado —típicamente
+ * antes de tocar algo importante—, y decirle "ya tenés una de hoy" sería no hacer lo que pidió.
+ *
+ * Esta sí propaga el error: el botón tiene que poder avisar si no se pudo.
+ */
+export async function guardarBackupAhora(
+  uid: string,
+  negocioData: NegocioDataUsuario,
+  indiceActual: BackupAutomaticoEntry[],
+): Promise<BackupAutomaticoEntry> {
+  const api = await obtenerApi()
+  if (!api) throw new Error('No hay conexión con la nube para guardar la copia.')
+
+  const entrada: BackupAutomaticoEntry = { id: idBackupManual(), creadoEn: Date.now(), manual: true }
+  await api.setDoc(api.doc(api.db, 'users', uid, 'backups', entrada.id), negocioData)
+
+  const ordenado = [...indiceActual.filter((b) => b.id !== entrada.id), entrada].sort((a, b) =>
+    a.id.localeCompare(b.id),
+  )
+  const excedente = ordenado.length - MAX_BACKUPS_AUTOMATICOS
+  const aBorrar = excedente > 0 ? ordenado.slice(0, excedente) : []
+  const vigentes = excedente > 0 ? ordenado.slice(excedente) : ordenado
+
+  await api.setDoc(api.doc(api.db, 'users', uid), { backupsIndex: vigentes }, { merge: true })
+  // La limpieza de los viejos es best-effort: si falla, la copia nueva igual quedó guardada.
+  await Promise.all(
+    aBorrar.map((b) => api.deleteDoc(api.doc(api.db, 'users', uid, 'backups', b.id)).catch(() => {})),
+  )
+  return entrada
 }
 
 /** Trae el cuerpo completo de un backup automático puntual, para descargarlo o restaurarlo. */
