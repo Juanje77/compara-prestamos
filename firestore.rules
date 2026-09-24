@@ -16,32 +16,53 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Segundo factor. La marca `mfaHasta` la pone el servidor en el token al verificar el código
+    // por mail (ver api/mfa-verificar-codigo.js) y vale unas horas. Exigirla ACÁ es lo que hace
+    // que el segundo factor sirva: si solo lo mirara la pantalla, cualquiera con la contraseña
+    // podría saltear el código hablándole a Firestore directo con su token. Las reglas no le
+    // creen al navegador, le creen al token.
+    function pasoSegundoFactor() {
+      return request.auth.token.mfaHasta is number && request.auth.token.mfaHasta > request.time.toMillis();
+    }
+
+    function esElDueno(userId) {
+      return request.auth != null && request.auth.uid == userId && pasoSegundoFactor();
+    }
+
     // Los datos del negocio: cada quien los suyos y nada más. Al exigir que el uid del token
     // coincida con el del documento, una consulta a toda la colección tampoco puede probar que
     // cumple la regla, así que listar usuarios queda denegado de entrada.
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if esElDueno(userId);
 
       // Plan contratado y datos fiscales del emisor: el dueño los lee, pero solo el servidor
       // (Admin SDK, que no pasa por estas reglas) los escribe. Si el navegador pudiera tocarlos,
       // cualquiera se asignaría el plan Full, o se pondría el emisor de otro contribuyente para
       // facturar con un CUIT ajeno.
       match /meta/{documento} {
-        allow read: if request.auth != null && request.auth.uid == userId;
+        allow read: if esElDueno(userId);
         allow write: if false;
       }
 
       // Copias diarias automáticas del negocio (ver guardarBackupAutomaticoSiHaceFalta): las
       // escribe y las lee el propio dueño, igual que sus datos.
       match /backups/{backupId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if esElDueno(userId);
       }
 
       // Respaldo de cada emisión con su CAE, que guarda el servidor al emitir. Es un registro
       // fiscal: el dueño puede consultarlo, pero no falsearlo ni borrarlo.
       match /emisiones/{referenciaExterna} {
-        allow read: if request.auth != null && request.auth.uid == userId;
+        allow read: if esElDueno(userId);
         allow write: if false;
+      }
+
+      // El registro del segundo factor (hash del código, intentos, dispositivos confiados). Lo
+      // escribe y lo lee solo el servidor con el Admin SDK, que no pasa por estas reglas: si el
+      // navegador pudiera tocarlo, se borraría los intentos fallidos o se agregaría su propio
+      // dispositivo como confiado.
+      match /seguridad/{documento} {
+        allow read, write: if false;
       }
     }
   }

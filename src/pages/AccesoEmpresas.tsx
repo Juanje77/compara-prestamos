@@ -4,6 +4,8 @@ import { useAuth } from '../lib/AuthContext'
 import { usePlanUsuario, pruebaVencida, diasRestantesPrueba, enPeriodoDeGracia, diasRestantesGracia } from '../lib/plan'
 import { EmpresasPage } from './EmpresasPage'
 import { PlanesEmpresa } from '../components/PlanesEmpresa'
+import { SegundoFactor } from '../components/SegundoFactor'
+import { estadoMfa } from '../lib/mfa'
 
 export function AccesoEmpresas() {
   const { user, cargando: cargandoAuth, habilitado } = useAuth()
@@ -17,6 +19,30 @@ export function AccesoEmpresas() {
   const [reintentoNonce, setReintentoNonce] = useState(0)
   const [confirmacionAgotada, setConfirmacionAgotada] = useState(false)
   const [verPlanesManual, setVerPlanesManual] = useState(false)
+  // Segundo factor: null mientras no se sabe, true si este dispositivo tiene que verificarse.
+  // Se consulta apenas hay sesión, y si el dispositivo ya está confiado el servidor le renueva la
+  // marca al token sin que el usuario haga nada.
+  const [pideCodigo, setPideCodigo] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    if (!user) {
+      setPideCodigo(null)
+      return
+    }
+    let cancelado = false
+    estadoMfa()
+      .then((estado) => {
+        if (!cancelado) setPideCodigo(estado.configurado && estado.haceFaltaCodigo)
+      })
+      .catch(() => {
+        // Si la consulta falla (sin red, servidor caído), no se deja a nadie afuera: las reglas de
+        // Firestore siguen exigiendo la marca, así que el que no pasó el factor no ve datos igual.
+        if (!cancelado) setPideCodigo(false)
+      })
+    return () => {
+      cancelado = true
+    }
+  }, [user])
 
   // Quién puede necesitar que le arranquemos la prueba gratis: un usuario que nunca tuvo ningún
   // plan, o uno que dejó un checkout de Mercado Pago a medias (crear-suscripcion ya escribe
@@ -121,8 +147,13 @@ export function AccesoEmpresas() {
     return <EmpresasPage esPremium esFull />
   }
 
-  if (cargandoAuth || (user && cargandoPlan)) {
+  if (cargandoAuth || (user && cargandoPlan) || (user && pideCodigo === null)) {
     return <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Cargando…</p>
+  }
+
+  // Antes que cualquier otra cosa de la cuenta: sin segundo factor no se muestra nada del negocio.
+  if (user && pideCodigo) {
+    return <SegundoFactor onVerificado={() => setPideCodigo(false)} />
   }
 
   if (user && plan.estado === 'pendiente' && !confirmacionAgotada) {
