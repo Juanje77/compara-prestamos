@@ -35,8 +35,9 @@ export function Proveedores({ proveedores, onClasificar, onAgregarManual, onElim
         Proveedores
       </h2>
       <p className="mb-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
-        Clasificá cada proveedor en una categoría de gasto para que Presupuesto vs. Real se complete solo con tus
-        facturas recibidas.
+        Clasificá cada proveedor en una categoría de gasto para que el Dashboard reparta bien tus gastos —y, si
+        tenés el plan Medio, para que Presupuesto vs. Real se complete solo—. Se arma con lo que cargues en
+        Ingresos y gastos o en Comprobantes.
       </p>
 
       {sinClasificar.length > 0 && (
@@ -78,7 +79,7 @@ export function Proveedores({ proveedores, onClasificar, onAgregarManual, onElim
 
       {proveedores.length === 0 ? (
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-          Todavía no hay proveedores: importá facturas recibidas en Comprobantes o agregá uno a mano arriba.
+          Todavía no hay proveedores: cargá un gasto en Ingresos y gastos (con el nombre del proveedor en el concepto), importá facturas recibidas en Comprobantes, o agregá uno a mano arriba.
         </p>
       ) : (
         <div className="overflow-x-auto">

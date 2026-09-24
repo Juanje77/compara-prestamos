@@ -1539,16 +1539,23 @@ export interface MovimientoDiario {
   fecha: string
   /** Con qué se cobró — solo aplica a ingresos (ventas), no a gastos. */
   medioCobro?: MedioCobro
+  /** Si esta venta o gasto NO tiene comprobante fiscal detrás. Los internos no entran en IVA, en
+   * Ingresos Brutos ni en los ingresos del monotributo. Va explícito y no se deduce, porque es la
+   * diferencia entre que esas tres pantallas den bien o den cero. */
+  esInterna?: boolean
 }
 
-// Un movimiento diario no se guarda aparte: se guarda como un comprobante interno (ver
-// Factura.origen). Así lo que se carga en Ingresos y gastos alimenta el Dashboard, el margen y la
-// caja como cualquier otra venta o compra, en vez de morir en un registro suelto — pero al ser
-// interno no toca IVA ni Ingresos Brutos, que es lo correcto para una venta anotada sin factura.
-// Estas dos funciones son la ida y la vuelta entre las dos formas de ver lo mismo.
+// Un movimiento diario no se guarda aparte: se guarda como un comprobante (ver Factura.origen).
+// Así lo que se carga en Ingresos y gastos alimenta el Dashboard, el margen y la caja como
+// cualquier otra venta o compra, en vez de morir en un registro suelto. Si además se marcó como
+// facturado, cuenta también para los impuestos; si es interno, no. Estas dos funciones son la ida
+// y la vuelta entre las dos formas de ver lo mismo.
 
-/** El comprobante interno que corresponde a un movimiento diario. Un ingreso es una venta y un
- * gasto una compra, y en ambos casos la plata ya se movió (por eso van como cumplidos). */
+/** El comprobante que corresponde a un movimiento diario. Un ingreso es una venta y un gasto una
+ * compra, y en ambos casos la plata ya se movió (por eso van como cumplidos).
+ *
+ * Sin `esInterna` cargado queda interno: es lo que eran todos los movimientos diarios antes de que
+ * la pantalla dejara elegir, y darlos por facturados de golpe les cambiaría los impuestos. */
 export function facturaDesdeMovimientoDiario(mov: MovimientoDiario, id: string): Factura {
   return {
     id,
@@ -1558,7 +1565,7 @@ export function facturaDesdeMovimientoDiario(mov: MovimientoDiario, id: string):
     monto: mov.monto,
     fecha: mov.fecha,
     cumplido: true,
-    esInterna: true,
+    esInterna: mov.esInterna ?? true,
     origen: 'carga-diaria',
     medioCobro: mov.medioCobro,
   }
@@ -1573,6 +1580,7 @@ export function movimientoDiarioDesdeFactura(f: Factura): MovimientoDiario {
     monto: f.monto,
     fecha: f.fecha,
     medioCobro: f.medioCobro,
+    esInterna: f.esInterna ?? false,
   }
 }
 

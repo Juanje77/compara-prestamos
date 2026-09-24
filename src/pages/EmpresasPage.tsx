@@ -179,6 +179,12 @@ const SECCIONES_FULL = new Set(['facturacionElectronica', 'puntoDeVenta', 'cuent
 
 type Seccion = (typeof SECCIONES)[number]['key']
 
+/** Las del plan Medio. Clientes, Proveedores, Monotributo e Ingresos Brutos quedaron en Básico: se
+ * alimentan de lo que se carga en Ingresos y gastos, que ese plan ya tiene, y son justo lo que
+ * necesita un monotributista. Comprobantes sigue siendo de Medio, así que en Básico esas cuatro
+ * pantallas trabajan solo con la carga diaria. */
+const SECCIONES_MEDIO: Seccion[] = ['presupuesto', 'facturas', 'iva', 'patrimonio']
+
 /** Las que se usan a diario quedan sueltas, siempre a un clic — incluye "Ingresos y gastos"
  * porque es la pantalla principal del plan Básico, que todavía no tiene Comprobantes. El resto
  * se agrupa por tema detrás de un desplegable, para no tener 19 solapas todas al mismo nivel —
@@ -216,10 +222,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     setGrupoAbierto(GRUPOS.find((g) => (g.secciones as Seccion[]).includes(s))?.key ?? null)
   }
   function seccionBloqueada(key: Seccion): boolean {
-    return SECCIONES_FULL.has(key)
-      ? !esFull
-      : !esPremium &&
-        (['presupuesto', 'facturas', 'proveedores', 'clientes', 'iva', 'iibb', 'monotributo', 'patrimonio'] as Seccion[]).includes(key)
+    return SECCIONES_FULL.has(key) ? !esFull : !esPremium && SECCIONES_MEDIO.includes(key)
   }
   const [mostrarPlanes, setMostrarPlanes] = useState(false)
   const [ingresos, setIngresos] = useState(() => cargarNegocioData()?.ingresos ?? 7000000)
@@ -1197,10 +1200,11 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     setProductos((prev) => revertirMovimientoStock(prev, movimiento))
   }
 
-  /** Lo que se carga en Ingresos y gastos no se guarda aparte: se guarda como un comprobante
-   * interno (una venta si es ingreso, una compra si es gasto), para que alimente el Dashboard, el
-   * margen y la caja como cualquier otro comprobante en vez de quedar en un registro suelto. Al
-   * ser interno no toca IVA ni Ingresos Brutos — ver facturaDesdeMovimientoDiario. */
+  /** Lo que se carga en Ingresos y gastos no se guarda aparte: se guarda como un comprobante (una
+   * venta si es ingreso, una compra si es gasto), para que alimente el Dashboard, el margen y la
+   * caja como cualquier otro comprobante en vez de quedar en un registro suelto. Si en la pantalla
+   * se marcó como interno, además queda fuera de IVA, Ingresos Brutos y monotributo — ver
+   * facturaDesdeMovimientoDiario. */
   function handleAgregarMovimientoDiario(movimiento: Omit<MovimientoDiario, 'id'>) {
     const id = generarId()
     setFacturas((prev) => [...prev, facturaDesdeMovimientoDiario({ ...movimiento, id }, id)])
@@ -1817,34 +1821,20 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
       )}
 
       {seccion === 'proveedores' && (
-        <PremiumLock
-          activo={esPremium}
-          titulo="Proveedores"
-          descripcion="Clasificá cada proveedor en una categoría de gasto para que Presupuesto vs. Real se complete solo con tus facturas recibidas."
-          onQuieroPremium={abrirPlanes}
-        >
-          <Proveedores
-            proveedores={proveedores}
-            onClasificar={handleClasificarProveedor}
-            onAgregarManual={handleAgregarProveedorManual}
-            onEliminarManual={handleEliminarProveedorManual}
-          />
-        </PremiumLock>
+        <Proveedores
+          proveedores={proveedores}
+          onClasificar={handleClasificarProveedor}
+          onAgregarManual={handleAgregarProveedorManual}
+          onEliminarManual={handleEliminarProveedorManual}
+        />
       )}
 
       {seccion === 'clientes' && (
-        <PremiumLock
-          activo={esPremium}
-          titulo="Clientes"
-          descripcion="Todos tus clientes, con la cantidad de comprobantes y el total facturado de cada uno."
-          onQuieroPremium={abrirPlanes}
-        >
-          <Clientes
-            clientes={clientes}
-            onAgregarManual={handleAgregarClienteManual}
-            onEliminarManual={handleEliminarClienteManual}
-          />
-        </PremiumLock>
+        <Clientes
+          clientes={clientes}
+          onAgregarManual={handleAgregarClienteManual}
+          onEliminarManual={handleEliminarClienteManual}
+        />
       )}
 
       {seccion === 'cheques' && (
@@ -1880,29 +1870,15 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
       )}
 
       {seccion === 'iibb' && (
-        <PremiumLock
-          activo={esPremium}
-          titulo="Posición de Ingresos Brutos"
-          descripcion="Base imponible por tus facturas emitidas, multiplicada por la alícuota, menos las retenciones del mes — ambas editables a mano."
-          onQuieroPremium={abrirPlanes}
-        >
-          <PosicionIngresosBrutos
-            posicion={posicionIngresosBrutos}
-            onCambiarManual={handleCambiarIngresosBrutosManual}
-            onEliminarMes={handleEliminarMesIngresosBrutos}
-          />
-        </PremiumLock>
+        <PosicionIngresosBrutos
+          posicion={posicionIngresosBrutos}
+          onCambiarManual={handleCambiarIngresosBrutosManual}
+          onEliminarMes={handleEliminarMesIngresosBrutos}
+        />
       )}
 
       {seccion === 'monotributo' && (
-        <PremiumLock
-          activo={esPremium}
-          titulo="Monotributo"
-          descripcion="En qué categoría estás según tus últimos 12 meses y en cuál vas a quedar en la próxima recategorización, con la cuota que te corresponde."
-          onQuieroPremium={abrirPlanes}
-        >
-          <Monotributo facturas={facturas} datos={monotributo} onCambiar={setMonotributo} />
-        </PremiumLock>
+        <Monotributo facturas={facturas} datos={monotributo} onCambiar={setMonotributo} />
       )}
 
       {seccion === 'patrimonio' && (

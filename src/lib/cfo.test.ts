@@ -514,12 +514,13 @@ describe('lector de código de barras', () => {
   })
 })
 
-describe('Ingresos y gastos guardados como comprobantes internos', () => {
+describe('Ingresos y gastos guardados como comprobantes', () => {
   const ingreso: MovimientoDiario = {
     id: 'viejo', tipo: 'ingreso', concepto: 'Venta mostrador', monto: 15000, fecha: '2026-03-04', medioCobro: 'qr',
+    esInterna: true,
   }
 
-  it('un ingreso se guarda como una venta interna ya cobrada', () => {
+  it('un ingreso se guarda como una venta ya cobrada', () => {
     const f = facturaDesdeMovimientoDiario(ingreso, 'f1')
     expect(f.tipo).toBe('emitida')
     expect(f.esInterna).toBe(true)
@@ -532,15 +533,30 @@ describe('Ingresos y gastos guardados como comprobantes internos', () => {
     expect(facturaDesdeMovimientoDiario({ ...ingreso, tipo: 'gasto' }, 'f1').tipo).toBe('recibida')
   })
 
+  it('marcado como facturado, el comprobante no es interno', () => {
+    expect(facturaDesdeMovimientoDiario({ ...ingreso, esInterna: false }, 'f1').esInterna).toBe(false)
+  })
+
+  it('un movimiento viejo, de cuando la pantalla no preguntaba, sigue siendo interno', () => {
+    const { esInterna: _sinMarcar, ...viejo } = ingreso
+    expect(facturaDesdeMovimientoDiario(viejo, 'f1').esInterna).toBe(true)
+  })
+
   it('la ida y vuelta no pierde nada, ni siquiera un medio de cobro que medioPago no sabe expresar', () => {
     const vuelta = movimientoDiarioDesdeFactura(facturaDesdeMovimientoDiario(ingreso, 'f1'))
     expect(vuelta).toEqual({ ...ingreso, id: 'f1' })
   })
 
-  it('no tributa: una venta cargada así queda afuera de IVA e Ingresos Brutos', () => {
+  it('sin factura no tributa: queda afuera de IVA e Ingresos Brutos', () => {
     const f = { ...facturaDesdeMovimientoDiario(ingreso, 'f1'), iva: 2000 }
     expect(calcularPosicionIvaPorMes([f])).toEqual([])
     expect(calcularPosicionIngresosBrutosPorMes([f])).toEqual([])
+  })
+
+  it('facturado sí tributa: entra en IVA y en Ingresos Brutos como cualquier venta', () => {
+    const f = { ...facturaDesdeMovimientoDiario({ ...ingreso, esInterna: false }, 'f1'), iva: 2000 }
+    expect(calcularPosicionIvaPorMes([f])).toHaveLength(1)
+    expect(calcularPosicionIngresosBrutosPorMes([f])).toHaveLength(1)
   })
 
   it('la pantalla solo muestra lo cargado ahí, no cualquier comprobante interno', () => {

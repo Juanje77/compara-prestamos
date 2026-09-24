@@ -83,8 +83,9 @@ export function Monotributo({ facturas, datos, onCambiar }: Props) {
         </div>
         <p className="mb-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
           En qué categoría estás según tus últimos 12 meses, y en cuál vas a quedar en la próxima
-          recategorización. La facturación sale sola de tus comprobantes emitidos; el resto de los
-          parámetros cargalos abajo, porque ARCA también los mira y muchas veces son los que mandan.
+          recategorización. La facturación sale sola de tus ventas facturadas —las cargues en Ingresos
+          y gastos o en Comprobantes—; el resto de los parámetros cargalos abajo, porque ARCA también
+          los mira y muchas veces son los que mandan.
         </p>
 
         <div className="mb-4 flex flex-wrap gap-2">
@@ -109,7 +110,7 @@ export function Monotributo({ facturas, datos, onCambiar }: Props) {
           <label className="text-xs" style={{ color: 'var(--text-muted)' }}>
             <span className="mb-1 flex items-center gap-1.5">
               Ingresos brutos (12 meses)
-              <InfoTooltip texto="Sale de tus comprobantes emitidos del último año, sin contar los internos. Si querés usar otro número, escribilo y pisa al calculado." />
+              <InfoTooltip texto="Sale de tus ventas facturadas del último año. Lo que cargaste como 'Sin factura' no cuenta, porque ARCA tampoco lo ve. Si querés usar otro número, escribilo y pisa al calculado." />
             </span>
             <InputMoneda
               value={ingresos}
@@ -242,7 +243,7 @@ export function Monotributo({ facturas, datos, onCambiar }: Props) {
         <p className="mb-3 text-xs" style={{ color: 'var(--text-muted)' }}>
           Cuánto de lo que vendés está respaldado por compras que te facturaron. Cuentan los
           comprobantes fiscales de los últimos 12 meses —los cargados a mano y los importados del
-          Excel de ARCA—, nunca los internos ni los gastos sin factura.
+          Excel de ARCA—, nunca lo que va sin factura.
         </p>
 
         {relacion.proporcion === null ? (

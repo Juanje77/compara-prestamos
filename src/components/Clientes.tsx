@@ -30,7 +30,8 @@ export function Clientes({ clientes, onAgregarManual, onEliminarManual }: Props)
         Clientes
       </h2>
       <p className="mb-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
-        Todos tus clientes, con la cantidad de comprobantes y el total facturado de cada uno.
+        Todos tus clientes, con la cantidad de operaciones y el total de cada uno. Se arma solo con lo
+        que cargues en Ingresos y gastos o en Comprobantes.
       </p>
 
       <form onSubmit={handleSubmit} className="mb-4 flex flex-wrap gap-2">
@@ -49,7 +50,7 @@ export function Clientes({ clientes, onAgregarManual, onEliminarManual }: Props)
 
       {clientes.length === 0 ? (
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-          Todavía no hay clientes: importá facturas emitidas en Comprobantes o agregá uno a mano arriba.
+          Todavía no hay clientes: cargá una venta en Ingresos y gastos (con el nombre del cliente en el concepto), importá facturas emitidas en Comprobantes, o agregá uno a mano arriba.
         </p>
       ) : (
         <div className="overflow-x-auto">

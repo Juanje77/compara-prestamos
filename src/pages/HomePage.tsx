@@ -20,6 +20,7 @@ import {
   Receipt,
   Ruler,
   Target,
+  Users,
   Wallet,
   Workflow,
 } from 'lucide-react'
@@ -55,7 +56,10 @@ interface Feature {
 }
 
 const FEATURES_BASICO: Feature[] = [
-  { icon: Wallet, titulo: 'Ingresos y gastos diarios', texto: 'Cargá tus ventas con el medio de cobro (efectivo, transferencia, QR, débito, crédito) y tus gastos día a día.' },
+  { icon: Wallet, titulo: 'Ingresos y gastos diarios', texto: 'Cargá tus ventas con el medio de cobro (efectivo, transferencia, QR, débito, crédito) y tus gastos día a día, marcando qué facturaste y qué no.' },
+  { icon: Calculator, titulo: 'Monotributo', texto: 'En qué categoría estás según tus últimos 12 meses, en cuál vas a quedar en la próxima recategorización y cuánto te sale la cuota.' },
+  { icon: Calculator, titulo: 'Ingresos Brutos', texto: 'Tu posición mes a mes, con alícuota y retenciones editables para que cuadre con lo declarado.' },
+  { icon: Users, titulo: 'Clientes y proveedores', texto: 'Se arman solos con lo que cargás: el total y la cantidad de operaciones de cada uno, y los proveedores clasificados por categoría de gasto.' },
   { icon: Landmark, titulo: 'Cuentas bancarias y deudas', texto: 'Cargá el saldo de cada cuenta y tus deudas pendientes, con un indicador de endeudamiento.' },
   { icon: BarChart3, titulo: 'Indicadores clave', texto: 'Margen operativo, runway de caja, punto de equilibrio y endeudamiento, con semáforo y explicación de cada uno.' },
   { icon: LineChart, titulo: 'Flujo de caja proyectado', texto: 'Proyección de tu saldo mes a mes, con alerta si te vas a quedar sin caja.' },
@@ -64,11 +68,11 @@ const FEATURES_BASICO: Feature[] = [
 ]
 
 const FEATURES_MEDIO: Feature[] = [
-  { icon: Inbox, titulo: 'Comprobantes', texto: 'Importá tus facturas desde ARCA y mirá ventas, compras, margen y tus principales clientes y proveedores.' },
+  { icon: Inbox, titulo: 'Comprobantes', texto: 'Cargá cada factura emitida y recibida, o importalas desde ARCA, y mirá ventas, compras, margen e IVA discriminado. Con eso, Clientes, Proveedores y Monotributo dejan de depender de la carga diaria.' },
   { icon: Target, titulo: 'Presupuesto vs. Real', texto: 'Comparás lo presupuestado contra lo que realmente gastaste, con el desvío por categoría y comentarios automáticos.' },
   { icon: BarChart3, titulo: 'Proyección con escenarios', texto: 'Sumá una tasa de crecimiento mensual esperada, con escenarios optimista y pesimista, no solo lineal.' },
   { icon: Bell, titulo: 'Alertas y recomendaciones', texto: 'Avisos si tu caja se agota, una deuda está por vencer, o tu margen se pone negativo, con qué hacer al respecto.' },
-  { icon: Calculator, titulo: 'IVA e Ingresos Brutos', texto: 'Posición de IVA e Ingresos Brutos mes a mes, con alícuota y retenciones editables para que cuadre con lo declarado en ARCA.' },
+  { icon: Calculator, titulo: 'Posición de IVA', texto: 'Débito y crédito fiscal mes a mes, con el saldo a pagar o a favor, y ajustes manuales para que cuadre con lo declarado en ARCA.' },
   { icon: Building2, titulo: 'Patrimonio y bienes', texto: 'Sumá tus bienes realizables (inversiones, inmuebles, vehículos) y mirá tu runway extendido ante un quiebre de caja.' },
 ]
 

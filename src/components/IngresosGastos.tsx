@@ -48,6 +48,10 @@ export function IngresosGastos({ movimientos, onAgregar, onEliminar }: Props) {
   const [monto, setMonto] = useState(0)
   const [fecha, setFecha] = useState(hoyISO)
   const [medioCobro, setMedioCobro] = useState<MedioCobro>('efectivo')
+  // Se arranca en "facturado" porque es lo más común en el día a día de un monotributista, y
+  // porque es lo que hace que Monotributo e Ingresos Brutos muestren algo. Lo que no se facturó
+  // se marca con el selector y queda afuera de los impuestos.
+  const [esInterna, setEsInterna] = useState(false)
   const [filtro, setFiltro] = useState<'todos' | TipoMovimientoDiario>('todos')
 
   const resumen = useMemo(() => calcularResumenMovimientosDiarios(movimientos), [movimientos])
@@ -66,6 +70,7 @@ export function IngresosGastos({ movimientos, onAgregar, onEliminar }: Props) {
       monto,
       fecha,
       medioCobro: tipo === 'ingreso' ? medioCobro : undefined,
+      esInterna,
     })
     setConcepto('')
     setMonto(0)
@@ -78,8 +83,13 @@ export function IngresosGastos({ movimientos, onAgregar, onEliminar }: Props) {
           Ingresos y gastos
         </h2>
         <p className="mb-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
-          Cargá cada venta o gasto del día a día, sin necesidad de facturar — ideal si sos monotributista. En
-          cada venta anotá con qué te cobraron, para saber cuánto entra en efectivo y cuánto de forma digital.
+          Cargá cada venta o gasto del día a día — ideal si sos monotributista. En cada venta anotá con
+          qué te cobraron, para saber cuánto entra en efectivo y cuánto de forma digital.
+        </p>
+        <p className="mb-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
+          Marcá si hubo factura de por medio: lo <strong>facturado</strong> cuenta para Monotributo,
+          Ingresos Brutos e IVA, y lo que va <strong>sin factura</strong> suma igual a tus números del
+          negocio pero queda afuera de los impuestos.
         </p>
 
         <form onSubmit={handleSubmit} className="flex flex-wrap gap-2">
@@ -94,7 +104,7 @@ export function IngresosGastos({ movimientos, onAgregar, onEliminar }: Props) {
           </select>
           <input
             type="text"
-            placeholder="Concepto"
+            placeholder="Concepto o nombre del cliente / proveedor"
             value={concepto}
             onChange={(e) => setConcepto(e.target.value)}
             className="min-w-[140px] flex-1 rounded-lg border px-3 py-1.5 text-sm"
@@ -122,6 +132,16 @@ export function IngresosGastos({ movimientos, onAgregar, onEliminar }: Props) {
               ))}
             </select>
           )}
+          <select
+            value={esInterna ? 'interna' : 'arca'}
+            onChange={(e) => setEsInterna(e.target.value === 'interna')}
+            title="Si esta venta o gasto tiene comprobante fiscal"
+            className="shrink-0 rounded-lg border px-3 py-1.5 text-sm"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+          >
+            <option value="arca">Facturado</option>
+            <option value="interna">Sin factura</option>
+          </select>
           <input
             type="date"
             value={fecha}
@@ -259,6 +279,15 @@ export function IngresosGastos({ movimientos, onAgregar, onEliminar }: Props) {
                       style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}
                     >
                       {MEDIOS_COBRO_LABEL[m.medioCobro]}
+                    </span>
+                  )}
+                  {m.esInterna && (
+                    <span
+                      className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                      title="No cuenta para Monotributo, Ingresos Brutos ni IVA"
+                      style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}
+                    >
+                      Sin factura
                     </span>
                   )}
                   <span
