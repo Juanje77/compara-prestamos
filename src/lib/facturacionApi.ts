@@ -110,3 +110,15 @@ export function emitirComprobante(payload: PayloadComprobante): Promise<Resultad
     body: JSON.stringify({ payload }),
   })
 }
+
+/**
+ * Manda una foto o un PDF de una factura de compra para que lo lea el modelo. Devuelve los campos
+ * crudos, tal como los transcribió: normalizarlos y decidir si son confiables es trabajo de
+ * src/lib/lecturaFactura.ts.
+ */
+export function leerFactura(archivoBase64: string, tipoArchivo: string): Promise<{ lectura: unknown }> {
+  return pedir('/api/leer-factura', {
+    method: 'POST',
+    body: JSON.stringify({ archivoBase64, tipoArchivo }),
+  })
+}

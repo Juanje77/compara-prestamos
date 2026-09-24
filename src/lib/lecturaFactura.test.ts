@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  aFechaISO,
+  aNumero,
+  normalizarLecturaDelModelo,
   cuitValido,
   formatearCuit,
   numeroComprobante,
@@ -127,5 +130,97 @@ describe('numeroComprobante', () => {
   it('sin punto de venta o sin número, no hay número que armar', () => {
     expect(numeroComprobante(undefined, 1234)).toBeUndefined()
     expect(numeroComprobante(3, undefined)).toBeUndefined()
+  })
+})
+
+describe('aNumero', () => {
+  it('lee un importe escrito a la argentina', () => {
+    expect(aNumero('$ 1.234.567,89')).toBeCloseTo(1234567.89, 2)
+    expect(aNumero('121.000,00')).toBeCloseTo(121000, 2)
+  })
+
+  it('lee también el formato con punto decimal, por si la factura viene así', () => {
+    expect(aNumero('1234567.89')).toBeCloseTo(1234567.89, 2)
+    expect(aNumero('1,234,567.89')).toBeCloseTo(1234567.89, 2)
+  })
+
+  it('deja pasar un número que ya es número', () => {
+    expect(aNumero(121000)).toBe(121000)
+  })
+
+  it('no inventa nada con lo que no se entiende', () => {
+    expect(aNumero('')).toBeUndefined()
+    expect(aNumero('no legible')).toBeUndefined()
+    expect(aNumero(null)).toBeUndefined()
+  })
+})
+
+describe('aFechaISO', () => {
+  it('convierte el formato en que se imprime una factura argentina', () => {
+    expect(aFechaISO('20/09/2026')).toBe('2026-09-20')
+    expect(aFechaISO('5-9-2026')).toBe('2026-09-05')
+  })
+
+  it('acepta dos dígitos de año', () => {
+    expect(aFechaISO('20/09/26')).toBe('2026-09-20')
+  })
+
+  it('deja pasar una fecha que ya viene en ISO', () => {
+    expect(aFechaISO('2026-09-20')).toBe('2026-09-20')
+  })
+
+  it('rechaza lo que no es una fecha', () => {
+    expect(aFechaISO('32/09/2026')).toBeUndefined()
+    expect(aFechaISO('20/13/2026')).toBeUndefined()
+    expect(aFechaISO('ayer')).toBeUndefined()
+    expect(aFechaISO(undefined)).toBeUndefined()
+  })
+})
+
+describe('normalizarLecturaDelModelo', () => {
+  it('normaliza una respuesta con los valores como están impresos', () => {
+    const leida = normalizarLecturaDelModelo({
+      cuitEmisor: '30-71234568-9',
+      razonSocialEmisor: '  Distribuidora Sur SA  ',
+      tipoComprobante: 'Factura A',
+      letra: 'a',
+      puntoVenta: '0003',
+      numero: '00001234',
+      fecha: '20/09/2026',
+      neto: '$ 100.000,00',
+      iva: '$ 21.000,00',
+      total: '$ 121.000,00',
+      cae: '7512 3456 7890 12',
+    })
+    expect(leida).toEqual({
+      cuitEmisor: '30712345689',
+      razonSocialEmisor: 'Distribuidora Sur SA',
+      tipoComprobante: 'factura',
+      letra: 'A',
+      puntoVenta: 3,
+      numero: 1234,
+      fecha: '2026-09-20',
+      neto: 100000,
+      iva: 21000,
+      total: 121000,
+      cae: '75123456789012',
+    })
+  })
+
+  it('reconoce las notas de crédito y de débito', () => {
+    expect(normalizarLecturaDelModelo({ tipoComprobante: 'Nota de Crédito B' }).tipoComprobante).toBe('nota_credito')
+    expect(normalizarLecturaDelModelo({ tipoComprobante: 'NOTA DE DEBITO' }).tipoComprobante).toBe('nota_debito')
+  })
+
+  it('lo que no se pudo leer queda vacío, para que lo agarre la revisión', () => {
+    const leida = normalizarLecturaDelModelo({ cuitEmisor: 'no legible', total: 'ilegible', fecha: '??' })
+    expect(leida.cuitEmisor).toBeUndefined()
+    expect(leida.total).toBeUndefined()
+    expect(leida.fecha).toBeUndefined()
+  })
+
+  it('una respuesta que no es un objeto no rompe: devuelve todo vacío', () => {
+    expect(normalizarLecturaDelModelo(null)).toEqual({})
+    expect(normalizarLecturaDelModelo('error')).toEqual({})
   })
 })

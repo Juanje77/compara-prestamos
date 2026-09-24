@@ -28,6 +28,7 @@ import { CuentasCorrientes } from '../components/CuentasCorrientes'
 import { RemitosPresupuestos } from '../components/RemitosPresupuestos'
 import { MargenesPorSector, type PeriodoMargenes } from '../components/MargenesPorSector'
 import { Inversiones } from '../components/Inversiones'
+import { LectorFacturas } from '../components/LectorFacturas'
 import { Sueldos } from '../components/Sueldos'
 import { FacturacionElectronica } from '../components/FacturacionElectronica'
 import { Stock } from '../components/Stock'
@@ -152,6 +153,7 @@ function hoyISO(): string {
 const SECCIONES = [
   { key: 'dashboard', label: 'Dashboard' },
   { key: 'facturas', label: 'Comprobantes' },
+  { key: 'lectorFacturas', label: 'Leer factura' },
   { key: 'puntoDeVenta', label: 'Punto de venta' },
   { key: 'facturacionElectronica', label: 'Facturación electrónica' },
   { key: 'ingresosGastos', label: 'Ingresos y gastos' },
@@ -185,7 +187,7 @@ type Seccion = (typeof SECCIONES)[number]['key']
  * alimentan de lo que se carga en Ingresos y gastos, que ese plan ya tiene, y son justo lo que
  * necesita un monotributista. Comprobantes sigue siendo de Medio, así que en Básico esas cuatro
  * pantallas trabajan solo con la carga diaria. */
-const SECCIONES_MEDIO: Seccion[] = ['presupuesto', 'facturas', 'iva', 'patrimonio']
+const SECCIONES_MEDIO: Seccion[] = ['presupuesto', 'facturas', 'lectorFacturas', 'iva', 'patrimonio']
 
 /** Las que se usan a diario quedan sueltas, siempre a un clic — incluye "Ingresos y gastos"
  * porque es la pantalla principal del plan Básico, que todavía no tiene Comprobantes. El resto
@@ -197,7 +199,7 @@ const GRUPOS: { key: string; label: string; secciones: Seccion[] }[] = [
   {
     key: 'ventas',
     label: 'Ventas y compras',
-    secciones: ['puntoDeVenta', 'facturacionElectronica', 'cobranzas', 'cuentasCorrientes', 'remitos', 'margenes', 'clientes', 'proveedores', 'presupuesto'],
+    secciones: ['puntoDeVenta', 'facturacionElectronica', 'lectorFacturas', 'cobranzas', 'cuentasCorrientes', 'remitos', 'margenes', 'clientes', 'proveedores', 'presupuesto'],
   },
   { key: 'tesoreria', label: 'Tesorería y stock', secciones: ['tesoreria', 'cheques', 'stock'] },
   { key: 'rrhh', label: 'RRHH', secciones: ['sueldos'] },
@@ -1891,6 +1893,17 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           onQuieroPremium={abrirPlanes}
         >
           <Patrimonio bienes={bienes} runwayExtendido={runwayExtendido} onAgregar={handleAgregarBien} onEliminar={handleEliminarBien} />
+        </PremiumLock>
+      )}
+
+      {seccion === 'lectorFacturas' && (
+        <PremiumLock
+          activo={esPremium}
+          titulo="Leer factura"
+          descripcion="Sacale una foto a la factura de tu proveedor y se carga sola en Comprobantes, con el CUIT confirmado contra el padrón de ARCA."
+          onQuieroPremium={abrirPlanes}
+        >
+          <LectorFacturas facturas={facturas} onAgregar={handleAgregarFactura} />
         </PremiumLock>
       )}
 

@@ -133,3 +133,82 @@ export function numeroComprobante(puntoVenta?: number, numero?: number): string 
   if (puntoVenta === undefined || numero === undefined) return undefined
   return `${String(puntoVenta).padStart(4, '0')}-${String(numero).padStart(8, '0')}`
 }
+
+// --- Normalización de lo que devuelve el modelo ---------------------------------------------
+//
+// El modelo devuelve JSON, pero copia los valores como están impresos en la factura: importes con
+// símbolo y separadores de miles argentinos, fechas en dd/mm/aaaa, CUIT con guiones. Convertirlo
+// es determinístico, así que se hace acá y se testea, en vez de pedirle al modelo que además
+// formatee —cuanto menos tenga que interpretar, menos se equivoca—.
+
+/** Un importe escrito a la argentina ("$ 1.234.567,89") a número. undefined si no se entiende. */
+export function aNumero(valor: unknown): number | undefined {
+  if (typeof valor === 'number') return Number.isFinite(valor) ? valor : undefined
+  if (typeof valor !== 'string') return undefined
+  const limpio = valor.replace(/[^\d,.-]/g, '')
+  if (!limpio) return undefined
+  // El último separador es el decimal: cuál es depende de cómo esté escrito el número.
+  const ultimaComa = limpio.lastIndexOf(',')
+  const ultimoPunto = limpio.lastIndexOf('.')
+  let normalizado: string
+  if (ultimaComa > ultimoPunto) normalizado = limpio.replace(/\./g, '').replace(',', '.')
+  else if (ultimoPunto > ultimaComa) normalizado = limpio.replace(/,/g, '')
+  else normalizado = limpio
+  const n = Number(normalizado)
+  return Number.isFinite(n) ? n : undefined
+}
+
+/** Una fecha impresa en la factura a ISO. Acepta dd/mm/aaaa, dd-mm-aaaa y aaaa-mm-dd. */
+export function aFechaISO(valor: unknown): string | undefined {
+  if (typeof valor !== 'string' || !valor.trim()) return undefined
+  const texto = valor.trim()
+  const iso = texto.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (iso) return texto
+  const dmy = texto.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/)
+  if (!dmy) return undefined
+  const [, d, m, y] = dmy
+  const anio = y.length === 2 ? `20${y}` : y
+  const dia = Number(d)
+  const mes = Number(m)
+  if (dia < 1 || dia > 31 || mes < 1 || mes > 12) return undefined
+  return `${anio}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`
+}
+
+const TIPOS_POR_TEXTO: [RegExp, TipoComprobante][] = [
+  [/nota\s*de\s*cr[eé]dito|^nc$/i, 'nota_credito'],
+  [/nota\s*de\s*d[eé]bito|^nd$/i, 'nota_debito'],
+  [/factura|^fc?$/i, 'factura'],
+]
+
+function aTipoComprobante(valor: unknown): TipoComprobante | undefined {
+  const texto = String(valor ?? '')
+  return TIPOS_POR_TEXTO.find(([re]) => re.test(texto))?.[1]
+}
+
+/**
+ * Convierte la respuesta del modelo en una FacturaLeida, campo por campo. Lo que no se entiende
+ * queda sin cargar en vez de romper: un campo vacío manda la factura a revisión, que es el
+ * resultado correcto, mientras que una excepción dejaría al usuario sin nada.
+ */
+export function normalizarLecturaDelModelo(crudo: unknown): FacturaLeida {
+  if (typeof crudo !== 'object' || crudo === null) return {}
+  const c = crudo as Record<string, unknown>
+  const cuit = String(c.cuitEmisor ?? '').replace(/\D/g, '')
+  const letra = String(c.letra ?? '').trim().toUpperCase()
+  const puntoVenta = aNumero(c.puntoVenta)
+  const numero = aNumero(c.numero)
+
+  return {
+    cuitEmisor: cuit.length === 11 ? cuit : undefined,
+    razonSocialEmisor: typeof c.razonSocialEmisor === 'string' ? c.razonSocialEmisor.trim() || undefined : undefined,
+    tipoComprobante: aTipoComprobante(c.tipoComprobante),
+    letra: /^[ABCEM]$/.test(letra) ? letra : undefined,
+    puntoVenta: puntoVenta !== undefined ? Math.trunc(puntoVenta) : undefined,
+    numero: numero !== undefined ? Math.trunc(numero) : undefined,
+    fecha: aFechaISO(c.fecha),
+    neto: aNumero(c.neto),
+    iva: aNumero(c.iva),
+    total: aNumero(c.total),
+    cae: typeof c.cae === 'string' ? c.cae.replace(/\D/g, '') || undefined : undefined,
+  }
+}

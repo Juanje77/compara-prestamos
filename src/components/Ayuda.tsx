@@ -330,6 +330,20 @@ const SECCIONES: SeccionAyuda[] = [
     ],
     tip: 'Si todavía no cubrís el colchón, la pantalla te lo dice y no te muestra excedente: invertir la plata que después vas a necesitar para pagar sueldos suele salir más caro que lo que rinde.',
   },
+  {
+    id: 'leer-factura',
+    numero: '23',
+    titulo: 'Leer factura',
+    tier: 'medio',
+    descripcion: 'Sacale una foto a la factura de tu proveedor y se carga sola como comprobante recibido.',
+    pasos: [
+      'Tocá `Sacar foto o subir archivo`. Desde el celular se abre la cámara directo; desde la computadora podés subir una foto o el PDF.',
+      'Se leen el CUIT del proveedor, el tipo y número de comprobante, la fecha, el neto, el IVA y el total.',
+      'El CUIT se confirma contra el padrón de ARCA y se trae la razón social real, así no queda cargada con el nombre mal escrito.',
+      'Revisá los campos y tocá `Cargar en Comprobantes`.',
+    ],
+    tip: 'Si algo no cierra —el CUIT no valida, el neto más el IVA no da el total, la fecha es futura o esa factura ya estaba cargada— te lo avisa arriba y no la carga hasta que lo corrijas. Una compra mal cargada te ensucia el IVA, el margen y el control del 80% del monotributo, y eso se descubre tarde.',
+  },
 ]
 
 const FLUJO = [
