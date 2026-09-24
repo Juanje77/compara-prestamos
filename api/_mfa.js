@@ -114,3 +114,48 @@ export function registroConCodigoNuevo(registro, hash, ahora = Date.now()) {
   const envios = [...(registro?.envios ?? []).filter((t) => ahora - t < 60 * 60 * 1000), ahora]
   return { hash, venceEn: ahora + VENCIMIENTO_MS, intentos: 0, bloqueadoHasta: null, envios }
 }
+
+// --- Dispositivos confiados -------------------------------------------------------------------
+//
+// El segundo factor se pide una vez por dispositivo y después ese dispositivo queda recordado por
+// un tiempo. El navegador guarda un identificador al azar y lo manda en cada arranque; acá se
+// guarda solo su hash, por lo mismo que el código: si alguien lee la base, no puede hacerse pasar
+// por un dispositivo ya confiado.
+//
+// Importante y sin vueltas: recordar el dispositivo baja la seguridad a cambio de comodidad. Quien
+// tenga la contraseña Y el navegador del dueño entra sin código. Contra eso protege la contraseña,
+// no el segundo factor. Lo que sí corta es el caso común: alguien que consiguió la contraseña y
+// entra desde otra máquina.
+
+/** Cuánto se recuerda un dispositivo antes de volver a pedirle el código. */
+export const CONFIANZA_DISPOSITIVO_MS = 30 * 24 * 60 * 60 * 1000
+
+/** Cuántos dispositivos se recuerdan a la vez. Más que esto y "dispositivo nuevo" deja de
+ * significar algo: se van cayendo los más viejos. */
+export const MAX_DISPOSITIVOS = 10
+
+export function hashDispositivo(dispositivoId, uid, pepper) {
+  return createHash('sha256').update(`${pepper ?? ''}:dispositivo:${uid}:${dispositivoId}`).digest('hex')
+}
+
+/** Si este dispositivo ya pasó el segundo factor y la confianza sigue vigente. */
+export function dispositivoConfiado(registro, hashDisp, ahora = Date.now()) {
+  return (registro?.dispositivos ?? []).some((d) => d.hash === hashDisp && d.venceEn > ahora)
+}
+
+/**
+ * El registro con este dispositivo recordado. Renueva el vencimiento si ya estaba, descarta los
+ * vencidos y se queda con los más nuevos si son demasiados.
+ */
+export function registroConDispositivo(registro, hashDisp, ahora = Date.now()) {
+  const vigentes = (registro?.dispositivos ?? []).filter((d) => d.venceEn > ahora && d.hash !== hashDisp)
+  const dispositivos = [...vigentes, { hash: hashDisp, venceEn: ahora + CONFIANZA_DISPOSITIVO_MS }]
+    .sort((a, b) => b.venceEn - a.venceEn)
+    .slice(0, MAX_DISPOSITIVOS)
+  return { ...(registro ?? {}), dispositivos }
+}
+
+/** Saca todos los dispositivos recordados: el botón de "cerrar sesión en todos lados". */
+export function registroSinDispositivos(registro) {
+  return { ...(registro ?? {}), dispositivos: [] }
+}

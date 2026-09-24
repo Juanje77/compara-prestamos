@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
   BLOQUEO_MS,
+  CONFIANZA_DISPOSITIVO_MS,
+  MAX_DISPOSITIVOS,
+  dispositivoConfiado,
+  hashDispositivo,
+  registroConDispositivo,
+  registroSinDispositivos,
   LARGO_CODIGO,
   MAX_ENVIOS_POR_HORA,
   MAX_INTENTOS,
@@ -174,5 +180,59 @@ describe('registroConCodigoNuevo', () => {
   it('va dejando el rastro de los envíos de la última hora', () => {
     const r = registroConCodigoNuevo({ envios: [AHORA - 1000, AHORA - 3 * 60 * 60 * 1000] }, 'h', AHORA)
     expect(r.envios).toEqual([AHORA - 1000, AHORA])
+  })
+})
+
+describe('dispositivos confiados', () => {
+  const hashDisp = (id) => hashDispositivo(id, UID, PEPPER)
+
+  it('un dispositivo que nunca pasó el código no está confiado', () => {
+    expect(dispositivoConfiado(null, hashDisp('pc-1'), AHORA)).toBe(false)
+  })
+
+  it('después de recordarlo, entra sin pedir código', () => {
+    const r = registroConDispositivo(null, hashDisp('pc-1'), AHORA)
+    expect(dispositivoConfiado(r, hashDisp('pc-1'), AHORA)).toBe(true)
+  })
+
+  it('otro dispositivo del mismo usuario sigue teniendo que verificarse', () => {
+    const r = registroConDispositivo(null, hashDisp('pc-1'), AHORA)
+    expect(dispositivoConfiado(r, hashDisp('celular'), AHORA)).toBe(false)
+  })
+
+  it('la confianza se vence', () => {
+    const r = registroConDispositivo(null, hashDisp('pc-1'), AHORA)
+    expect(dispositivoConfiado(r, hashDisp('pc-1'), AHORA + CONFIANZA_DISPOSITIVO_MS + 1)).toBe(false)
+  })
+
+  it('volver a entrar con el mismo dispositivo renueva, no duplica', () => {
+    let r = registroConDispositivo(null, hashDisp('pc-1'), AHORA)
+    r = registroConDispositivo(r, hashDisp('pc-1'), AHORA + 1000)
+    expect(r.dispositivos).toHaveLength(1)
+    expect(r.dispositivos[0].venceEn).toBe(AHORA + 1000 + CONFIANZA_DISPOSITIVO_MS)
+  })
+
+  it('no guarda el identificador en claro', () => {
+    const r = registroConDispositivo(null, hashDisp('pc-1'), AHORA)
+    expect(JSON.stringify(r)).not.toContain('pc-1')
+  })
+
+  it('se queda con los más nuevos cuando son demasiados', () => {
+    let r = null
+    for (let i = 0; i < MAX_DISPOSITIVOS + 5; i++) r = registroConDispositivo(r, hashDisp(`d-${i}`), AHORA + i)
+    expect(r.dispositivos).toHaveLength(MAX_DISPOSITIVOS)
+    expect(dispositivoConfiado(r, hashDisp('d-0'), AHORA)).toBe(false)
+    expect(dispositivoConfiado(r, hashDisp(`d-${MAX_DISPOSITIVOS + 4}`), AHORA)).toBe(true)
+  })
+
+  it('olvidar todos deja a cada dispositivo teniendo que verificarse de nuevo', () => {
+    const r = registroSinDispositivos(registroConDispositivo(null, hashDisp('pc-1'), AHORA))
+    expect(dispositivoConfiado(r, hashDisp('pc-1'), AHORA)).toBe(false)
+  })
+
+  it('recordar un dispositivo no pisa el resto del registro', () => {
+    const r = registroConDispositivo({ intentos: 2, envios: [AHORA] }, hashDisp('pc-1'), AHORA)
+    expect(r.intentos).toBe(2)
+    expect(r.envios).toEqual([AHORA])
   })
 })
