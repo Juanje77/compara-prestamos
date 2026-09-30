@@ -708,7 +708,20 @@ export function CobranzasPagosSemanal({
   const cobros = todosMovimientos.filter((m) => m.tipo === 'cobro')
   const pagos = todosMovimientos.filter((m) => m.tipo === 'pago')
 
-  const agrupacion = useMemo(() => agruparPorSemana(todosMovimientos, 4, hoy), [todosMovimientos, hoy])
+  // Lo vencido que sigue pendiente es plata que todavía no se movió, así que arranca el acumulado:
+  // ignorarlo mostraría un total mejor que el real. Lo vencido ya cumplido no entra, porque esa
+  // plata ya entró o salió y está en el saldo de Tesorería, no en lo que falta cobrar o pagar.
+  const arrastreVencido = useMemo(
+    () =>
+      agruparPorSemana(todosMovimientos, 4, hoy)
+        .vencidos.filter((m) => !m.cumplido)
+        .reduce((s, m) => s + (m.tipo === 'cobro' ? m.monto : -m.monto), 0),
+    [todosMovimientos, hoy],
+  )
+  const agrupacion = useMemo(
+    () => agruparPorSemana(todosMovimientos, 4, hoy, arrastreVencido),
+    [todosMovimientos, hoy, arrastreVencido],
+  )
   const totalVencidos = agrupacion.vencidos.reduce(
     (s, m) => s + (m.tipo === 'cobro' ? m.monto : -m.monto),
     0,
@@ -726,6 +739,11 @@ export function CobranzasPagosSemanal({
             <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
               Resumen semanal — ingresos y gastos por semana
             </h2>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              El acumulado arrastra el saldo de las semanas anteriores
+              {arrastreVencido !== 0 && `, arrancando en ${formatoMoneda(arrastreVencido)} de vencido sin cobrar ni pagar`}
+              : es cómo termina la caja al final de cada semana, no cómo le fue a esa semana sola.
+            </p>
             {user && (
               <p className="inline-flex items-center gap-1 text-xs" style={{ color: nubeLista ? 'var(--status-good-text)' : 'var(--text-muted)' }}>
                 {nubeLista ? (<><Cloud size={12} aria-hidden="true" /> Guardado en tu cuenta</>) : 'Sincronizando con tu cuenta…'}
@@ -775,14 +793,23 @@ export function CobranzasPagosSemanal({
                     className="flex items-center justify-between border-t pt-1"
                     style={{ borderColor: 'var(--gridline)' }}
                   >
-                    <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>
-                      Saldo
-                    </span>
+                    <span style={{ color: 'var(--text-secondary)' }}>Saldo de la semana</span>
                     <span
-                      className="tabular font-semibold"
+                      className="tabular font-medium"
                       style={{ color: t.saldo >= 0 ? 'var(--status-good-text)' : 'var(--status-critical)' }}
                     >
                       {formatoMoneda(t.saldo)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>
+                      Acumulado
+                    </span>
+                    <span
+                      className="tabular font-semibold"
+                      style={{ color: t.saldoAcumulado >= 0 ? 'var(--status-good-text)' : 'var(--status-critical)' }}
+                    >
+                      {formatoMoneda(t.saldoAcumulado)}
                     </span>
                   </div>
                 </div>
