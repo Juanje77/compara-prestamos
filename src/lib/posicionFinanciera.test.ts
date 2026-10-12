@@ -1,0 +1,85 @@
+import { describe, expect, it } from 'vitest'
+import {
+  PREFIJO_CHEQUE,
+  PREFIJO_FACTURA,
+  PREFIJO_SUELDO,
+  calcularPosicionFinanciera,
+  origenDeMovimiento,
+} from './posicionFinanciera'
+import type { Movimiento } from './movimientosSemana'
+
+function mov(id: string, tipo: 'cobro' | 'pago', monto: number, cumplido = false): Movimiento {
+  return { id, tipo, concepto: 'x', monto, fecha: '2026-10-12', cumplido }
+}
+
+describe('origenDeMovimiento', () => {
+  it('reconoce de dónde viene cada movimiento', () => {
+    expect(origenDeMovimiento(`${PREFIJO_FACTURA}f1`)).toBe('factura')
+    expect(origenDeMovimiento(`${PREFIJO_CHEQUE}c1`)).toBe('cheque')
+    expect(origenDeMovimiento(`${PREFIJO_SUELDO}2026-10:netos`)).toBe('sueldo')
+  })
+
+  it('lo cargado a mano no lleva prefijo', () => {
+    expect(origenDeMovimiento('1760000000-ab12cd')).toBe('manual')
+  })
+})
+
+describe('calcularPosicionFinanciera', () => {
+  const movimientos = [
+    mov(`${PREFIJO_CHEQUE}c1`, 'cobro', 300000),
+    mov(`${PREFIJO_FACTURA}f1`, 'cobro', 500000),
+    mov('manual-1', 'cobro', 50000),
+    mov(`${PREFIJO_FACTURA}f2`, 'pago', 200000),
+    mov(`${PREFIJO_CHEQUE}c2`, 'pago', 100000),
+    mov(`${PREFIJO_SUELDO}2026-10:netos`, 'pago', 400000),
+    mov('manual-2', 'pago', 25000),
+  ]
+
+  it('desglosa lo que falta cobrar por su origen', () => {
+    const p = calcularPosicionFinanciera(1000000, movimientos)
+    expect(p.aCobrar).toEqual({ cheques: 300000, facturas: 500000, sueldos: 0, otros: 50000, total: 850000 })
+  })
+
+  it('desglosa lo que falta pagar, con los sueldos aparte', () => {
+    const p = calcularPosicionFinanciera(1000000, movimientos)
+    expect(p.aPagar).toEqual({ cheques: 100000, facturas: 200000, sueldos: 400000, otros: 25000, total: 725000 })
+  })
+
+  it('el disponible proyectado es la caja más todo lo que falta cobrar', () => {
+    expect(calcularPosicionFinanciera(1000000, movimientos).disponibleProyectado).toBe(1850000)
+  })
+
+  it('la posición neta le resta todo lo que falta pagar', () => {
+    expect(calcularPosicionFinanciera(1000000, movimientos).posicionNeta).toBe(1125000)
+  })
+
+  it('lo ya cobrado o pagado no se proyecta: esa plata ya se movió', () => {
+    const conCumplidos = [...movimientos, mov(`${PREFIJO_FACTURA}f9`, 'cobro', 9999999, true)]
+    expect(calcularPosicionFinanciera(0, conCumplidos).aCobrar.total).toBe(850000)
+  })
+
+  it('sin Tesorería la caja es cero y la posición sigue teniendo sentido', () => {
+    const p = calcularPosicionFinanciera(0, movimientos)
+    expect(p.disponibleProyectado).toBe(850000)
+    expect(p.posicionNeta).toBe(125000)
+  })
+
+  it('la posición neta puede dar negativa, que es justo lo que hay que ver venir', () => {
+    const p = calcularPosicionFinanciera(0, [mov('m1', 'cobro', 100), mov('m2', 'pago', 500)])
+    expect(p.posicionNeta).toBe(-400)
+  })
+
+  it('sin nada cargado, todo en cero', () => {
+    const p = calcularPosicionFinanciera(0, [])
+    expect(p.posicionNeta).toBe(0)
+    expect(p.aCobrar.total).toBe(0)
+    expect(p.aPagar.total).toBe(0)
+  })
+
+  it('el total de cada lado es la suma de su desglose', () => {
+    const p = calcularPosicionFinanciera(1000000, movimientos)
+    for (const lado of [p.aCobrar, p.aPagar]) {
+      expect(lado.cheques + lado.facturas + lado.sueldos + lado.otros).toBe(lado.total)
+    }
+  })
+})

@@ -14,6 +14,12 @@ import {
   type TipoMovimiento,
 } from '../lib/movimientosSemana'
 import { agruparPorSemana, indiceDeSemana, type RangoSemana } from '../lib/semanas'
+import {
+  PREFIJO_CHEQUE,
+  PREFIJO_FACTURA,
+  PREFIJO_SUELDO,
+  calcularPosicionFinanciera,
+} from '../lib/posicionFinanciera'
 import { importarMovimientosDesdeExcel } from '../lib/excelImport'
 import { descargarPlantillaMovimientos } from '../lib/plantillasImportacion'
 import { formatoMoneda } from '../lib/finance'
@@ -27,6 +33,7 @@ import {
   type CuentaBancaria,
   type EstadoCheque,
   type Factura,
+  calcularSaldoTotalBancos,
   type MedioPago,
   type PagoSueldos,
 } from '../lib/cfo'
@@ -35,13 +42,6 @@ import { IconButton } from './IconButton'
 import { Card } from './Card'
 import { Button } from './Button'
 
-/** Los movimientos generados a partir de una factura llevan este prefijo en el id, para poder
- * distinguirlos de los cargados a mano (que no se pueden borrar ni editar desde acá). */
-const PREFIJO_FACTURA = 'factura:'
-/** Ídem para los movimientos generados a partir de un cheque (ver chequeAMovimiento). */
-const PREFIJO_CHEQUE = 'cheque:'
-/** Ídem para los dos pagos que genera la nómina del mes (ver sueldoAMovimiento). */
-const PREFIJO_SUELDO = 'sueldo:'
 
 function hoyISO(): string {
   return new Date().toISOString().slice(0, 10)
@@ -120,6 +120,20 @@ function sueldoAMovimiento(p: PagoSueldos): Movimiento {
     fecha: p.fechaEstimada,
     cumplido: p.pagado,
   }
+}
+
+/** Un renglón del desglose de la posición. Los que están en cero igual se muestran: ver un
+ * "Cheques a cobrar $ 0" dice algo —que no hay cheques—, mientras que esconder el renglón deja al
+ * usuario preguntándose si el sistema los está contando. */
+function LineaPosicion({ etiqueta, monto }: { etiqueta: string; monto: number }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span style={{ color: 'var(--text-secondary)' }}>{etiqueta}</span>
+      <span className="tabular font-medium" style={{ color: 'var(--text-primary)' }}>
+        {formatoMoneda(monto)}
+      </span>
+    </div>
+  )
 }
 
 function etiquetaSemana(fechaISO: string, semanas: RangoSemana[]): { texto: string; color: string } {
@@ -705,6 +719,13 @@ export function CobranzasPagosSemanal({
     }
   }
 
+  // La posición sale de la misma lista que muestra la pantalla, que ya resolvió el solapamiento
+  // entre facturas y cheques: una factura abonada con cheque figura una sola vez.
+  const posicion = useMemo(
+    () => calcularPosicionFinanciera(calcularSaldoTotalBancos(cuentas ?? []), todosMovimientos),
+    [cuentas, todosMovimientos],
+  )
+
   const cobros = todosMovimientos.filter((m) => m.tipo === 'cobro')
   const pagos = todosMovimientos.filter((m) => m.tipo === 'pago')
 
@@ -730,6 +751,81 @@ export function CobranzasPagosSemanal({
 
   return (
     <>
+      <section
+        className="mb-6 rounded-xl border p-5"
+        style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}
+      >
+        <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
+          Posición financiera
+        </h2>
+        <p className="mb-4 text-xs" style={{ color: 'var(--text-muted)' }}>
+          Lo que tenés hoy más lo que falta cobrar, menos lo que falta pagar. Solo entra lo
+          pendiente: lo ya cobrado o pagado se movió y está en el saldo de tus cuentas.
+        </p>
+
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <div className="rounded-lg border p-3" style={{ borderColor: 'var(--border)' }}>
+            <p className="mb-2 text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
+              Tenés y vas a cobrar
+            </p>
+            <div className="space-y-1 text-sm">
+              <LineaPosicion etiqueta="Caja y bancos" monto={posicion.caja} />
+              <LineaPosicion etiqueta="Cheques a cobrar" monto={posicion.aCobrar.cheques} />
+              <LineaPosicion etiqueta="Clientes (comprobantes)" monto={posicion.aCobrar.facturas} />
+              <LineaPosicion etiqueta="Otras cobranzas cargadas" monto={posicion.aCobrar.otros} />
+              <div className="flex items-center justify-between border-t pt-1" style={{ borderColor: 'var(--gridline)' }}>
+                <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  Total disponible
+                </span>
+                <span className="tabular font-semibold" style={{ color: 'var(--status-good-text)' }}>
+                  {formatoMoneda(posicion.disponibleProyectado)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border p-3" style={{ borderColor: 'var(--border)' }}>
+            <p className="mb-2 text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
+              Vas a pagar
+            </p>
+            <div className="space-y-1 text-sm">
+              <LineaPosicion etiqueta="Cheques a pagar" monto={posicion.aPagar.cheques} />
+              <LineaPosicion etiqueta="Proveedores (comprobantes)" monto={posicion.aPagar.facturas} />
+              <LineaPosicion etiqueta="Sueldos y cargas" monto={posicion.aPagar.sueldos} />
+              <LineaPosicion etiqueta="Otros pagos cargados" monto={posicion.aPagar.otros} />
+              <div className="flex items-center justify-between border-t pt-1" style={{ borderColor: 'var(--gridline)' }}>
+                <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  Total a pagar
+                </span>
+                <span className="tabular font-semibold" style={{ color: 'var(--status-critical)' }}>
+                  {formatoMoneda(posicion.aPagar.total)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div
+            className="flex flex-col justify-center rounded-lg border p-3"
+            style={{ borderColor: posicion.posicionNeta >= 0 ? 'var(--status-good-text)' : 'var(--status-critical)' }}
+          >
+            <p className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
+              Te queda
+            </p>
+            <p
+              className="tabular text-3xl font-semibold"
+              style={{ color: posicion.posicionNeta >= 0 ? 'var(--status-good-text)' : 'var(--status-critical)' }}
+            >
+              {formatoMoneda(posicion.posicionNeta)}
+            </p>
+            <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+              {posicion.posicionNeta >= 0
+                ? 'Si entra y sale todo lo pendiente, terminás con esto.'
+                : 'Con lo pendiente no alcanza: falta conseguir esta diferencia.'}
+            </p>
+          </div>
+        </div>
+      </section>
+
       <section
         className="mb-6 rounded-xl border p-5"
         style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}
