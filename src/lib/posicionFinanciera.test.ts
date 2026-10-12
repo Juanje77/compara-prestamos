@@ -7,6 +7,7 @@ import {
   origenDeMovimiento,
 } from './posicionFinanciera'
 import type { Movimiento } from './movimientosSemana'
+import { agruparPorSemana } from './semanas'
 
 function mov(id: string, tipo: 'cobro' | 'pago', monto: number, cumplido = false): Movimiento {
   return { id, tipo, concepto: 'x', monto, fecha: '2026-10-12', cumplido }
@@ -81,5 +82,47 @@ describe('calcularPosicionFinanciera', () => {
     for (const lado of [p.aCobrar, p.aPagar]) {
       expect(lado.cheques + lado.facturas + lado.sueldos + lado.otros).toBe(lado.total)
     }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Que los dos números de la pantalla cierren entre sí
+// ---------------------------------------------------------------------------
+//
+// En Cobranzas y pagos conviven la posición financiera ("te queda") y la caja proyectada de cada
+// semana. Son la misma cuenta mirada de dos formas, así que tienen que dar lo mismo cuando no hay
+// nada fuera de la ventana de semanas. Si alguien cambia una de las dos, este test lo avisa.
+
+describe('la caja proyectada de la última semana coincide con la posición', () => {
+  const HOY = new Date(2026, 9, 12)
+  const CAJA = 1000000
+
+  function enSemana(dias: number): string {
+    const d = new Date(HOY)
+    d.setDate(d.getDate() + dias)
+    return d.toISOString().slice(0, 10)
+  }
+
+  it('con todo dentro de las cuatro semanas, los dos números son el mismo', () => {
+    const movimientos = [
+      { ...mov(`${PREFIJO_CHEQUE}c1`, 'cobro', 300000), fecha: enSemana(1) },
+      { ...mov(`${PREFIJO_FACTURA}f1`, 'cobro', 500000), fecha: enSemana(9) },
+      { ...mov(`${PREFIJO_SUELDO}2026-10:netos`, 'pago', 400000), fecha: enSemana(16) },
+      { ...mov('manual-1', 'pago', 25000), fecha: enSemana(20) },
+    ]
+    const posicion = calcularPosicionFinanciera(CAJA, movimientos)
+    const { totalesPorSemana } = agruparPorSemana(movimientos, 4, HOY, CAJA)
+    expect(totalesPorSemana[3].saldoAcumulado).toBe(posicion.posicionNeta)
+  })
+
+  it('lo vencido sin cobrar entra en los dos lados por igual', () => {
+    const movimientos = [
+      { ...mov('vencido-1', 'cobro', 150000), fecha: '2026-09-01' },
+      { ...mov('manual-1', 'pago', 50000), fecha: enSemana(2) },
+    ]
+    const posicion = calcularPosicionFinanciera(CAJA, movimientos)
+    const vencidoPendiente = 150000
+    const { totalesPorSemana } = agruparPorSemana(movimientos, 4, HOY, CAJA + vencidoPendiente)
+    expect(totalesPorSemana[3].saldoAcumulado).toBe(posicion.posicionNeta)
   })
 })

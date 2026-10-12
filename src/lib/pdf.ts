@@ -217,14 +217,14 @@ export function descargarPdfCobranzasSemanal(agrupacion: AgrupacionSemanal, movi
     },
     {
       // El acumulado es el número con el que se toman decisiones, así que va en el papel también.
-      label: 'Acumulado',
+      label: 'Caja proyectada',
       valores: agrupacion.totalesPorSemana.map((t) => t.saldoAcumulado),
       color: (v) => (v >= 0 ? GREEN : RED),
     },
   ]
 
   for (const fila of filas) {
-    doc.setFont('helvetica', fila.label === 'Acumulado' ? 'bold' : 'normal')
+    doc.setFont('helvetica', fila.label === 'Caja proyectada' ? 'bold' : 'normal')
     doc.setFontSize(8.5)
     doc.setTextColor(40, 40, 40)
     doc.text(fila.label, xInicio, y)

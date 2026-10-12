@@ -83,7 +83,7 @@ const SECCIONES: SeccionAyuda[] = [
       'Arriba de todo, la Posición financiera: lo que tenés en caja y bancos, más los cheques a cobrar, los clientes de Comprobantes y lo que hayas cargado a mano, menos todo lo que falta pagar (cheques, proveedores, sueldos y los pagos cargados). El número grande de la derecha es con cuánto terminás si entra y sale todo lo pendiente.',
       'Solo cuenta lo pendiente: lo ya cobrado o pagado no se proyecta, porque esa plata ya se movió y está en el saldo de tus cuentas.',
       'Mirá lo agrupado por semana: qué vence y cuánto.',
-      'Cada semana trae su saldo propio y el acumulado, que arrastra lo de las anteriores: cuatro semanas apenas negativas se ven inofensivas una por una y juntas son el mes en que no se llega.',
+      'Cada semana trae su saldo propio y la caja proyectada, que arranca en tu caja de hoy y arrastra lo de las semanas anteriores: es con cuánta plata terminás cada domingo. Cuatro semanas apenas negativas se ven inofensivas una por una y juntas son el mes en que no se llega.',
       'Tildá cada ítem cuando se cobre o se pague — es el mismo tilde que en Comprobantes, se sincroniza para los dos lados.',
       'Elegí el medio y, si tenés el plan Full, la cuenta — igual que en Comprobantes, así el saldo de esa cuenta en Tesorería baja o sube al toque.',
       'Con el plan Full, también aparecen los cheques por cobrar/pagar, con el mismo cambio de estado que en la solapa Cheques.',

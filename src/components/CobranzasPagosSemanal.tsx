@@ -729,9 +729,9 @@ export function CobranzasPagosSemanal({
   const cobros = todosMovimientos.filter((m) => m.tipo === 'cobro')
   const pagos = todosMovimientos.filter((m) => m.tipo === 'pago')
 
-  // Lo vencido que sigue pendiente es plata que todavía no se movió, así que arranca el acumulado:
-  // ignorarlo mostraría un total mejor que el real. Lo vencido ya cumplido no entra, porque esa
-  // plata ya entró o salió y está en el saldo de Tesorería, no en lo que falta cobrar o pagar.
+  // El acumulado arranca en la caja de hoy más lo vencido que sigue pendiente, así cada semana
+  // dice con cuánta plata se termina y no cuánto se movió. Lo vencido ya cumplido no entra: esa
+  // plata ya entró o salió y por lo tanto ya está dentro del saldo de las cuentas.
   const arrastreVencido = useMemo(
     () =>
       agruparPorSemana(todosMovimientos, 4, hoy)
@@ -739,9 +739,10 @@ export function CobranzasPagosSemanal({
         .reduce((s, m) => s + (m.tipo === 'cobro' ? m.monto : -m.monto), 0),
     [todosMovimientos, hoy],
   )
+  const saldoInicialSemanal = posicion.caja + arrastreVencido
   const agrupacion = useMemo(
-    () => agruparPorSemana(todosMovimientos, 4, hoy, arrastreVencido),
-    [todosMovimientos, hoy, arrastreVencido],
+    () => agruparPorSemana(todosMovimientos, 4, hoy, saldoInicialSemanal),
+    [todosMovimientos, hoy, saldoInicialSemanal],
   )
   const totalVencidos = agrupacion.vencidos.reduce(
     (s, m) => s + (m.tipo === 'cobro' ? m.monto : -m.monto),
@@ -836,9 +837,10 @@ export function CobranzasPagosSemanal({
               Resumen semanal — ingresos y gastos por semana
             </h2>
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              El acumulado arrastra el saldo de las semanas anteriores
-              {arrastreVencido !== 0 && `, arrancando en ${formatoMoneda(arrastreVencido)} de vencido sin cobrar ni pagar`}
-              : es cómo termina la caja al final de cada semana, no cómo le fue a esa semana sola.
+              La caja proyectada arranca en {formatoMoneda(posicion.caja)} de caja y bancos
+              {arrastreVencido !== 0 && ` más ${formatoMoneda(arrastreVencido)} de vencido sin cobrar ni pagar`} y
+              arrastra el saldo de cada semana: es con cuánta plata terminás cada domingo, no cómo le fue a esa
+              semana sola.
             </p>
             {user && (
               <p className="inline-flex items-center gap-1 text-xs" style={{ color: nubeLista ? 'var(--status-good-text)' : 'var(--text-muted)' }}>
@@ -899,7 +901,7 @@ export function CobranzasPagosSemanal({
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>
-                      Acumulado
+                      Caja proyectada
                     </span>
                     <span
                       className="tabular font-semibold"
