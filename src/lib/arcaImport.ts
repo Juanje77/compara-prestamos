@@ -133,3 +133,67 @@ export async function importarComprobantesArca(file: File, plazoDiasCobroPago = 
 
   return { facturas, omitidas }
 }
+
+// --- Duplicados ---------------------------------------------------------------------------
+//
+// Importar dos veces el mismo archivo de ARCA es fácil de hacer y difícil de notar: no falla
+// nada, simplemente queda todo al doble —la base de IVA, la de Ingresos Brutos, los ingresos del
+// monotributo, el margen, el control del 80%— y el error aparece meses después, cuando ya se
+// declaró. Por eso el importador compara contra lo que ya está cargado antes de agregar.
+
+/**
+ * La clave con la que dos comprobantes son "el mismo". El número (punto de venta y número) es lo
+ * que los identifica de verdad, junto con el tipo y quién lo emitió.
+ *
+ * Se usa la contraparte y no el CUIT porque el Excel de ARCA trae la denominación, no el número:
+ * si un proveedor aparece escrito distinto en dos archivos, ese duplicado se cuela. Es el límite
+ * del dato que da ARCA, no una decisión.
+ *
+ * Sin número no hay clave confiable, así que ahí se cae a contraparte, fecha y monto: es más
+ * flojo —dos compras iguales el mismo día al mismo proveedor se verían como una— pero deja pasar
+ * menos duplicados que no comparar nada.
+ */
+export function claveComprobante(f: {
+  tipo: TipoFactura
+  tipoComprobante: TipoComprobante
+  contraparte: string
+  numero?: string
+  fecha: string
+  monto: number
+}): string {
+  const quien = f.contraparte.trim().toLowerCase()
+  if (f.numero) return `${f.tipo}|${f.tipoComprobante}|${quien}|${f.numero}`
+  return `${f.tipo}|${f.tipoComprobante}|${quien}|${f.fecha}|${Math.round(f.monto)}`
+}
+
+export interface ResultadoDeduplicado<T> {
+  /** Los que hay que agregar: no estaban antes, y sin repetidos dentro del propio archivo. */
+  nuevos: T[]
+  /** Cuántos se saltearon por estar ya cargados o venir repetidos en el mismo archivo. */
+  duplicados: number
+}
+
+/**
+ * Saca de `importadas` lo que ya está en `existentes`, y también lo que viene repetido dentro del
+ * propio archivo — un Excel puede traer la misma fila dos veces, y agregar las dos sería el mismo
+ * problema que estamos evitando.
+ */
+export function quitarDuplicados<
+  T extends { tipo: TipoFactura; tipoComprobante: TipoComprobante; contraparte: string; numero?: string; fecha: string; monto: number },
+>(importadas: T[], existentes: Parameters<typeof claveComprobante>[0][]): ResultadoDeduplicado<T> {
+  const vistas = new Set(existentes.map(claveComprobante))
+  const nuevos: T[] = []
+  let duplicados = 0
+
+  for (const f of importadas) {
+    const clave = claveComprobante(f)
+    if (vistas.has(clave)) {
+      duplicados++
+      continue
+    }
+    vistas.add(clave)
+    nuevos.push(f)
+  }
+
+  return { nuevos, duplicados }
+}

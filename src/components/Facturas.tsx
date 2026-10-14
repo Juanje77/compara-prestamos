@@ -31,7 +31,7 @@ import {
   sumarDias,
   type MedioPago,
 } from '../lib/cfo'
-import { importarComprobantesArca } from '../lib/arcaImport'
+import { importarComprobantesArca, quitarDuplicados } from '../lib/arcaImport'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
 import { InfoTooltip } from './InfoTooltip'
@@ -303,12 +303,23 @@ export function Facturas({ facturas, pagos = [], cuentas, cuentaPorFactura = {},
     setImportando(true)
     try {
       const { facturas: importadas, omitidas } = await importarComprobantesArca(file, plazoDias)
+      // Lo que ya está cargado no se vuelve a agregar: subir dos veces el mismo archivo de ARCA
+      // es fácil de hacer y, sin este filtro, deja todo al doble sin que nada falle.
+      const { nuevos, duplicados } = quitarDuplicados(importadas, facturas)
+
       if (importadas.length === 0) {
         setMensajeImport({ tipo: 'error', texto: 'No se encontraron comprobantes válidos para importar en el archivo.' })
+      } else if (nuevos.length === 0) {
+        setMensajeImport({
+          tipo: 'ok',
+          texto: `Los ${duplicados} comprobante(s) del archivo ya estaban cargados: no se agregó ninguno.`,
+        })
       } else {
-        onImportarVarias(importadas)
-        const detalleOmitidas = omitidas > 0 ? ` (se omitieron ${omitidas} fila(s) con datos inválidos o tipo no reconocido)` : ''
-        setMensajeImport({ tipo: 'ok', texto: `Se importaron ${importadas.length} comprobante(s)${detalleOmitidas}.` })
+        onImportarVarias(nuevos)
+        const partes = [`Se importaron ${nuevos.length} comprobante(s)`]
+        if (duplicados > 0) partes.push(`${duplicados} ya estaban cargados y se saltearon`)
+        if (omitidas > 0) partes.push(`${omitidas} fila(s) se omitieron por datos inválidos o tipo no reconocido`)
+        setMensajeImport({ tipo: 'ok', texto: `${partes.join('. ')}.` })
       }
     } catch (err) {
       setMensajeImport({ tipo: 'error', texto: err instanceof Error ? err.message : 'No se pudo leer el archivo.' })
@@ -356,7 +367,8 @@ export function Facturas({ facturas, pagos = [], cuentas, cuentaPorFactura = {},
             <input type="file" accept=".xlsx,.xls" onChange={handleImportarArca} className="hidden" disabled={importando} />
           </label>
           <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            Aceptá el Excel de "Mis Comprobantes Emitidos" o "Recibidos" tal cual se descarga de ARCA.
+            Aceptá el Excel de "Mis Comprobantes Emitidos" o "Recibidos" tal cual se descarga de ARCA. Lo
+            que ya esté cargado no se duplica: se saltea y te avisa cuántos eran.
           </span>
           <label className="ml-auto flex shrink-0 items-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
             Cobro/pago estimado a
