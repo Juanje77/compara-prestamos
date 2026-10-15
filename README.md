@@ -38,6 +38,8 @@ npm run build
 
 - [Cambiar el dominio](docs/CAMBIAR-DE-DOMINIO.md) — qué hay que actualizar en Google, Firebase,
   Vercel y Mercado Pago para que el login, el backup en Drive y los pagos sigan funcionando.
+- [Varios usuarios por empresa](docs/USUARIOS-DE-LA-EMPRESA.md) — cómo se parten los datos para que
+  los permisos por módulo sean reales, y en qué etapas se construye.
 - [Reglas de Firestore](docs/REGLAS-FIRESTORE.md)
 
 ## Datos
