@@ -159,7 +159,15 @@ const ultimosBloques = new Map<string, BloquesNegocio>()
  * El resto de los campos (movimientos de la semana, índice de backups) siguen en el documento
  * principal, que no tiene nada sensible y lo lee cualquier miembro.
  */
-export async function guardarDatosUsuario(uid: string, datos: Partial<DatosUsuario>): Promise<void> {
+export async function guardarDatosUsuario(
+  uid: string,
+  datos: Partial<DatosUsuario>,
+  /** Qué bloques tiene permitido escribir quien guarda. Para un empleado es clave: su pantalla
+   * arranca con `empleados: []` porque no puede leer ese bloque, y si lo guardara estaría
+   * borrando la nómina. Las reglas de Firestore lo rechazarían igual —son la frontera real—,
+   * pero no hay por qué mandar una escritura que sabemos que está mal. */
+  bloquesPermitidos: BloqueDatos[] = BLOQUES,
+): Promise<void> {
   const api = await obtenerApi()
   if (!api) return
 
@@ -177,7 +185,7 @@ export async function guardarDatosUsuario(uid: string, datos: Partial<DatosUsuar
     const previos = ultimosBloques.get(uid) ?? null
     const alcance = BLOQUES.filter((b) => partido[b] !== undefined || previos?.[b] !== undefined)
     const cambiados = bloquesQueCambiaron(partido, previos).filter(
-      (b) => alcance.includes(b) && partido[b] !== undefined,
+      (b) => alcance.includes(b) && partido[b] !== undefined && bloquesPermitidos.includes(b),
     )
     for (const bloque of cambiados) {
       escrituras.push(api.setDoc(refBloque(api, uid, bloque), partido[bloque] ?? {}))

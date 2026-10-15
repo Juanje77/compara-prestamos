@@ -6,10 +6,23 @@ import { EmpresasPage } from './EmpresasPage'
 import { PlanesEmpresa } from '../components/PlanesEmpresa'
 import { SegundoFactor } from '../components/SegundoFactor'
 import { estadoMfa } from '../lib/mfa'
+import { AceptarInvitacion } from '../components/AceptarInvitacion'
+import { invitacionEnLaUrl } from '../lib/empresa'
+import { useAcceso } from '../lib/useAcceso'
 
 export function AccesoEmpresas() {
   const { user, cargando: cargandoAuth, habilitado } = useAuth()
-  const { plan, cargando: cargandoPlan } = usePlanUsuario(user?.uid)
+  // Quién es: dueño de su cuenta, o empleado de la empresa de otro. De acá sale el uid con el que
+  // se habla con Firestore — para un empleado NO es el suyo, sino el del dueño.
+  const { acceso, cargando: cargandoAcceso, refrescar: refrescarAcceso } = useAcceso()
+  // El plan es el de la empresa. Un empleado no tiene plan propio y nunca va a tenerlo: paga el
+  // dueño, y de ese plan depende qué módulos existen.
+  const { plan, cargando: cargandoPlan } = usePlanUsuario(acceso?.empresaId)
+  // El código del mail de invitación. Se guarda al montar y no se vuelve a leer de la URL: una
+  // vez aceptada, limpiamos la dirección para que recargar no intente aceptarla de nuevo.
+  const [codigoInvitacion, setCodigoInvitacion] = useState<string | null>(() =>
+    invitacionEnLaUrl(window.location.search),
+  )
   const pruebaIniciada = useRef(false)
   const [pruebaFallo, setPruebaFallo] = useState<string | null>(null)
   const [pruebaDenegada, setPruebaDenegada] = useState(false)
@@ -51,7 +64,11 @@ export function AccesoEmpresas() {
   // persona sin prueba para siempre, porque el cliente nunca volvía a intentarla.
   const sinPlan = plan.plan === null && plan.estado === null
   const checkoutAbandonado = plan.estado === 'pendiente' && confirmacionAgotada
-  const puedeIntentarPrueba = sinPlan || checkoutAbandonado
+  // Solo el dueño, y solo cuando ya sabemos que lo es. El `acceso !== null` no es de más: hasta
+  // que el token no se lee, el plan que se está mirando es el vacío, así que un empleado daría
+  // "sin plan" por un instante y le arrancaríamos una prueba en su propia cuenta — un plan
+  // paralelo al de la empresa, que no usa nadie y encima le gasta la prueba gratis.
+  const puedeIntentarPrueba = acceso !== null && acceso.esDueno && (sinPlan || checkoutAbandonado)
 
   // Arranca automáticamente una prueba gratis de 15 días con acceso Full completo — sin que el
   // usuario tenga que elegir nada. Se activa en el servidor (con permisos de administrador) para
@@ -147,13 +164,35 @@ export function AccesoEmpresas() {
     return <EmpresasPage esPremium esFull />
   }
 
-  if (cargandoAuth || (user && cargandoPlan) || (user && pideCodigo === null)) {
+  if (cargandoAuth || (user && cargandoAcceso) || (user && cargandoPlan) || (user && pideCodigo === null)) {
     return <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Cargando…</p>
   }
 
   // Antes que cualquier otra cosa de la cuenta: sin segundo factor no se muestra nada del negocio.
   if (user && pideCodigo) {
     return <SegundoFactor onVerificado={() => setPideCodigo(false)} />
+  }
+
+  // Entró con el link del mail: hasta que no acepte, su cuenta está vacía y mostrarle el sistema
+  // sería mostrarle un negocio en blanco. Va después del segundo factor a propósito.
+  if (user && codigoInvitacion) {
+    return (
+      <AceptarInvitacion
+        codigo={codigoInvitacion}
+        email={user.email}
+        onAceptada={() => {
+          setCodigoInvitacion(null)
+          // Saca el código de la URL: recargar no tiene que volver a intentar aceptar una
+          // invitación que ya se usó, porque el servidor contestaría "ya se usó" sin motivo.
+          window.history.replaceState(null, '', window.location.pathname)
+          void refrescarAcceso()
+        }}
+        onCancelar={() => {
+          setCodigoInvitacion(null)
+          window.history.replaceState(null, '', window.location.pathname)
+        }}
+      />
+    )
   }
 
   if (user && plan.estado === 'pendiente' && !confirmacionAgotada) {
@@ -272,6 +311,7 @@ export function AccesoEmpresas() {
       <EmpresasPage
         esPremium={plan.plan === 'premium' || plan.plan === 'full'}
         esFull={plan.plan === 'full'}
+        acceso={acceso ?? undefined}
       />
     </>
   )

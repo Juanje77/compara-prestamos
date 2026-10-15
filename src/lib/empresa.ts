@@ -72,6 +72,24 @@ export async function leerAcceso(usuario: User, refrescar = false): Promise<Acce
   }
 }
 
+/** Las solapas del sistema: los módulos asignables, más dos que no lo son. */
+export type Seccion = Modulo | 'usuarios' | 'ayuda'
+
+/**
+ * Si una solapa se le muestra a quien está mirando. El dueño ve todo; un empleado, solo sus
+ * módulos, más Ayuda, que no le niega nada a nadie. Usuarios es del dueño y nunca se asigna: si
+ * un empleado pudiera administrar usuarios, se asignaría los sueldos solo.
+ *
+ * Esto no es seguridad —se puede editar en el navegador— es no ofrecerle pantallas que le van a
+ * aparecer vacías porque Firestore le va a negar los datos.
+ */
+export function puedeVerSeccion(acceso: AccesoEmpresa, seccion: Seccion): boolean {
+  if (acceso.esDueno) return true
+  if (seccion === 'usuarios') return false
+  if (seccion === 'ayuda') return true
+  return (acceso.modulos ?? []).includes(seccion)
+}
+
 export interface MiembroEmpresa {
   uid: string
   email: string

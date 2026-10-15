@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { accesoDeDueno, accesoDesdeClaims, invitacionEnLaUrl } from './empresa'
+import { accesoDeDueno, accesoDesdeClaims, invitacionEnLaUrl, puedeVerSeccion } from './empresa'
 import { BLOQUES } from './negocioBloques'
 
 describe('accesoDesdeClaims', () => {
@@ -58,5 +58,36 @@ describe('invitacionEnLaUrl', () => {
     expect(invitacionEnLaUrl('')).toBeNull()
     expect(invitacionEnLaUrl('?otra=cosa')).toBeNull()
     expect(invitacionEnLaUrl('?invitacion=')).toBeNull()
+  })
+})
+
+describe('qué solapas ve cada uno', () => {
+  const dueno = accesoDeDueno('d1')
+  const vendedor = accesoDesdeClaims('e1', {
+    empresaId: 'd1',
+    modulos: ['facturas', 'clientes'],
+    bloques: ['comercial'],
+  })
+
+  it('el dueño ve todo, incluida la administración de usuarios', () => {
+    expect(puedeVerSeccion(dueno, 'usuarios')).toBe(true)
+    expect(puedeVerSeccion(dueno, 'sueldos')).toBe(true)
+  })
+
+  it('el empleado ve sus módulos y nada más', () => {
+    expect(puedeVerSeccion(vendedor, 'facturas')).toBe(true)
+    expect(puedeVerSeccion(vendedor, 'clientes')).toBe(true)
+    expect(puedeVerSeccion(vendedor, 'sueldos')).toBe(false)
+    expect(puedeVerSeccion(vendedor, 'dashboard')).toBe(false)
+  })
+
+  it('ningún empleado administra usuarios, por más módulos que tenga', () => {
+    // Si pudiera, se asignaría los sueldos solo.
+    const conTodo = accesoDesdeClaims('e2', { empresaId: 'd1', modulos: ['backup', 'sueldos'], bloques: [] })
+    expect(puedeVerSeccion(conTodo, 'usuarios')).toBe(false)
+  })
+
+  it('Ayuda la ve cualquiera: no le niega nada a nadie', () => {
+    expect(puedeVerSeccion(vendedor, 'ayuda')).toBe(true)
   })
 })

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BarChart3, Calculator, ChevronDown, Cloud, FileDown, Lock } from 'lucide-react'
 import { FlujoDeCaja } from '../components/FlujoDeCaja'
 import { GastosPorCategoria } from '../components/GastosPorCategoria'
@@ -26,6 +26,7 @@ import { Backup } from '../components/Backup'
 import { Ayuda } from '../components/Ayuda'
 import { UsuariosEmpresa } from '../components/UsuariosEmpresa'
 import { MODULOS_EN_ORDEN, MODULO_LABEL, type Modulo } from '../lib/permisos'
+import { accesoDeDueno, puedeVerSeccion as seccionVisible, type AccesoEmpresa } from '../lib/empresa'
 import { CuentasCorrientes } from '../components/CuentasCorrientes'
 import { RemitosPresupuestos } from '../components/RemitosPresupuestos'
 import { MargenesPorSector, type PeriodoMargenes } from '../components/MargenesPorSector'
@@ -200,13 +201,25 @@ const GRUPOS: { key: string; label: string; secciones: Seccion[] }[] = [
 
 interface Props {
   esPremium: boolean
+  /** Quién está mirando: el dueño de la cuenta o un empleado, y de quién son los datos. Si no
+   * viene (Firebase apagado en desarrollo), se asume dueño de una cuenta sin uid: la app se
+   * comporta como siempre, contra el almacenamiento local. */
+  acceso?: AccesoEmpresa
   /** Plan Full (arriba de Medio) — desbloquea Cuentas corrientes, Remitos/presupuestos y
    * Cheques, el sistema de gestión de uso diario. */
   esFull?: boolean
 }
 
-export function EmpresasPage({ esPremium, esFull = false }: Props) {
+export function EmpresasPage({ esPremium, esFull = false, acceso }: Props) {
   const { user } = useAuth()
+  // El uid con el que se habla con Firestore. Para un empleado NO es el suyo: es el del dueño de
+  // la empresa. Es el cambio que hace que un usuario invitado vea datos y no una cuenta vacía.
+  const accesoEfectivo = acceso ?? accesoDeDueno(user?.uid ?? '')
+  const uidDatos = user ? accesoEfectivo.empresaId : null
+  const { bloques: bloquesVisibles, esDueno } = accesoEfectivo
+
+  /** Si esta solapa se le muestra a quien está mirando — ver puedeVerSeccion en empresa.ts. */
+  const puedeVerSeccion = useCallback((key: Seccion) => seccionVisible(accesoEfectivo, key), [accesoEfectivo])
   const [seccion, setSeccionRaw] = useState<Seccion>('dashboard')
   // Qué grupo del menú está desplegado — null si ninguno. Cambiar de sección por cualquier vía
   // (clic en el menú, o un atajo como "Ir a Tesorería" desde el Dashboard) abre el grupo que la
@@ -219,6 +232,27 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   function seccionBloqueada(key: Seccion): boolean {
     return SECCIONES_FULL.has(key) ? !esFull : !esPremium && SECCIONES_MEDIO.includes(key)
   }
+  /** Los grupos del menú, sin las solapas que esta persona no puede ver, y sin los que quedaron
+   * vacíos — un desplegable que se abre y no muestra nada es peor que no estar. */
+  const gruposVisibles = useMemo(
+    () =>
+      GRUPOS.map((g) => ({ ...g, secciones: g.secciones.filter(puedeVerSeccion) })).filter(
+        (g) => g.secciones.length > 0,
+      ),
+    [puedeVerSeccion],
+  )
+
+  // Si la solapa en la que está parado no le corresponde (recién aceptó la invitación, o el dueño
+  // le sacó un módulo), lo movemos a la primera que sí. El default es 'dashboard' y un empleado
+  // puede perfectamente no tenerlo.
+  useEffect(() => {
+    if (puedeVerSeccion(seccion)) return
+    const primera = [...SECCIONES_SUELTAS, ...GRUPOS.flatMap((g) => g.secciones)].find(puedeVerSeccion)
+    if (primera) setSeccion(primera)
+    // setSeccion es estable dentro del render del componente; incluirla no aporta nada.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seccion, puedeVerSeccion])
+
   const [mostrarPlanes, setMostrarPlanes] = useState(false)
   const [ingresos, setIngresos] = useState(() => cargarNegocioData()?.ingresos ?? 7000000)
   const [meses, setMeses] = useState(() => cargarNegocioData()?.meses ?? 6)
@@ -385,7 +419,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     // dispositivo al mismo tiempo, ese cambio llega acá al instante, sin esperar a que se
     // recargue esta página — así dos ediciones simultáneas no pueden pisarse entre sí sin que
     // ninguna de las dos pantallas se entere.
-    const dejarDeEscuchar = suscribirseADatosUsuario(user.uid, (datos) => {
+    const dejarDeEscuchar = suscribirseADatosUsuario(uidDatos!, (datos) => {
       if (datos?.negocioData) {
         const d = datos.negocioData
         // Puede ser el eco de lo que este mismo dispositivo acaba de escribir, o una versión
@@ -434,15 +468,20 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
         // Se dispara con el dato recién leído de la nube (coherente entre sí, no hace falta
         // esperar a que el estado local termine de asentarse) y es best-effort: si falla, no
         // afecta nada más de la carga.
-        guardarBackupAutomaticoSiHaceFalta(user.uid, d, datos.backupsIndex ?? [])
+        if (esDueno) guardarBackupAutomaticoSiHaceFalta(uidDatos!, d, datos.backupsIndex ?? [])
       }
       if (primerDato) {
         primerDato = false
         setNubeLista(true)
       }
-    })
+    },
+    // Solo los bloques que puede leer. Pedir uno al que no tiene permiso haría que la regla
+    // rechace el listener, y la pantalla se quedaría esperando un documento que nunca llega.
+    bloquesVisibles,
+    )
     return () => dejarDeEscuchar()
-  }, [user])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, uidDatos])
 
   useEffect(() => {
     guardarNegocioData(negocioDataActual)
@@ -460,7 +499,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
     function enviarAhora() {
       if (enviado) return
       enviado = true
-      guardarDatosUsuario(user!.uid, { negocioData }).catch(() => {
+      guardarDatosUsuario(uidDatos!, { negocioData }, bloquesVisibles).catch(() => {
         // Idem: si falla el guardado en la nube, los datos siguen a salvo en localStorage.
       })
     }
@@ -477,7 +516,10 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
       document.removeEventListener('visibilitychange', alEsconderse)
       window.removeEventListener('pagehide', enviarAhora)
     }
-  }, [user, nubeLista, negocioDataActual])
+    // bloquesVisibles es un array nuevo en cada render del padre; lo que importa es su contenido,
+    // que solo cambia cuando cambia el acceso, y eso ya viene con un uidDatos distinto.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, uidDatos, nubeLista, negocioDataActual])
 
   // Copia diaria en el Drive del cliente, para los que lo conectaron desde Backup. Corre una sola
   // vez por sesión y con los datos ya cargados de la nube, para no subir una foto a medio armar.
@@ -545,14 +587,14 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
   }
 
   function handleObtenerBackupAutomatico(id: string) {
-    return user ? cargarBackupAutomatico(user.uid, id) : Promise.resolve(null)
+    return uidDatos ? cargarBackupAutomatico(uidDatos, id) : Promise.resolve(null)
   }
 
   /** Guarda una copia en la nube ahora mismo, porque el usuario la pidió desde Backup. Actualiza
    * el índice en pantalla sin esperar al listener, para que la fila aparezca al toque. */
   async function handleGuardarBackupAhora() {
     if (!user) throw new Error('Tenés que iniciar sesión para guardar una copia en la nube.')
-    const entrada = await guardarBackupAhora(user.uid, negocioDataActual, backupsAutomaticos)
+    const entrada = await guardarBackupAhora(uidDatos!, negocioDataActual, backupsAutomaticos)
     setBackupsAutomaticos((prev) => [...prev.filter((b) => b.id !== entrada.id), entrada])
   }
 
@@ -1524,7 +1566,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
 
       <div className="mb-6 space-y-2">
         <nav className="flex flex-wrap gap-2" role="tablist">
-          {SECCIONES_SUELTAS.map((key) => {
+          {SECCIONES_SUELTAS.filter(puedeVerSeccion).map((key) => {
             const s = SECCIONES.find((x) => x.key === key)!
             return (
               <button
@@ -1544,7 +1586,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
               </button>
             )
           })}
-          {GRUPOS.map((g) => {
+          {gruposVisibles.map((g) => {
             const activo = (g.secciones as Seccion[]).includes(seccion)
             const abierto = grupoAbierto === g.key
             return (
@@ -1576,7 +1618,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
             style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
             role="tablist"
           >
-            {GRUPOS.find((g) => g.key === grupoAbierto)!.secciones.map((key) => {
+            {(gruposVisibles.find((g) => g.key === grupoAbierto)?.secciones ?? []).map((key) => {
               const s = SECCIONES.find((x) => x.key === key)!
               return (
                 <button
@@ -1610,6 +1652,7 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
 
       {seccion === 'cobranzas' && (
         <CobranzasPagosSemanal
+          uidDatos={uidDatos}
           facturas={esPremium ? facturas : undefined}
           onCambiarFactura={esPremium ? handleCambiarFactura : undefined}
           cheques={esFull ? cheques : undefined}

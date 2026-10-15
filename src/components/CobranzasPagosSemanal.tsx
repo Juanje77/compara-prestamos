@@ -556,6 +556,10 @@ interface Props {
   /** Pagos que genera la nómina del mes (plan Full) — se muestran para verlos venir, pero se
    * registran desde la solapa Sueldos. */
   pagosSueldos?: PagoSueldos[]
+  /** De quién son los datos en Firestore. Para un empleado es el uid del dueño, no el suyo (ver
+   * src/lib/empresa.ts). Sin esto, un usuario invitado guardaría la planilla en su propia cuenta
+   * vacía y el dueño nunca la vería. */
+  uidDatos?: string | null
 }
 
 export function CobranzasPagosSemanal({
@@ -565,8 +569,12 @@ export function CobranzasPagosSemanal({
   onCambiarEstadoCheque,
   cuentas,
   pagosSueldos = [],
+  uidDatos,
 }: Props) {
   const { user } = useAuth()
+  // Sin acceso resuelto se cae en el uid propio, que es como funcionaba antes de que existieran
+  // los usuarios de la empresa.
+  const uid = uidDatos ?? user?.uid ?? null
   const hoy = useFechaActual()
   const [movimientos, setMovimientos] = useState<Movimiento[]>(() => obtenerMovimientos())
   const [errorImport, setErrorImport] = useState<string | null>(null)
@@ -600,14 +608,16 @@ export function CobranzasPagosSemanal({
   }
 
   useEffect(() => {
-    if (!user) {
+    if (!uid) {
       setNubeLista(false)
       cargaNubeHecha.current = false
       return
     }
     if (cargaNubeHecha.current) return
     cargaNubeHecha.current = true
-    cargarDatosUsuario(user.uid)
+    // Solo el bloque de la semana: los demás no los necesita esta pantalla, y un empleado que no
+    // los tenga asignados recibiría un rechazo de las reglas por nada.
+    cargarDatosUsuario(uid, ['semana'])
       .then((datos) => {
         if (datos?.movimientosSemana) {
           reemplazarMovimientos(datos.movimientosSemana)
@@ -618,15 +628,15 @@ export function CobranzasPagosSemanal({
         // Firestore puede no estar disponible todavía — seguimos con lo local.
       })
       .finally(() => setNubeLista(true))
-  }, [user])
+  }, [uid])
 
   useEffect(() => {
-    if (!user || !nubeLista) return
+    if (!uid || !nubeLista) return
     const timeout = setTimeout(() => {
-      guardarDatosUsuario(user.uid, { movimientosSemana: movimientos }).catch(() => {})
+      guardarDatosUsuario(uid, { movimientosSemana: movimientos }, ['semana']).catch(() => {})
     }, 800)
     return () => clearTimeout(timeout)
-  }, [user, nubeLista, movimientos])
+  }, [uid, nubeLista, movimientos])
 
   function handleAgregar(tipo: TipoMovimiento) {
     return (concepto: string, monto: number, fecha: string) => {

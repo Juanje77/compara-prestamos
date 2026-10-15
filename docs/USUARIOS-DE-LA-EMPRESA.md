@@ -119,10 +119,31 @@ dueño se entere al asignar y no después.
    Los nombres de los módulos se mudaron a `MODULO_LABEL` en permisos.ts, que ahora usan tanto el
    menú de solapas como esta pantalla. Estaban escritos dos veces y un módulo podía terminar
    llamándose distinto al navegarlo que al asignarlo.
-5. **La navegación según permisos**: que cada empleado vea solo sus solapas, y que todo lo que
-   hoy va a Firestore con `user.uid` use el `empresaId` del acceso. Mientras esto no esté, un
-   empleado que acepte la invitación entra a una cuenta vacía: los permisos ya son reales, pero
-   la app todavía no sabe mirar los datos del dueño.
+5. **La navegación según permisos** (hecho). Tres cosas:
+
+   - **De quién son los datos.** `useAcceso()` resuelve, al entrar, si quien está logueado es
+     dueño o empleado. Todo lo que iba a Firestore con `user.uid` ahora usa `acceso.empresaId`,
+     que para un empleado es el uid del dueño. Es el cambio que hace que un invitado vea datos y
+     no una cuenta vacía.
+   - **Qué solapas ve.** `puedeVerSeccion` filtra el menú; los grupos que quedan vacíos no se
+     muestran. Si queda parado en una solapa que ya no le corresponde —recién aceptó, o le
+     sacaron un módulo— se lo mueve a la primera que sí: el default es Dashboard y un empleado
+     puede perfectamente no tenerlo.
+   - **Aceptar la invitación.** El link del mail trae `?invitacion=...`; después de iniciar
+     sesión (y del segundo factor) aparece la pantalla de aceptación, antes que nada más. Al
+     aceptar se renueva el token, porque el que tiene en la mano todavía es el de antes.
+
+   Dos cosas que hubo que cuidar en el camino:
+
+   - **Guardar solo los bloques permitidos.** La pantalla de un empleado sin Sueldos arranca con
+     `empleados: []`, porque no puede leer ese bloque. Si lo guardara, estaría borrando la
+     nómina. Las reglas lo rechazarían igual —son la frontera real—, pero no hay por qué mandar
+     una escritura que sabemos que está mal, así que `guardarDatosUsuario` recibe los bloques y
+     saltea el resto.
+   - **No arrancarle la prueba gratis a un empleado.** Mientras el token no se lee, el plan que
+     se mira es el vacío; sin esperar al acceso, un empleado daba "sin plan" por un instante y se
+     le creaba una prueba en su propia cuenta — un plan paralelo al de la empresa que no usa
+     nadie, y encima le gastaba la prueba.
 
 ## Lo que se resolvió para poder hacer la etapa 3
 
@@ -152,3 +173,13 @@ que decirlo con todas las letras.
 invitar y aceptar contestan 503: no hay forma de guardar el secreto de la invitación de manera
 segura. Sin Resend, la invitación igual se crea y el endpoint devuelve el link para pasarlo a
 mano — perder el trabajo porque falló el proveedor de mail sería peor.
+
+## Lo que queda afuera, a propósito
+
+- **La copia local.** La app guarda el negocio en el `localStorage` del navegador para andar sin
+  conexión, y a un empleado le va a quedar ahí la parte que sí puede ver. Es su propio
+  dispositivo y es la misma copia que tiene el dueño en el suyo, pero conviene saberlo al dar de
+  baja a alguien: lo que ya vio, lo vio.
+- **El `negocioData` viejo del documento principal.** Sigue ahí como respaldo de antes de partir
+  los datos, y por eso ese documento quedó cerrado al dueño. Limpiarlo es una tarea aparte, para
+  cuando esto lleve tiempo andando.
