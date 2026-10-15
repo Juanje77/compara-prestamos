@@ -1,7 +1,44 @@
 # Reglas de Firestore y la facturación electrónica
 
-Las reglas de este proyecto no viven en el repositorio, se editan en la consola de Firebase. Este
-documento deja registrado qué toca la facturación y por qué las reglas vigentes alcanzan.
+Las reglas vigentes viven en `firestore.rules`, en la raíz del repositorio. Ese archivo es la
+copia de lo que tiene que estar publicado **hoy**: cada vez que se toca hay que publicarlo con
+
+```bash
+firebase deploy --only firestore:rules
+```
+
+Una regla que queda sólo en el repositorio no protege nada, y una que se publica antes de que el
+código que la habilita esté en producción deja a todos afuera. Este documento deja registrado qué
+toca la facturación, por qué las reglas vigentes alcanzan, y cuál es el único cambio pendiente de
+activar.
+
+## El cambio pendiente: exigir el segundo factor
+
+`firestore.rules` **no** exige todavía el segundo factor. No es un olvido: la marca `mfaHasta` la
+pone el servidor en el token al verificar el código por mail, y mientras `RESEND_API_KEY`,
+`RESEND_FROM` y `MFA_PEPPER` no estén cargadas en Vercel ningún token la tiene. Publicar la regla
+antes de eso deniega absolutamente todo, incluido el acceso del dueño de la cuenta.
+
+Cuando el circuito esté configurado y probado en producción, el cambio es agregar la función y
+usarla en `esElDueno`:
+
+```
+function pasoSegundoFactor() {
+  return request.auth.token.mfaHasta is number && request.auth.token.mfaHasta > request.time.toMillis();
+}
+
+function esElDueno(userId) {
+  return request.auth != null && request.auth.uid == userId && pasoSegundoFactor();
+}
+```
+
+Exigirlo **acá** es lo que hace que el segundo factor sirva: si sólo lo mirara la pantalla,
+cualquiera con la contraseña podría saltear el código hablándole a Firestore directo con su token.
+Las reglas no le creen al navegador, le creen al token.
+
+Antes de publicarlo hay que verificar, con una cuenta de prueba, que al verificar el código el
+token efectivamente trae `mfaHasta` — y recordar que el token ya emitido no se entera del cambio
+hasta que se refresca.
 
 ## Qué guarda cada cosa
 
@@ -19,7 +56,9 @@ facturando con el CUIT de otro contribuyente de la misma cuenta. Por eso
 `api/emitir-comprobante.js` no lo toma del cuerpo del pedido — lo lee de `users/{uid}` con el Admin
 SDK y pisa cualquier valor que viniera del navegador. Ver `emisorIdDe` en `api/_auth.js`.
 
-## Por qué las reglas vigentes alcanzan
+## Por qué las reglas de los datos alcanzan
+
+En lo esencial, lo que protege la facturación es esto:
 
 ```
 rules_version = '2';

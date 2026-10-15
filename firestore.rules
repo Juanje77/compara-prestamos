@@ -16,17 +16,17 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Segundo factor. La marca `mfaHasta` la pone el servidor en el token al verificar el código
-    // por mail (ver api/mfa-verificar-codigo.js) y vale unas horas. Exigirla ACÁ es lo que hace
-    // que el segundo factor sirva: si solo lo mirara la pantalla, cualquiera con la contraseña
-    // podría saltear el código hablándole a Firestore directo con su token. Las reglas no le
-    // creen al navegador, le creen al token.
-    function pasoSegundoFactor() {
-      return request.auth.token.mfaHasta is number && request.auth.token.mfaHasta > request.time.toMillis();
-    }
-
+    // Este archivo es lo que tiene que estar publicado HOY. Si se edita, se publica
+    // (`firebase deploy --only firestore:rules`): una regla que vive sólo en el repositorio no
+    // protege nada, y una que se publica antes de tiempo deja a todos afuera.
+    //
+    // El segundo factor todavía NO se exige acá a propósito. La marca `mfaHasta` la pone el
+    // servidor en el token al verificar el código por mail, y hasta que el circuito no esté
+    // configurado y probado en producción (RESEND_API_KEY, RESEND_FROM, MFA_PEPPER) ningún token
+    // la tiene: pedirla ahora denegaría todo, incluido el acceso del dueño. El cambio exacto para
+    // cuando se active está en docs/REGLAS-FIRESTORE.md.
     function esElDueno(userId) {
-      return request.auth != null && request.auth.uid == userId && pasoSegundoFactor();
+      return request.auth != null && request.auth.uid == userId;
     }
 
     // Los datos del negocio: cada quien los suyos y nada más. Al exigir que el uid del token
