@@ -24,6 +24,8 @@ import { InputMoneda } from '../components/InputMoneda'
 import { Patrimonio } from '../components/Patrimonio'
 import { Backup } from '../components/Backup'
 import { Ayuda } from '../components/Ayuda'
+import { UsuariosEmpresa } from '../components/UsuariosEmpresa'
+import { MODULOS_EN_ORDEN, MODULO_LABEL, type Modulo } from '../lib/permisos'
 import { CuentasCorrientes } from '../components/CuentasCorrientes'
 import { RemitosPresupuestos } from '../components/RemitosPresupuestos'
 import { MargenesPorSector, type PeriodoMargenes } from '../components/MargenesPorSector'
@@ -151,38 +153,26 @@ function hoyISO(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
-const SECCIONES = [
-  { key: 'dashboard', label: 'Dashboard' },
-  { key: 'facturas', label: 'Comprobantes' },
-  { key: 'lectorFacturas', label: 'Leer factura' },
-  { key: 'puntoDeVenta', label: 'Punto de venta' },
-  { key: 'facturacionElectronica', label: 'Facturación electrónica' },
-  { key: 'ingresosGastos', label: 'Ingresos y gastos' },
-  { key: 'cobranzas', label: 'Cobranzas y pagos' },
-  { key: 'cuentasCorrientes', label: 'Cuentas corrientes' },
-  { key: 'remitos', label: 'Remitos y presupuestos' },
-  { key: 'margenes', label: 'Márgenes por sector' },
-  { key: 'sueldos', label: 'Sueldos' },
-  { key: 'stock', label: 'Stock' },
-  { key: 'tesoreria', label: 'Tesorería' },
-  { key: 'proveedores', label: 'Proveedores' },
-  { key: 'clientes', label: 'Clientes' },
-  { key: 'presupuesto', label: 'Presupuesto vs. Real' },
-  { key: 'cheques', label: 'Cheques' },
-  { key: 'iva', label: 'Posición de IVA' },
-  { key: 'iibb', label: 'Ingresos Brutos' },
-  { key: 'monotributo', label: 'Monotributo' },
-  { key: 'patrimonio', label: 'Patrimonio' },
-  { key: 'inversiones', label: 'Inversiones' },
-  { key: 'backup', label: 'Backup' },
+/**
+ * Las solapas. Los nombres salen de MODULO_LABEL (src/lib/permisos.ts) y no se escriben acá,
+ * porque la pantalla donde el dueño asigna permisos usa esa misma lista: si estuvieran en dos
+ * lugares, un módulo terminaría llamándose de una forma al navegarlo y de otra al asignarlo.
+ *
+ * "Ayuda" y "Usuarios" no son módulos asignables, así que van sueltas: Ayuda la ve cualquiera, y
+ * Usuarios es del dueño y no se le puede dar a nadie — si un empleado pudiera administrar
+ * usuarios, se asignaría los sueldos solo.
+ */
+const SECCIONES: { key: Seccion; label: string }[] = [
+  ...MODULOS_EN_ORDEN.map((key) => ({ key: key as Seccion, label: MODULO_LABEL[key] })),
+  { key: 'usuarios', label: 'Usuarios' },
   { key: 'ayuda', label: 'Ayuda' },
-] as const
+]
 
 /** Secciones exclusivas del plan Full (el sistema de gestión de uso diario) — el resto que
  * requiere pago sigue disponible desde el plan Medio. */
 const SECCIONES_FULL = new Set(['facturacionElectronica', 'puntoDeVenta', 'cuentasCorrientes', 'remitos', 'margenes', 'sueldos', 'cheques', 'stock', 'tesoreria'])
 
-type Seccion = (typeof SECCIONES)[number]['key']
+type Seccion = Modulo | 'usuarios' | 'ayuda'
 
 /** Las del plan Medio. Clientes, Proveedores, Monotributo e Ingresos Brutos quedaron en Básico: se
  * alimentan de lo que se carga en Ingresos y gastos, que ese plan ya tiene, y son justo lo que
@@ -205,7 +195,7 @@ const GRUPOS: { key: string; label: string; secciones: Seccion[] }[] = [
   { key: 'tesoreria', label: 'Tesorería y stock', secciones: ['tesoreria', 'cheques', 'stock'] },
   { key: 'rrhh', label: 'RRHH', secciones: ['sueldos'] },
   { key: 'impuestos', label: 'Impuestos', secciones: ['iva', 'iibb', 'monotributo'] },
-  { key: 'negocio', label: 'Negocio', secciones: ['patrimonio', 'inversiones', 'backup', 'ayuda'] },
+  { key: 'negocio', label: 'Negocio', secciones: ['patrimonio', 'inversiones', 'backup', 'usuarios', 'ayuda'] },
 ]
 
 interface Props {
@@ -1926,6 +1916,8 @@ export function EmpresasPage({ esPremium, esFull = false }: Props) {
           onGuardarAhora={user ? handleGuardarBackupAhora : undefined}
         />
       )}
+
+      {seccion === 'usuarios' && <UsuariosEmpresa />}
 
       {seccion === 'ayuda' && <Ayuda esPremium={esPremium} esFull={esFull} />}
 

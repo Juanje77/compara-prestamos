@@ -115,6 +115,40 @@ export const BLOQUES_POR_MODULO: Record<Modulo, BloqueDatos[]> = {
   backup: ['negocio', 'comercial', 'tesoreria', 'sueldos', 'impuestos'],
 }
 
+/**
+ * Cómo se llama cada módulo en la pantalla. Vive acá y no en EmpresasPage porque lo usan los dos:
+ * el menú de secciones y la pantalla donde el dueño asigna los permisos. Tenerlo en un solo lugar
+ * evita que un módulo se llame de una forma al navegarlo y de otra al asignarlo.
+ */
+export const MODULO_LABEL: Record<Modulo, string> = {
+  dashboard: 'Dashboard',
+  facturas: 'Comprobantes',
+  lectorFacturas: 'Leer factura',
+  puntoDeVenta: 'Punto de venta',
+  facturacionElectronica: 'Facturación electrónica',
+  ingresosGastos: 'Ingresos y gastos',
+  cobranzas: 'Cobranzas y pagos',
+  cuentasCorrientes: 'Cuentas corrientes',
+  remitos: 'Remitos y presupuestos',
+  margenes: 'Márgenes por sector',
+  sueldos: 'Sueldos',
+  stock: 'Stock',
+  tesoreria: 'Tesorería',
+  proveedores: 'Proveedores',
+  clientes: 'Clientes',
+  presupuesto: 'Presupuesto vs. Real',
+  cheques: 'Cheques',
+  iva: 'Posición de IVA',
+  iibb: 'Ingresos Brutos',
+  monotributo: 'Monotributo',
+  patrimonio: 'Patrimonio',
+  inversiones: 'Inversiones',
+  backup: 'Backup',
+}
+
+/** El orden en que se muestran, que es el del menú. */
+export const MODULOS_EN_ORDEN: Modulo[] = Object.keys(MODULO_LABEL) as Modulo[]
+
 /** Los módulos que no se le pueden sacar a nadie: sin esto no hay sistema usable. */
 export const MODULOS_SIEMPRE: Modulo[] = []
 

@@ -105,7 +105,20 @@ dueño se entere al asignar y no después.
    de antes de partirlo en bloques, y abrirlo habría anulado todo el trabajo de la etapa 2. Por
    eso `movimientosSemana`, que vivía ahí, pasó a su propio bloque.
 
-4. **La pantalla del dueño**: crear usuarios, asignar módulos, dar de baja.
+4. **La pantalla del dueño** (hecho): `src/components/UsuariosEmpresa.tsx`, en la solapa
+   **Negocio → Usuarios**. Invita por mail, lista quién tiene acceso, cambia módulos y da de
+   baja. No es un módulo asignable a propósito: si un empleado pudiera administrar usuarios, se
+   asignaría los sueldos solo.
+
+   Lo que la pantalla tiene que lograr más allá de funcionar es que el dueño **entienda qué está
+   dando**. Al tildar Márgenes por sector aparece el aviso de que eso incluye los sueldos, con el
+   motivo ("porque le diste Márgenes por sector") y la aclaración de que no se puede evitar
+   tildando menos. Sale de `modulosQueExponen`, y se avisa solo de los bloques donde la
+   consecuencia no es obvia: sueldos, impuestos y tesorería.
+
+   Los nombres de los módulos se mudaron a `MODULO_LABEL` en permisos.ts, que ahora usan tanto el
+   menú de solapas como esta pantalla. Estaban escritos dos veces y un módulo podía terminar
+   llamándose distinto al navegarlo que al asignarlo.
 5. **La navegación según permisos**: que cada empleado vea solo sus solapas, y que todo lo que
    hoy va a Firestore con `user.uid` use el `empresaId` del acceso. Mientras esto no esté, un
    empleado que acepte la invitación entra a una cuenta vacía: los permisos ya son reales, pero

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   BLOQUES_POR_MODULO,
+  MODULOS_EN_ORDEN,
+  MODULO_LABEL,
   CAMPOS_POR_BLOQUE,
   bloquesDe,
   modulosQueExponen,
@@ -100,5 +102,18 @@ describe('todos los módulos declaran sus bloques', () => {
     for (const [modulo, bloques] of Object.entries(BLOQUES_POR_MODULO)) {
       expect(bloques.length, `el módulo ${modulo} no declara bloques`).toBeGreaterThan(0)
     }
+  })
+})
+
+describe('los nombres de los módulos', () => {
+  it('hay uno por cada módulo, ni de más ni de menos', () => {
+    // Si no, el dueño asignaría un permiso sin nombre, o vería en la lista uno que no existe.
+    expect(Object.keys(MODULO_LABEL).sort()).toEqual(Object.keys(BLOQUES_POR_MODULO).sort())
+  })
+
+  it('ninguno queda vacío ni repetido', () => {
+    const nombres = MODULOS_EN_ORDEN.map((m) => MODULO_LABEL[m])
+    expect(nombres.every((n) => n.trim().length > 0)).toBe(true)
+    expect(new Set(nombres).size).toBe(nombres.length)
   })
 })
