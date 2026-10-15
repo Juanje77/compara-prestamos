@@ -2,6 +2,15 @@ import { app, firebaseHabilitado } from './firebase'
 import type { Anticipo, Bien, Cheque, ClasificacionesProveedores, CuentaBancaria, DatosEmisorFiscal, Deuda, Empleado, Factura, IngresosBrutosManualMes, IvaManualMes, MovimientoBancario, MovimientoDiario, MovimientoStock, MovimientoTesoreria, Pago, Producto, RemitoPresupuesto, Sector } from './cfo'
 import type { Movimiento } from './movimientosSemana'
 import type { DatosMonotributo } from './monotributo'
+import {
+  BLOQUES,
+  bloquesQueCambiaron,
+  partirNegocio,
+  unirBloques,
+  type BloquesNegocio,
+  type ContenidoBloque,
+} from './negocioBloques'
+import type { BloqueDatos } from './permisos'
 
 export interface NegocioDataUsuario {
   ingresos: number
@@ -54,6 +63,9 @@ export interface DatosUsuario {
    * de cada uno vive aparte, en users/{uid}/backups/{id}, para no traer todo ese peso cada vez que
    * se lee el documento principal del usuario. */
   backupsIndex?: BackupAutomaticoEntry[]
+  /** Cuándo se pasó esta cuenta a guardar el negocio en bloques. Su presencia dice que el
+   * `negocioData` del documento principal ya no es la verdad, sino el respaldo de antes. */
+  migradoABloquesEn?: number
 }
 
 type FirestoreApi = {
@@ -80,19 +92,93 @@ function obtenerApi(): Promise<FirestoreApi | null> {
 
 export const MAX_BACKUPS_AUTOMATICOS = 14
 
-/** Trae los datos guardados del usuario logueado, o null si todavía no tiene nada guardado. */
-export async function cargarDatosUsuario(uid: string): Promise<DatosUsuario | null> {
-  const api = await obtenerApi()
-  if (!api) return null
-  const snap = await api.getDoc(api.doc(api.db, 'users', uid))
-  return snap.exists() ? (snap.data() as DatosUsuario) : null
+/** El documento de un bloque del negocio — ver negocioBloques.ts y permisos.ts. */
+function refBloque(api: FirestoreApi, uid: string, bloque: BloqueDatos) {
+  return api.doc(api.db, 'users', uid, 'datos', bloque)
 }
 
-/** Guarda (mezclando, sin pisar otros campos) los datos del usuario logueado. */
+/** Trae los datos guardados del usuario logueado, o null si todavía no tiene nada guardado. */
+export async function cargarDatosUsuario(uid: string, bloques: BloqueDatos[] = BLOQUES): Promise<DatosUsuario | null> {
+  const api = await obtenerApi()
+  if (!api) return null
+  const [principal, ...snapsBloques] = await Promise.all([
+    api.getDoc(api.doc(api.db, 'users', uid)),
+    ...bloques.map((b) => api.getDoc(refBloque(api, uid, b))),
+  ])
+
+  const porBloque: BloquesNegocio = {}
+  snapsBloques.forEach((snap, i) => {
+    if (snap.exists()) porBloque[bloques[i]] = snap.data() as ContenidoBloque
+  })
+
+  const base = principal.exists() ? (principal.data() as DatosUsuario) : null
+  if (!base && Object.keys(porBloque).length === 0) return null
+
+  return {
+    ...(base ?? {}),
+    // Los bloques mandan. El negocioData del documento principal es la foto anterior a partirlo,
+    // que se deja como respaldo pero ya no es la verdad (ver migrarABloques).
+    negocioData: Object.keys(porBloque).length > 0
+      ? (unirBloques(porBloque) as unknown as NegocioDataUsuario)
+      : base?.negocioData,
+  }
+}
+
+/** Lo último que se guardó de cada bloque, para no reescribir los que no cambiaron. */
+const ultimosBloques = new Map<string, BloquesNegocio>()
+
+/**
+ * Guarda los datos del usuario. El negocio se parte en bloques y se escriben solo los que
+ * cambiaron: Firestore cobra por escritura y guardar los cinco en cada tecla sería multiplicar
+ * por cinco el costo sin ninguna ganancia.
+ *
+ * El resto de los campos (movimientos de la semana, índice de backups) siguen en el documento
+ * principal, que no tiene nada sensible y lo lee cualquier miembro.
+ */
 export async function guardarDatosUsuario(uid: string, datos: Partial<DatosUsuario>): Promise<void> {
   const api = await obtenerApi()
   if (!api) return
-  await api.setDoc(api.doc(api.db, 'users', uid), datos, { merge: true })
+
+  const { negocioData, ...resto } = datos
+  const escrituras: Promise<unknown>[] = []
+
+  if (Object.keys(resto).length > 0) {
+    escrituras.push(api.setDoc(api.doc(api.db, 'users', uid), resto, { merge: true }))
+  }
+
+  if (negocioData) {
+    const partido = partirNegocio(negocioData as unknown as Record<string, unknown>)
+    const cambiados = bloquesQueCambiaron(partido, ultimosBloques.get(uid) ?? null)
+    for (const bloque of cambiados) {
+      escrituras.push(api.setDoc(refBloque(api, uid, bloque), partido[bloque] ?? {}))
+    }
+    // Se recuerda recién después de que las escrituras salieron: si fallan, el próximo intento
+    // tiene que volver a mandarlas y no creer que ya están guardadas.
+    await Promise.all(escrituras)
+    ultimosBloques.set(uid, partido)
+    return
+  }
+
+  await Promise.all(escrituras)
+}
+
+/**
+ * Pasa a bloques un negocio que todavía estaba guardado entero en el documento principal.
+ *
+ * Corre una sola vez por cuenta, al detectar que hay `negocioData` pero ningún bloque. El
+ * `negocioData` viejo NO se borra: queda como respaldo de cómo estaba todo justo antes de
+ * partirlo, por si algo sale mal. Limpiarlo es una tarea aparte, para otro día, cuando esto haya
+ * estado un tiempo andando.
+ */
+export async function migrarABloques(uid: string, negocioData: NegocioDataUsuario): Promise<void> {
+  const api = await obtenerApi()
+  if (!api) return
+  const partido = partirNegocio(negocioData as unknown as Record<string, unknown>)
+  await Promise.all(
+    BLOQUES.filter((b) => partido[b] !== undefined).map((b) => api.setDoc(refBloque(api, uid, b), partido[b] ?? {})),
+  )
+  await api.setDoc(api.doc(api.db, 'users', uid), { migradoABloquesEn: Date.now() }, { merge: true })
+  ultimosBloques.set(uid, partido)
 }
 
 /**
@@ -102,12 +188,77 @@ export async function guardarDatosUsuario(uid: string, datos: Partial<DatosUsuar
  * llama a `onDatos` con el primer valor apenas se conecta. Devuelve una función para dejar de
  * escuchar (llamarla al desmontar).
  */
-export function suscribirseADatosUsuario(uid: string, onDatos: (datos: DatosUsuario | null) => void): () => void {
+export function suscribirseADatosUsuario(
+  uid: string,
+  onDatos: (datos: DatosUsuario | null) => void,
+  /** Qué bloques escuchar. El dueño los escucha todos; un empleado, solo los de sus módulos —
+   * pedir uno al que no tiene acceso haría que la regla rechace el listener. */
+  bloques: BloqueDatos[] = BLOQUES,
+): () => void {
   let cancelado = false
-  let dejarDeEscuchar: (() => void) | null = null
+  const bajas: (() => void)[] = []
+
+  // Lo último recibido de cada parte. Cada documento llega por su cuenta y en cualquier orden, así
+  // que se guardan y se avisa con todo junto: si no, la pantalla vería un negocio a medio armar.
+  let principal: DatosUsuario | null = null
+  let principalLlego = false
+  const porBloque: BloquesNegocio = {}
+  const bloquesLlegados = new Set<BloqueDatos>()
+  let migracionIntentada = false
+
+  function avisar() {
+    // Recién cuando contestaron todos: avisar antes dejaría a EmpresasPage guardando sobre un
+    // negocio incompleto, que es exactamente cómo se pierden datos.
+    if (!principalLlego || bloquesLlegados.size < bloques.length) return
+
+    const hayBloques = Object.keys(porBloque).length > 0
+    const legado = principal?.negocioData
+
+    // Cuenta vieja: tiene el negocio entero en el documento principal y ningún bloque todavía.
+    // Se parte una sola vez, sin borrar el original.
+    if (!hayBloques && legado && !migracionIntentada) {
+      migracionIntentada = true
+      void migrarABloques(uid, legado).catch(() => {
+        // Si falla, se sigue mostrando el negocio del documento principal y se reintenta la
+        // próxima vez que se abra la app: no se pierde nada.
+      })
+    }
+
+    if (!principal && !hayBloques) {
+      onDatos(null)
+      return
+    }
+    onDatos({
+      ...(principal ?? {}),
+      negocioData: hayBloques ? (unirBloques(porBloque) as unknown as NegocioDataUsuario) : legado,
+    })
+  }
+
   obtenerApi().then((api) => {
     if (!api || cancelado) return
-    dejarDeEscuchar = api.onSnapshot(
+
+    for (const bloque of bloques) {
+      bajas.push(
+        api.onSnapshot(
+          refBloque(api, uid, bloque),
+          (snap) => {
+            if (snap.metadata.fromCache) return
+            if (snap.exists()) porBloque[bloque] = snap.data() as ContenidoBloque
+            else delete porBloque[bloque]
+            bloquesLlegados.add(bloque)
+            avisar()
+          },
+          () => {
+            // Sin permiso sobre este bloque (o sin conexión): se lo da por contestado y vacío,
+            // para no dejar la pantalla esperando para siempre por algo que no va a llegar.
+            bloquesLlegados.add(bloque)
+            avisar()
+          },
+        ),
+      )
+    }
+
+    bajas.push(api.onSnapshot(
       api.doc(api.db, 'users', uid),
       (snap) => {
         // Un snapshot "fromCache" es la respuesta que da el SDK cuando todavía no hubo ida y
@@ -119,16 +270,18 @@ export function suscribirseADatosUsuario(uid: string, onDatos: (datos: DatosUsua
         // si no hay red, no se llama a onDatos, y este mismo listener se vuelve a disparar solo
         // en cuanto la conexión se restablezca.
         if (snap.metadata.fromCache) return
-        onDatos(snap.exists() ? (snap.data() as DatosUsuario) : null)
+        principal = snap.exists() ? (snap.data() as DatosUsuario) : null
+        principalLlego = true
+        avisar()
       },
       () => {
         // Firestore puede no estar disponible todavía (sin conexión, etc.) — seguimos con lo local.
       },
-    )
+    ))
   })
   return () => {
     cancelado = true
-    dejarDeEscuchar?.()
+    for (const baja of bajas) baja()
   }
 }
 

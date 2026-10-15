@@ -44,6 +44,14 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // El negocio, partido en bloques (ver src/lib/permisos.ts). Hoy solo el dueño de la cuenta
+      // los toca; cuando existan los usuarios de la empresa, acá se mira la lista de módulos del
+      // token para dar acceso bloque por bloque. Partirlo es lo que hace posible esa regla: con
+      // todo en un documento, dar acceso a las facturas era dar acceso a los sueldos.
+      match /datos/{bloque} {
+        allow read, write: if esElDueno(userId);
+      }
+
       // Copias diarias automáticas del negocio (ver guardarBackupAutomaticoSiHaceFalta): las
       // escribe y las lee el propio dueño, igual que sus datos.
       match /backups/{backupId} {

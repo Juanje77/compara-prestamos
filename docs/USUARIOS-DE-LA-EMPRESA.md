@@ -65,8 +65,17 @@ dueño se entere al asignar y no después.
 ## Etapas
 
 1. **El modelo de permisos** (hecho): bloques, mapeo módulo → bloques, y sus tests.
-2. **Partir los datos**: guardar en cinco documentos en vez de uno, y migrar las cuentas que ya
-   están andando sin que pierdan nada. Es la etapa riesgosa.
+2. **Partir los datos** (hecho): el negocio se guarda en `users/{uid}/datos/{bloque}`, cinco
+   documentos. El resto del sistema sigue viendo un solo objeto; `negocioBloques.ts` es la única
+   capa que sabe que está partido, con un test de ida y vuelta sobre un negocio completo.
+
+   La migración corre sola y una sola vez por cuenta: al detectar que hay `negocioData` en el
+   documento principal y ningún bloque, lo parte. **No borra el original**, que queda como
+   respaldo de cómo estaba justo antes; limpiarlo es una tarea aparte para cuando esto lleve
+   tiempo andando.
+
+   Se escriben solo los bloques que cambiaron, porque Firestore cobra por escritura y guardar los
+   cinco en cada tecla sería multiplicar el costo por cinco.
 3. **Empresa y miembros**: la entidad empresa, el alta por invitación, los claims y las reglas.
 4. **La pantalla del dueño**: crear usuarios, asignar módulos, dar de baja.
 5. **La navegación según permisos**: que cada empleado vea solo sus solapas.
