@@ -41,8 +41,20 @@ que el dominio nuevo se toma solo y no hay nada que tocar en el código. Lo que 
 - Que el dominio viejo siga respondiendo (o redirigiendo) mientras haya suscripciones en curso que
   puedan volver ahí.
 
-## 5. Probar, en este orden
+## 5. Resend — los mails
+
+Resend sólo manda desde un dominio verificado en su panel. Con el dominio nuevo hay que:
+
+- **Domains → Add Domain** y cargar en el DNS los registros que da.
+- Actualizar `RESEND_FROM` para que la dirección sea del dominio nuevo.
+
+Si no, el código del segundo factor y las invitaciones a los usuarios de la empresa dejan de
+salir. Ver [Variables de entorno](VARIABLES-DE-ENTORNO.md).
+
+## 6. Probar, en este orden
 
 1. Entrar al dominio nuevo e **iniciar sesión** (valida el punto 2).
 2. Abrir **Negocio → Backup** y tocar **Conectar con Google Drive** (valida el punto 1).
 3. Arrancar una suscripción de prueba y ver que vuelva bien al sitio (valida el punto 4).
+4. Mandarte una invitación a vos mismo desde **Negocio → Usuarios** y ver que llegue el mail
+   (valida el punto 5).
