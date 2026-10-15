@@ -29,9 +29,30 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == userId;
     }
 
-    // Los datos del negocio: cada quien los suyos y nada más. Al exigir que el uid del token
-    // coincida con el del documento, una consulta a toda la colección tampoco puede probar que
-    // cumple la regla, así que listar usuarios queda denegado de entrada.
+    // Un usuario de la empresa. El `empresaId` lo escribe el servidor como custom claim al
+    // aceptar la invitación (ver api/empresa.js): viaja firmado adentro del token y el navegador
+    // no lo puede tocar. Acá está la diferencia entre un permiso y un cartelito.
+    function esMiembro(userId) {
+      return request.auth != null && request.auth.token.empresaId == userId;
+    }
+
+    // Qué bloques le tocan, también calculado por el servidor a partir de sus módulos. Se mira la
+    // lista del token y no la de ningún documento, porque un documento se puede llegar a escribir
+    // y el token no.
+    function tieneBloque(bloque) {
+      return request.auth.token.bloques is list && bloque in request.auth.token.bloques;
+    }
+
+    // El documento principal de la cuenta: SOLO el dueño, ni siquiera sus empleados.
+    //
+    // No es por prudencia de más. Acá quedó el `negocioData` entero de antes de partirlo en
+    // bloques, que se dejó a propósito como respaldo (ver migrarABloques): si un empleado pudiera
+    // leer este documento, se llevaría esa copia completa —sueldos incluidos— y todo el trabajo de
+    // partir los datos no habría servido de nada. Lo que un empleado necesita vive en `datos`.
+    //
+    // Al exigir que el uid del token coincida con el del documento, una consulta a toda la
+    // colección tampoco puede probar que cumple la regla, así que listar usuarios queda denegado
+    // de entrada.
     match /users/{userId} {
       allow read, write: if esElDueno(userId);
 
@@ -40,16 +61,19 @@ service cloud.firestore {
       // cualquiera se asignaría el plan Full, o se pondría el emisor de otro contribuyente para
       // facturar con un CUIT ajeno.
       match /meta/{documento} {
-        allow read: if esElDueno(userId);
+        // Del plan depende qué módulos existen, y el empleado usa el de la empresa porque plan
+        // propio no tiene. Se le abre ese documento y nada más: `fiscal` tiene el emisor con el
+        // que se factura, que no es asunto de un empleado.
+        allow read: if esElDueno(userId) || (esMiembro(userId) && documento == 'plan');
         allow write: if false;
       }
 
-      // El negocio, partido en bloques (ver src/lib/permisos.ts). Hoy solo el dueño de la cuenta
-      // los toca; cuando existan los usuarios de la empresa, acá se mira la lista de módulos del
-      // token para dar acceso bloque por bloque. Partirlo es lo que hace posible esa regla: con
-      // todo en un documento, dar acceso a las facturas era dar acceso a los sueldos.
+      // El negocio, partido en bloques (ver src/lib/permisos.ts). Acá es donde el permiso por
+      // módulo se vuelve real: el dueño ve los cinco, y cada empleado solo los que le tocan según
+      // los módulos que le asignaron. Partirlo es lo que hace posible esta regla — con todo en un
+      // documento, dar acceso a las facturas era dar acceso a los sueldos.
       match /datos/{bloque} {
-        allow read, write: if esElDueno(userId);
+        allow read, write: if esElDueno(userId) || (esMiembro(userId) && tieneBloque(bloque));
       }
 
       // Copias diarias automáticas del negocio (ver guardarBackupAutomaticoSiHaceFalta): las
@@ -61,6 +85,22 @@ service cloud.firestore {
       // Respaldo de cada emisión con su CAE, que guarda el servidor al emitir. Es un registro
       // fiscal: el dueño puede consultarlo, pero no falsearlo ni borrarlo.
       match /emisiones/{referenciaExterna} {
+        allow read: if esElDueno(userId);
+        allow write: if false;
+      }
+
+      // Quiénes son los usuarios de la empresa y qué invitaciones hay pendientes. Los escribe
+      // solo el servidor, que es el mismo que firma los claims del token: si el navegador pudiera
+      // tocar esta lista, cambiar los módulos de uno mismo sería escribir un documento.
+      //
+      // El dueño los lee para su pantalla de usuarios. Un empleado no: la nómina de quién más
+      // trabaja en la empresa, y con qué accesos, no es algo que necesite.
+      match /miembros/{miembroUid} {
+        allow read: if esElDueno(userId);
+        allow write: if false;
+      }
+
+      match /invitaciones/{invitacionId} {
         allow read: if esElDueno(userId);
         allow write: if false;
       }

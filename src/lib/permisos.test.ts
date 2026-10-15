@@ -21,6 +21,8 @@ const CAMPOS_DEL_NEGOCIO = [
   'movimientosStock', 'movimientosTesoreria', 'movimientosBancarios', 'ivaManualPorMes',
   'ingresosBrutosManualPorMes', 'movimientosDiarios', 'monotributo', 'tasaCrecimiento',
   'nombreNegocio', 'actualizadoEn',
+  // No es un campo de negocioData, pero se guarda con el mismo mecanismo y en su propio bloque.
+  'movimientosSemana',
 ]
 
 describe('el reparto de campos en bloques', () => {

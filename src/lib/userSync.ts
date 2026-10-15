@@ -114,14 +114,38 @@ export async function cargarDatosUsuario(uid: string, bloques: BloqueDatos[] = B
   const base = principal.exists() ? (principal.data() as DatosUsuario) : null
   if (!base && Object.keys(porBloque).length === 0) return null
 
+  return armarDatos(base, porBloque)
+}
+
+/**
+ * Junta el documento principal con los bloques. Los bloques mandan: el `negocioData` del
+ * documento principal es la foto anterior a partirlo, que se deja como respaldo pero ya no es la
+ * verdad (ver migrarABloques).
+ *
+ * `movimientosSemana` sale del bloque `semana` y vuelve a su lugar de siempre, para que el resto
+ * del sistema no se entere de que ahora vive en un documento aparte.
+ */
+function armarDatos(base: DatosUsuario | null, porBloque: BloquesNegocio): DatosUsuario {
+  const hayBloques = Object.keys(porBloque).length > 0
+  if (!hayBloques) return { ...(base ?? {}) }
+
+  const { movimientosSemana, ...negocio } = unirBloques(porBloque) as Record<string, unknown>
   return {
     ...(base ?? {}),
-    // Los bloques mandan. El negocioData del documento principal es la foto anterior a partirlo,
-    // que se deja como respaldo pero ya no es la verdad (ver migrarABloques).
-    negocioData: Object.keys(porBloque).length > 0
-      ? (unirBloques(porBloque) as unknown as NegocioDataUsuario)
-      : base?.negocioData,
+    negocioData: negocio as unknown as NegocioDataUsuario,
+    movimientosSemana: (movimientosSemana as Movimiento[] | undefined) ?? base?.movimientosSemana,
   }
+}
+
+/**
+ * El objeto que se reparte en bloques. Es el negocio más `movimientosSemana`, que se guarda al
+ * lado y no adentro, pero necesita su propio documento por la misma razón que el resto: que un
+ * empleado con Cobranzas pueda leerlo sin que eso le abra los sueldos.
+ */
+function aPartir(negocio: NegocioDataUsuario | undefined, semana: Movimiento[] | undefined): Record<string, unknown> {
+  const base: Record<string, unknown> = { ...(negocio ?? {}) }
+  if (semana !== undefined) base.movimientosSemana = semana
+  return base
 }
 
 /** Lo último que se guardó de cada bloque, para no reescribir los que no cambiaron. */
@@ -139,23 +163,29 @@ export async function guardarDatosUsuario(uid: string, datos: Partial<DatosUsuar
   const api = await obtenerApi()
   if (!api) return
 
-  const { negocioData, ...resto } = datos
+  const { negocioData, movimientosSemana, ...resto } = datos
   const escrituras: Promise<unknown>[] = []
 
   if (Object.keys(resto).length > 0) {
     escrituras.push(api.setDoc(api.doc(api.db, 'users', uid), resto, { merge: true }))
   }
 
-  if (negocioData) {
-    const partido = partirNegocio(negocioData as unknown as Record<string, unknown>)
-    const cambiados = bloquesQueCambiaron(partido, ultimosBloques.get(uid) ?? null)
+  if (negocioData || movimientosSemana) {
+    const partido = partirNegocio(aPartir(negocioData, movimientosSemana))
+    // Solo se comparan los bloques que este guardado trae. Un guardado de la planilla semanal no
+    // sabe nada del negocio, y si se comparara contra el estado completo borraría los otros cuatro.
+    const previos = ultimosBloques.get(uid) ?? null
+    const alcance = BLOQUES.filter((b) => partido[b] !== undefined || previos?.[b] !== undefined)
+    const cambiados = bloquesQueCambiaron(partido, previos).filter(
+      (b) => alcance.includes(b) && partido[b] !== undefined,
+    )
     for (const bloque of cambiados) {
       escrituras.push(api.setDoc(refBloque(api, uid, bloque), partido[bloque] ?? {}))
     }
     // Se recuerda recién después de que las escrituras salieron: si fallan, el próximo intento
     // tiene que volver a mandarlas y no creer que ya están guardadas.
     await Promise.all(escrituras)
-    ultimosBloques.set(uid, partido)
+    ultimosBloques.set(uid, { ...(previos ?? {}), ...partido })
     return
   }
 
@@ -170,10 +200,14 @@ export async function guardarDatosUsuario(uid: string, datos: Partial<DatosUsuar
  * partirlo, por si algo sale mal. Limpiarlo es una tarea aparte, para otro día, cuando esto haya
  * estado un tiempo andando.
  */
-export async function migrarABloques(uid: string, negocioData: NegocioDataUsuario): Promise<void> {
+export async function migrarABloques(
+  uid: string,
+  negocioData: NegocioDataUsuario,
+  movimientosSemana?: Movimiento[],
+): Promise<void> {
   const api = await obtenerApi()
   if (!api) return
-  const partido = partirNegocio(negocioData as unknown as Record<string, unknown>)
+  const partido = partirNegocio(aPartir(negocioData, movimientosSemana))
   await Promise.all(
     BLOQUES.filter((b) => partido[b] !== undefined).map((b) => api.setDoc(refBloque(api, uid, b), partido[b] ?? {})),
   )
@@ -218,7 +252,7 @@ export function suscribirseADatosUsuario(
     // Se parte una sola vez, sin borrar el original.
     if (!hayBloques && legado && !migracionIntentada) {
       migracionIntentada = true
-      void migrarABloques(uid, legado).catch(() => {
+      void migrarABloques(uid, legado, principal?.movimientosSemana).catch(() => {
         // Si falla, se sigue mostrando el negocio del documento principal y se reintenta la
         // próxima vez que se abra la app: no se pierde nada.
       })
@@ -228,10 +262,7 @@ export function suscribirseADatosUsuario(
       onDatos(null)
       return
     }
-    onDatos({
-      ...(principal ?? {}),
-      negocioData: hayBloques ? (unirBloques(porBloque) as unknown as NegocioDataUsuario) : legado,
-    })
+    onDatos(armarDatos(principal, porBloque))
   }
 
   obtenerApi().then((api) => {

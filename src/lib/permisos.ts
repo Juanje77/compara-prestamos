@@ -10,7 +10,7 @@
 // en algo real y no en un cartelito.
 
 /** Los pedazos en los que se guarda el negocio. Cada uno es un documento aparte en Firestore. */
-export type BloqueDatos = 'comercial' | 'tesoreria' | 'sueldos' | 'impuestos' | 'negocio'
+export type BloqueDatos = 'comercial' | 'tesoreria' | 'sueldos' | 'impuestos' | 'negocio' | 'semana'
 
 export const BLOQUE_LABEL: Record<BloqueDatos, string> = {
   comercial: 'Ventas, compras y stock',
@@ -18,6 +18,7 @@ export const BLOQUE_LABEL: Record<BloqueDatos, string> = {
   sueldos: 'Sueldos y empleados',
   impuestos: 'Impuestos y datos fiscales',
   negocio: 'Números generales y patrimonio',
+  semana: 'Cobranzas y pagos de la semana',
 }
 
 /** Qué campo del negocio va en qué bloque. Lo que no esté acá no se guarda: el test lo verifica
@@ -49,6 +50,10 @@ export const CAMPOS_POR_BLOQUE: Record<BloqueDatos, string[]> = {
     'nombreNegocio',
     'actualizadoEn',
   ],
+  // El único campo que no vive adentro de negocioData: la planilla semanal de cobranzas y pagos
+  // se guarda al lado. Igual va acá, porque la razón de los bloques es la misma —es un documento
+  // aparte con su propio permiso— y tenerlo en el mismo mecanismo evita una segunda regla.
+  semana: ['movimientosSemana'],
 }
 
 /** Los módulos que el dueño le puede asignar a un empleado. Son las solapas del sistema. */
@@ -91,7 +96,7 @@ export const BLOQUES_POR_MODULO: Record<Modulo, BloqueDatos[]> = {
   puntoDeVenta: ['comercial', 'tesoreria'],
   facturacionElectronica: ['comercial', 'impuestos'],
   ingresosGastos: ['comercial'],
-  cobranzas: ['comercial', 'tesoreria', 'sueldos'],
+  cobranzas: ['comercial', 'tesoreria', 'sueldos', 'semana'],
   cuentasCorrientes: ['comercial', 'tesoreria'],
   remitos: ['comercial'],
   margenes: ['comercial', 'sueldos'],

@@ -33,6 +33,8 @@ const NEGOCIO_COMPLETO: Record<string, unknown> = {
   tasaCrecimiento: 5,
   nombreNegocio: 'Mi negocio',
   actualizadoEn: 1760000000000,
+  // No es un campo de negocioData, pero se parte con el mismo mecanismo y en su propio bloque.
+  movimientosSemana: [{ id: 'mv1' }],
 }
 
 describe('partir y unir', () => {

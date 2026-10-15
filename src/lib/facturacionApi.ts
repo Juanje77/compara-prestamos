@@ -101,7 +101,7 @@ export function darDeAltaEmisor(cuit: string, razonSocial?: string): Promise<{ e
 
 /** Datos fiscales de un CUIT, para completar el receptor de una factura sin tipearlos. */
 export function consultarCuit(cuit: string): Promise<{ contribuyente: Contribuyente | null }> {
-  return pedir(`/api/consultar-cuit?cuit=${encodeURIComponent(cuit.replace(/\D/g, ''))}`)
+  return pedir(`/api/consultar-fiscal?accion=cuit&cuit=${encodeURIComponent(cuit.replace(/\D/g, ''))}`)
 }
 
 export function emitirComprobante(payload: PayloadComprobante): Promise<ResultadoEmisionApi> {
