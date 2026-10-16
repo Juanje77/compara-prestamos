@@ -17,8 +17,10 @@ de la API fiscal ni la clave de Resend están ahí. Las del servidor sólo las v
 | `MERCADOPAGO_WEBHOOK_SECRET` | Mercado Pago → la aplicación → Webhooks → "Clave secreta" | Las notificaciones de pago se rechazan |
 | `SISTEMAS360_TOKEN` | El proveedor de la API fiscal. Es de FinCorp, no de cada cliente | No se puede emitir ni consultar CUIT |
 | `ANTHROPIC_API_KEY` | console.anthropic.com → API Keys | No anda "Leer factura" |
-| `RESEND_API_KEY` | resend.com → API Keys → Create API Key | No sale ningún mail (ver abajo) |
-| `RESEND_FROM` | Lo elegís vos, con un dominio verificado en Resend | Se usa el remitente por defecto, que Resend rechaza si el dominio no está verificado |
+| `SMTP_HOST` / `SMTP_USER` / `SMTP_PASS` | La casilla de mail que ya tengas (ver abajo) | No sale ningún mail, salvo que esté Resend |
+| `SMTP_PORT` | Opcional: 587 por defecto, 465 si el servidor pide TLS directo | Se usa 587 |
+| `MAIL_FROM` | Lo elegís vos. Si falta, se usa `SMTP_USER` | — |
+| `RESEND_API_KEY` | resend.com → API Keys (alternativa a SMTP) | — |
 | `MFA_PEPPER` | **No existe en ningún lado: lo inventás vos.** Ver abajo | El segundo factor y las invitaciones no funcionan |
 | `ADMIN_SECRET` | Lo inventás vos, igual que el pepper | No se puede asignar un plan a mano |
 
@@ -48,15 +50,46 @@ del segundo factor y las invitaciones sin aceptar dejan de valer. No se pierde n
 negocio —hay que volver a pedir el código y volver a mandar las invitaciones—, pero no es algo
 para tocar por las dudas. Guardalo donde guardes las contraseñas.
 
-## Resend
+## Los mails: SMTP o Resend
+
+Hay dos caminos y se usa el que esté configurado, con **SMTP primero**: si alguien se tomó el
+trabajo de configurar una casilla propia, es la que quiere usar.
+
+### SMTP — una casilla que ya existe
+
+Es el camino corto cuando ya hay un mail andando (el hosting, Google Workspace, Gmail). Los datos
+salen de ahí:
+
+| Variable | Dónde está |
+|---|---|
+| `SMTP_HOST` | El servidor de salida de esa casilla. Gmail y Google Workspace: `smtp.gmail.com`. En un hosting suele ser `mail.tudominio.com` y figura en el panel como "servidor SMTP" o "correo saliente" |
+| `SMTP_PORT` | 587 casi siempre. 465 solo si el panel dice "SSL/TLS" en vez de "STARTTLS" |
+| `SMTP_USER` | La dirección completa de la casilla |
+| `SMTP_PASS` | La contraseña de esa casilla |
+| `MAIL_FROM` | Cómo se ve el remitente: `FinCorp <avisos@tudominio.com.ar>` |
+
+**Con Gmail o Google Workspace la contraseña NO es la de la cuenta.** Google bloquea eso desde
+2022. Hay que tener la verificación en dos pasos activada y generar una **contraseña de
+aplicación** en myaccount.google.com → Seguridad → Contraseñas de aplicaciones: son 16 letras, y
+eso va en `SMTP_PASS`.
+
+Otra cosa de Gmail: el remitente tiene que ser **la misma casilla** (o un alias configurado en
+ella). Si ponés otra dirección, Gmail la reescribe con la real y el mail sale igual pero con el
+remitente cambiado.
+
+Ojo con el volumen: una casilla de Gmail común tiene un tope de unos cientos de mails por día.
+Para códigos de acceso e invitaciones sobra; para mandarle algo a todos los clientes, no.
+
+### Resend — cuando no hay casilla
 
 1. Crear la cuenta en resend.com.
 2. **Domains → Add Domain** con el dominio del sitio, y cargar en el DNS los registros que te da
    (son TXT y MX). Hasta que el dominio no figure verificado, Resend no manda nada.
 3. **API Keys → Create API Key** → ese valor va en `RESEND_API_KEY`.
-4. `RESEND_FROM` es la dirección desde la que salen los mails, con ese dominio. Por ejemplo:
+4. `MAIL_FROM` es la dirección desde la que salen los mails, con ese dominio. Por ejemplo:
    `FinCorp <no-responder@fincorp.com.ar>`. **Tiene que ser del dominio verificado**, no de
-   Gmail: ese es el error que más se repite.
+   Gmail: ese es el error que más se repite. (`RESEND_FROM` sigue valiendo, es como se llamaba
+   antes de que existiera el camino SMTP.)
 
 Si al cambiar de dominio se mueve el sitio, hay que verificar el nuevo en Resend — está anotado en
 [Cambiar el dominio](CAMBIAR-DE-DOMINIO.md).

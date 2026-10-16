@@ -169,10 +169,11 @@ que decirlo con todas las letras.
 
 ## Qué falta configurar
 
-`MFA_PEPPER` (el mismo del segundo factor) y `RESEND_API_KEY` / `RESEND_FROM`. Sin el pepper,
-invitar y aceptar contestan 503: no hay forma de guardar el secreto de la invitación de manera
-segura. Sin Resend, la invitación igual se crea y el endpoint devuelve el link para pasarlo a
-mano — perder el trabajo porque falló el proveedor de mail sería peor.
+`MFA_PEPPER` (el mismo del segundo factor) y el envío de mails, que puede ser por SMTP o por
+Resend — ver [Variables de entorno](VARIABLES-DE-ENTORNO.md). Sin el pepper, invitar y aceptar
+contestan 503: no hay forma de guardar el secreto de la invitación de manera segura. Sin mail, la
+invitación igual se crea y el endpoint devuelve el link para pasarlo a mano — perder el trabajo
+porque falló el proveedor de mail sería peor.
 
 ## Lo que queda afuera, a propósito
 
