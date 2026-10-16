@@ -10,7 +10,7 @@
 // - "verificar": valida el código, marca el token y —si se pidió— recuerda el dispositivo.
 import { sesionAutenticada } from './_auth.js'
 import { obtenerFirestoreAdmin } from './_firebaseAdmin.js'
-import { enviarMail, plantillaCodigo } from './_mail.js'
+import { configuracionDeMail, enviarMail, plantillaCodigo } from './_mail.js'
 import {
   VENCIMIENTO_MS,
   dispositivoConfiado,
@@ -33,6 +33,19 @@ const MENSAJES = {
   bloqueado: 'Demasiados intentos fallidos. Esperá unos minutos antes de volver a intentar.',
 }
 
+/**
+ * Si el segundo factor se puede exigir hoy. Hacen falta las DOS cosas: el pepper para guardar el
+ * código hasheado, y un transporte de mail para que el código llegue a algún lado.
+ *
+ * Que mire el mail no es cosmético. Antes alcanzaba con el pepper, y eso dejaba un estado del que
+ * no se sale: la pantalla pide un código, el servidor no lo puede mandar, y el usuario —el dueño
+ * de la cuenta incluido— se queda afuera de su propio sistema sin ninguna salida desde el
+ * navegador. Un candado que no se puede abrir no es seguridad, es una puerta tapiada.
+ */
+function disponible() {
+  return Boolean(pepper()) && configuracionDeMail().transporte !== 'ninguno'
+}
+
 function dispositivoDelPedido(req) {
   const { dispositivoId } = req.body ?? {}
   return typeof dispositivoId === 'string' && dispositivoId.length >= 16 ? dispositivoId : null
@@ -52,7 +65,7 @@ export default async function handler(req, res) {
     return
   }
 
-  if (!pepper()) {
+  if (!disponible()) {
     // Sin configurar, el segundo factor no existe. En "estado" se contesta que no hace falta, para
     // no dejar a nadie afuera por una variable que todavía no se cargó; en el resto, que no está.
     if (accion === 'estado') {
@@ -110,7 +123,12 @@ export default async function handler(req, res) {
       const codigo = generarCodigo()
       const { asunto, texto, html } = plantillaCodigo(codigo, Math.round(VENCIMIENTO_MS / 60000))
       if (!(await enviarMail({ para: sesion.email, asunto, texto, html }))) {
-        res.status(502).json({ error: 'No se pudo enviar el mail con el código. Probá de nuevo en un minuto.' })
+        // El transporte existe (lo verificó `disponible`), así que el rechazo es del servidor de
+        // mail: credenciales mal, puerto equivocado, remitente que no acepta. El mensaje nombra
+        // al transporte para que el que configuró sepa dónde mirar.
+        res.status(502).json({
+          error: `No se pudo enviar el mail con el código (${configuracionDeMail().transporte}). Probá de nuevo en un minuto.`,
+        })
         return
       }
       // Se guarda recién después de que el mail salió: si el envío falla, no queda un código vivo

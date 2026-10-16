@@ -93,3 +93,32 @@ Para códigos de acceso e invitaciones sobra; para mandarle algo a todos los cli
 
 Si al cambiar de dominio se mueve el sitio, hay que verificar el nuevo en Resend — está anotado en
 [Cambiar el dominio](CAMBIAR-DE-DOMINIO.md).
+
+## Si quedaste afuera por el segundo factor
+
+El sistema pide el código solo cuando hay **las dos cosas**: `MFA_PEPPER` y un transporte de mail
+configurado. Si falta cualquiera de las dos, no lo pide — justamente para que una variable a
+medio cargar no deje a nadie afuera.
+
+Pero si el transporte está configurado y **no anda** (contraseña equivocada, puerto mal, el
+servidor rechaza el remitente), sí se puede quedar encerrado: la pantalla pide un código que
+nunca llega, y desde el navegador no hay salida.
+
+**La salida es sacar `MFA_PEPPER` de Vercel y volver a desplegar.** Con esa variable borrada, el
+servidor contesta que el segundo factor no está configurado y se entra normalmente. Después se
+arregla el mail y se vuelve a cargar.
+
+No se pierde nada de los datos. Lo único que se pierde al borrar y volver a poner un pepper
+*distinto* son los dispositivos recordados y las invitaciones sin aceptar; si se vuelve a cargar
+**el mismo valor**, ni eso.
+
+## Probar que el mail sale, antes de encender el segundo factor
+
+Conviene en este orden:
+
+1. Cargar las variables de mail (sin `MFA_PEPPER` todavía) y desplegar.
+2. Entrar a **Negocio → Usuarios** e invitarte a vos mismo a otra dirección. Si el mail llega, el
+   transporte anda.
+3. Recién ahí cargar `MFA_PEPPER` y volver a desplegar.
+
+Al revés —el pepper primero— es como quedarse afuera.
