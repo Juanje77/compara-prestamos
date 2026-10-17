@@ -6,6 +6,7 @@ import { ETIQUETA_PROMOCION, PRECIOS, porcentajeDescuento } from '../lib/precios
 import type { LucideIcon } from 'lucide-react'
 import {
   ArrowRight,
+  Banknote,
   BarChart3,
   Bell,
   BookOpen,
@@ -13,8 +14,10 @@ import {
   Calculator,
   CalendarCheck2,
   Check,
+  CloudUpload,
   CreditCard,
   FileSpreadsheet,
+  FileText,
   HardHat,
   Inbox,
   Landmark,
@@ -22,7 +25,10 @@ import {
   Package,
   Receipt,
   Ruler,
+  ScanLine,
+  ShoppingCart,
   Target,
+  UserCog,
   Users,
   Wallet,
   Workflow,
@@ -66,12 +72,13 @@ const FEATURES_BASICO: Feature[] = [
   { icon: Landmark, titulo: 'Cuentas bancarias y deudas', texto: 'Cargá el saldo de cada cuenta y tus deudas pendientes, con un indicador de endeudamiento.' },
   { icon: BarChart3, titulo: 'Indicadores clave', texto: 'Margen operativo, runway de caja, punto de equilibrio y endeudamiento, con semáforo y explicación de cada uno.' },
   { icon: LineChart, titulo: 'Flujo de caja proyectado', texto: 'Proyección de tu saldo mes a mes, con alerta si te vas a quedar sin caja.' },
-  { icon: CalendarCheck2, titulo: 'Cobranzas y pagos semanales', texto: 'Organizá qué cobrás y pagás cada una de las próximas 4 semanas, con progreso.' },
+  { icon: CalendarCheck2, titulo: 'Cobranzas y pagos semanales', texto: 'Qué cobrás y qué pagás en las próximas 4 semanas, arrancando desde la caja que tenés hoy: sumás los cheques y lo que te deben los clientes, restás lo que vas a pagar, y el saldo de cada semana arranca donde terminó la anterior.' },
   { icon: FileSpreadsheet, titulo: 'Informe y Excel', texto: 'Importá tus cuentas a cobrar desde Excel y descargá un informe financiero con gráficos, listo para imprimir.' },
 ]
 
 const FEATURES_MEDIO: Feature[] = [
   { icon: Inbox, titulo: 'Comprobantes', texto: 'Cargá cada factura emitida y recibida, o importalas desde ARCA, y mirá ventas, compras, margen e IVA discriminado. Con eso, Clientes, Proveedores y Monotributo dejan de depender de la carga diaria.' },
+  { icon: ScanLine, titulo: 'Leer factura con una foto', texto: 'Sacale una foto a la factura de tu proveedor y se carga sola: fecha, CUIT, neto e IVA. El CUIT se confirma contra el padrón de ARCA y vos revisás antes de guardar.' },
   { icon: Target, titulo: 'Presupuesto vs. Real', texto: 'Comparás lo presupuestado contra lo que realmente gastaste, con el desvío por categoría y comentarios automáticos.' },
   { icon: BarChart3, titulo: 'Proyección con escenarios', texto: 'Sumá una tasa de crecimiento mensual esperada, con escenarios optimista y pesimista, no solo lineal.' },
   { icon: Bell, titulo: 'Alertas y recomendaciones', texto: 'Avisos si tu caja se agota, una deuda está por vencer, o tu margen se pone negativo, con qué hacer al respecto.' },
@@ -84,9 +91,34 @@ const FEATURES_FULL: Feature[] = [
   { icon: HardHat, titulo: 'Sueldos y cargas sociales', texto: 'Cargá cada empleado con su sueldo bruto y las cargas sociales a cargo de la empresa, con aguinaldo automático y el costo repartido por sector.' },
   { icon: BookOpen, titulo: 'Cuentas corrientes', texto: 'Saldo por cliente y proveedor, con pagos parciales que se van imputando solos a la factura más antigua.' },
   { icon: Ruler, titulo: 'Márgenes por sector', texto: 'Cuánto deja realmente cada división de tu negocio, con el costo de la mano de obra repartido por porcentaje entre las tareas de cada empleado.' },
+  { icon: ShoppingCart, titulo: 'Punto de venta', texto: 'Cobrás en el mostrador eligiendo productos del catálogo: descuenta el stock, registra la venta y deja la plata en la cuenta que indiques, en una sola pantalla.' },
+  { icon: FileText, titulo: 'Remitos y presupuestos', texto: 'Armás el presupuesto, lo mandás, y cuando te lo aprueban se convierte en factura sin volver a cargar nada.' },
+  { icon: Banknote, titulo: 'Tesorería', texto: 'Todos los movimientos de caja y bancos en un solo lugar, con el saldo real de cada cuenta al día.' },
   { icon: Package, titulo: 'Stock', texto: 'Catálogo de productos con costo y precio, movimientos de entrada y salida, y aviso cuando algo baja del mínimo.' },
   { icon: CreditCard, titulo: 'Gestión de cheques', texto: 'Vinculados a tus facturas y cuentas corrientes, para armar tu balance contable sin cargar todo dos veces.' },
   { icon: Workflow, titulo: 'Todo integrado', texto: 'Un sistema de uso diario: cada cheque, sueldo o anticipo que cargás actualiza solo tus indicadores de CFO, sin pasos extra.' },
+]
+
+/** Lo que no pertenece a un plan sino a todos: el equipo y el resguardo de los datos. Va en su
+ * propia sección porque no entra en la lógica de "cada plan incluye el anterior" y porque son las
+ * dos preguntas que hace cualquiera que piensa en serio en mudar su administración a un sistema:
+ * quién más lo va a usar, y qué pasa si se pierde todo. */
+const FEATURES_EQUIPO: Feature[] = [
+  {
+    icon: UserCog,
+    titulo: 'Un usuario para cada persona de tu equipo',
+    texto: 'Creás el usuario de cada empleado y le asignás solo las pantallas que necesita. El que carga comprobantes no ve los sueldos, y entra con su propio mail y su propia contraseña: nadie comparte la tuya.',
+  },
+  {
+    icon: Users,
+    titulo: 'Permisos de verdad, no pantallas escondidas',
+    texto: 'Lo que no le asignás no lo puede ver, aunque sepa programar: los datos están separados y el permiso se controla en el servidor, no en la pantalla. Y al asignar te avisamos qué está incluido en cada módulo.',
+  },
+  {
+    icon: CloudUpload,
+    titulo: 'Copia de seguridad todos los días',
+    texto: 'Guardamos una copia diaria de tu negocio y podés pedir una cuando quieras, antes de tocar algo importante. Si conectás tu Google Drive, la copia también queda en una carpeta tuya, que seguís teniendo aunque te des de baja.',
+  },
 ]
 
 function Eyebrow({ children }: { children: ReactNode }) {
@@ -278,8 +310,8 @@ export function HomePage() {
           <p className="mt-6 max-w-lg text-base sm:text-lg" style={{ color: C.stone, lineHeight: 1.65 }}>
             Comparás préstamos de los principales bancos argentinos, gestionás las finanzas de tu empresa —
             cuentas, flujo de caja, cobranzas, sueldos, impuestos— emitís tus facturas con CAE, y ponés a
-            trabajar la plata que te sobra. Todo en un solo lugar y con explicaciones simples de cada
-            indicador.
+            trabajar la plata que te sobra. Cada persona de tu equipo entra con su usuario y ve solo lo
+            suyo. Todo en un solo lugar y con explicaciones simples de cada indicador.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <PillButton to="/empresas" variante="primario">
@@ -328,7 +360,8 @@ export function HomePage() {
           <p className="mt-3 text-sm" style={{ color: C.stone, lineHeight: 1.6 }}>
             Un dashboard financiero para tu negocio: cuentas bancarias, deudas, indicadores clave, flujo de
             caja proyectado y un organizador semanal de cobranzas y pagos. En el plan Full, además, liquidás
-            sueldos y emitís tus facturas con CAE sin salir de acá.
+            sueldos, manejás el stock y emitís tus facturas con CAE sin salir de acá. Con un usuario para
+            cada persona de tu equipo.
           </p>
           <p className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: C.cobalt }}>
             <Check size={14} aria-hidden="true" /> 15 días gratis y después elegís tu plan
@@ -516,6 +549,26 @@ export function HomePage() {
           Tesorería queda al día sola.
         </p>
       </div>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Equipo y resguardo — en todos los planes */}
+      {/* ------------------------------------------------------------------ */}
+      <section className="mb-10">
+        <Eyebrow>En todos los planes</Eyebrow>
+        <h3 className="mt-2 text-2xl font-normal sm:text-3xl" style={{ ...serif, color: C.navy }}>
+          Tu equipo adentro, y <Accent>tus datos a salvo</Accent>
+        </h3>
+        <p className="mt-4 max-w-2xl text-base" style={{ color: C.stone, lineHeight: 1.65 }}>
+          Las dos preguntas que aparecen cuando uno piensa en serio en mudar la administración a un
+          sistema: quién más lo va a usar, y qué pasa si un día se pierde todo.
+        </p>
+      </section>
+
+      <section className="mb-24 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {FEATURES_EQUIPO.map((f) => (
+          <FeatureCard key={f.titulo} f={f} acento={f.titulo === 'Permisos de verdad, no pantallas escondidas'} />
+        ))}
+      </section>
 
       {/* ------------------------------------------------------------------ */}
       {/* Cierre */}
