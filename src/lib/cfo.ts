@@ -2306,6 +2306,44 @@ export interface TendenciaMensual {
   margenPct: number
 }
 
+/**
+ * Los años que tienen comprobantes cargados, del más nuevo al más viejo, con el año en curso
+ * siempre presente aunque todavía no se haya cargado nada: es el que va a querer mirar quien
+ * recién empieza, y una lista que no lo incluye parece rota.
+ */
+export function aniosConComprobantes(facturas: Factura[], hoy: Date = new Date()): number[] {
+  const anios = new Set<number>([hoy.getFullYear()])
+  for (const f of facturas) {
+    const anio = Number(f.fecha.slice(0, 4))
+    if (Number.isFinite(anio) && anio > 1990) anios.add(anio)
+  }
+  return [...anios].sort((a, b) => b - a)
+}
+
+/** Los comprobantes de un año calendario exacto — del 1 de enero al 31 de diciembre. */
+export function facturasDelAnio(facturas: Factura[], anio: number): Factura[] {
+  const desde = `${anio}-01-01`
+  const hasta = `${anio}-12-31`
+  return facturas.filter((f) => f.fecha >= desde && f.fecha <= hasta)
+}
+
+/**
+ * La evolución de un año completo: SIEMPRE doce filas, de enero a diciembre, incluso los meses sin
+ * un solo comprobante.
+ *
+ * Que estén los doce no es un detalle de presentación. Un resumen que muestra solo los meses con
+ * movimiento esconde justo lo que hay que ver —el mes en el que no se facturó nada— y además hace
+ * que dos años se vean distintos por tener distinta cantidad de filas, cuando la gracia de fijar
+ * el período en un año exacto es poder compararlos.
+ */
+export function calcularTendenciaAnual(facturas: Factura[], anio: number): TendenciaMensual[] {
+  const porMes = new Map(calcularTendenciaMensual(facturasDelAnio(facturas, anio)).map((r) => [r.mes, r]))
+  return Array.from({ length: 12 }, (_, i) => {
+    const mes = `${anio}-${String(i + 1).padStart(2, '0')}`
+    return porMes.get(mes) ?? { mes, ventasNetas: 0, comprasNetas: 0, margenPct: 0 }
+  })
+}
+
 /** Igual que calcularResumenMensual, sumando el margen (%) de cada mes por separado — para ver la
  * tendencia mes a mes, no solo el total acumulado del período (ver calcularMargenBrutoTotal). */
 export function calcularTendenciaMensual(facturas: Factura[]): TendenciaMensual[] {

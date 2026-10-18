@@ -24,7 +24,9 @@ import {
   calcularMargenBrutoTotal,
   calcularMontoDesdeLineas,
   calcularRanking,
-  calcularTendenciaMensual,
+  calcularTendenciaAnual,
+  aniosConComprobantes,
+  facturasDelAnio,
   ivaConSigno,
   montoConSigno,
   montoNetoConSigno,
@@ -177,10 +179,23 @@ export function Facturas({ facturas, pagos = [], cuentas, cuentaPorFactura = {},
   const [mensajeImport, setMensajeImport] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const [plazoDias, setPlazoDias] = useState(30)
 
-  const resumenMensual = useMemo(() => calcularTendenciaMensual(facturas), [facturas])
-  const rankingClientes = useMemo(() => calcularRanking(facturas, 'emitida'), [facturas])
-  const rankingProveedores = useMemo(() => calcularRanking(facturas, 'recibida'), [facturas])
-  const margenTotal = useMemo(() => calcularMargenBrutoTotal(facturas), [facturas])
+  // El resumen mira un año calendario exacto, no todo lo cargado. "El período" sin fecha de corte
+  // crecía con cada comprobante: el margen del año pasado se mezclaba con el de este y dos años
+  // nunca se podían comparar. El listado de abajo, en cambio, sigue mostrando todo — buscar una
+  // factura vieja es otra cosa que medir un año.
+  const aniosDisponibles = useMemo(() => aniosConComprobantes(facturas), [facturas])
+  const [anio, setAnio] = useState(() => new Date().getFullYear())
+  // Si el año elegido deja de existir (se borraron esos comprobantes, o se importó un archivo de
+  // otros años), se cae al más reciente en vez de mostrar un año vacío sin explicación.
+  const anioElegido = aniosDisponibles.includes(anio) ? anio : (aniosDisponibles[0] ?? anio)
+  const facturasAnio = useMemo(() => facturasDelAnio(facturas, anioElegido), [facturas, anioElegido])
+
+  const resumenMensual = useMemo(() => calcularTendenciaAnual(facturas, anioElegido), [facturas, anioElegido])
+  const rankingClientes = useMemo(() => calcularRanking(facturasAnio, 'emitida'), [facturasAnio])
+  const rankingProveedores = useMemo(() => calcularRanking(facturasAnio, 'recibida'), [facturasAnio])
+  const margenTotal = useMemo(() => calcularMargenBrutoTotal(facturasAnio), [facturasAnio])
+  // Cobro y pago salen de TODO lo cargado a propósito: miden lo que está pendiente hoy, y lo que
+  // quedó sin cobrar de un año anterior sigue sin cobrarse hoy. Acotarlos al año lo escondería.
   const indicadoresCobroPago = useMemo(() => calcularDSOyDPO(facturas, pagos), [facturas, pagos])
   const aging = useMemo(() => calcularAgingCuentas(facturas, pagos), [facturas, pagos])
   const ivaTotales = useMemo(() => {
@@ -188,7 +203,7 @@ export function Facturas({ facturas, pagos = [], cuentas, cuentaPorFactura = {},
     let ivaVentas = 0
     let netoCompras = 0
     let ivaCompras = 0
-    for (const f of facturas) {
+    for (const f of facturasAnio) {
       if (f.tipo === 'emitida') {
         netoVentas += montoNetoConSigno(f)
         ivaVentas += ivaConSigno(f)
@@ -198,7 +213,7 @@ export function Facturas({ facturas, pagos = [], cuentas, cuentaPorFactura = {},
       }
     }
     return { netoVentas, ivaVentas, netoCompras, ivaCompras }
-  }, [facturas])
+  }, [facturasAnio])
 
   const busquedaNormalizada = busqueda.trim().toLowerCase()
   const listado = facturas
@@ -674,10 +689,40 @@ export function Facturas({ facturas, pagos = [], cuentas, cuentaPorFactura = {},
         </p>
       ) : (
         <>
+          <section className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                Resumen de {anioElegido}
+              </h3>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                Del 1 de enero al 31 de diciembre. El listado de comprobantes de más abajo sigue
+                mostrando todos los años.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Año del resumen">
+              {aniosDisponibles.map((a) => (
+                <button
+                  key={a}
+                  type="button"
+                  onClick={() => setAnio(a)}
+                  aria-pressed={a === anioElegido}
+                  className="tabular rounded-full border px-3 py-1 text-sm font-medium transition-colors"
+                  style={
+                    a === anioElegido
+                      ? { background: 'var(--series-blue)', borderColor: 'var(--series-blue)', color: '#fff' }
+                      : { borderColor: 'var(--border)', color: 'var(--text-secondary)', background: 'var(--surface-1)' }
+                  }
+                >
+                  {a}
+                </button>
+              ))}
+            </div>
+          </section>
+
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <Card padding="sm">
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                Ventas netas del período
+                Ventas netas de {anioElegido}
               </p>
               <p className="tabular text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
                 {formatoMoneda(margenTotal.ventasNetas)}
@@ -688,7 +733,7 @@ export function Facturas({ facturas, pagos = [], cuentas, cuentaPorFactura = {},
             </Card>
             <Card padding="sm">
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                Compras netas del período
+                Compras netas de {anioElegido}
               </p>
               <p className="tabular text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
                 {formatoMoneda(margenTotal.comprasNetas)}
@@ -699,7 +744,7 @@ export function Facturas({ facturas, pagos = [], cuentas, cuentaPorFactura = {},
             </Card>
             <Card padding="sm">
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                Margen bruto del período
+                Margen bruto de {anioElegido}
               </p>
               <p
                 className="tabular text-lg font-semibold"
@@ -713,7 +758,7 @@ export function Facturas({ facturas, pagos = [], cuentas, cuentaPorFactura = {},
           {margenTotal.margenBruto < 0 && (
             <p className="inline-flex items-start gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
               <AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
-              Compraste más de lo que facturaste en el período. Esto no implica necesariamente un quiebre de
+              En {anioElegido} compraste más de lo que facturaste. Esto no implica necesariamente un quiebre de
               caja: si cargaste esas compras con la cantidad de cuotas en las que las estás pagando, el
               Dashboard ya reparte el impacto real mes a mes en vez de contarlo todo de una vez — mirá el
               runway y la proyección de caja para tu situación real.
@@ -826,11 +871,12 @@ export function Facturas({ facturas, pagos = [], cuentas, cuentaPorFactura = {},
 
           <Card as="section">
             <h3 className="mb-1 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-              Ventas y compras netas por mes
+              Ventas y compras netas, mes a mes
             </h3>
             <p className="mb-3 text-xs" style={{ color: 'var(--text-muted)' }}>
-              Solo para ver la evolución — el margen bruto real (arriba) se calcula sobre el total del período,
-              no mes a mes, porque una compra y la venta que genera no siempre caen en el mismo mes.
+              Los doce meses de {anioElegido}, incluso los que no tuvieron movimiento. Solo para ver la
+              evolución — el margen bruto real (arriba) se calcula sobre el total del año, no mes a mes,
+              porque una compra y la venta que genera no siempre caen en el mismo mes.
             </p>
 
             {resumenMensual.length > 1 && (

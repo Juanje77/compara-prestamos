@@ -68,7 +68,10 @@ export function Monotributo({ facturas, datos, onCambiar }: Props) {
 
   const cambiar = (cambios: Partial<DatosMonotributo>) => onCambiar({ ...datos, ...cambios })
   const campo = { borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }
-  const cuota = encuadre.categoria ? cuotaMensual(encuadre.categoria, datos.actividad) : null
+  // Qué componentes aporta. Lo que no está guardado se toma como que sí aporta, para no cambiarle
+  // la cuota a quien ya la venía viendo (ver ComponentesCuota en lib/monotributo.ts).
+  const componentes = { aportaSipa: datos.aportaSipa !== false, aportaObraSocial: datos.aportaObraSocial !== false }
+  const cuota = encuadre.categoria ? cuotaMensual(encuadre.categoria, datos.actividad, componentes) : null
 
   return (
     <div className="space-y-6">
@@ -104,6 +107,38 @@ export function Monotributo({ facturas, datos, onCambiar }: Props) {
               {ACTIVIDAD_MONOTRIBUTO_LABEL[a]}
             </button>
           ))}
+        </div>
+
+        <div className="mb-4 rounded-lg border p-3" style={{ borderColor: 'var(--border)' }}>
+          <p className="mb-1 text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
+            Aportes que ingresás con la cuota
+          </p>
+          <p className="mb-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+            Destildá lo que no pagues. Es el caso del que además trabaja en relación de dependencia, del
+            jubilado, del que ya aporta como autónomo por otra actividad y del locador de bienes: esos
+            pagan solo el impuesto integrado. El impuesto integrado no se puede sacar, lo paga todo el
+            mundo.
+          </p>
+          <div className="flex flex-wrap gap-4">
+            <label className="flex cursor-pointer items-center gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+              <input
+                type="checkbox"
+                name="aportaSipa"
+                checked={componentes.aportaSipa}
+                onChange={(e) => cambiar({ aportaSipa: e.target.checked })}
+              />
+              Jubilación (SIPA)
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+              <input
+                type="checkbox"
+                name="aportaObraSocial"
+                checked={componentes.aportaObraSocial}
+                onChange={(e) => cambiar({ aportaObraSocial: e.target.checked })}
+              />
+              Obra social
+            </label>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -208,10 +243,22 @@ export function Monotributo({ facturas, datos, onCambiar }: Props) {
                 {formatoMoneda(cuota ?? 0)}
               </p>
               <p className="mt-0.5 text-xs" style={{ color: 'var(--text-muted)' }}>
-                Impuesto {formatoMoneda(encuadre.categoria.impuestoIntegrado[datos.actividad])} + jubilación{' '}
-                {formatoMoneda(encuadre.categoria.aportesSipa)} + obra social{' '}
-                {formatoMoneda(encuadre.categoria.aportesObraSocial)}
+                {[
+                  `Impuesto ${formatoMoneda(encuadre.categoria.impuestoIntegrado[datos.actividad])}`,
+                  componentes.aportaSipa ? `jubilación ${formatoMoneda(encuadre.categoria.aportesSipa)}` : null,
+                  componentes.aportaObraSocial
+                    ? `obra social ${formatoMoneda(encuadre.categoria.aportesObraSocial)}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(' + ')}
               </p>
+              {(!componentes.aportaSipa || !componentes.aportaObraSocial) && (
+                <p className="mt-0.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                  Sin {[!componentes.aportaSipa ? 'jubilación' : null, !componentes.aportaObraSocial ? 'obra social' : null].filter(Boolean).join(' ni ')},
+                  según lo que marcaste arriba.
+                </p>
+              )}
             </Card>
             <Card padding="sm">
               <p className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
@@ -327,7 +374,7 @@ export function Monotributo({ facturas, datos, onCambiar }: Props) {
                     <td className="tabular py-1.5 text-right">{c.superficieM2} m²</td>
                     <td className="tabular py-1.5 text-right">{c.energiaKw.toLocaleString('es-AR')} kW</td>
                     <td className="tabular py-1.5 text-right">{formatoMoneda(c.alquileres)}</td>
-                    <td className="tabular py-1.5 text-right">{formatoMoneda(cuotaMensual(c, datos.actividad))}</td>
+                    <td className="tabular py-1.5 text-right">{formatoMoneda(cuotaMensual(c, datos.actividad, componentes))}</td>
                   </tr>
                 )
               })}

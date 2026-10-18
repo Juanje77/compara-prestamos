@@ -196,3 +196,37 @@ describe('precio unitario máximo', () => {
     expect(PRECIO_UNITARIO_MAXIMO).toBe(716840.77)
   })
 })
+
+describe('los componentes de la cuota', () => {
+  const b = TABLA_MONOTRIBUTO.find((c) => c.id === 'B')!
+
+  it('por defecto cobra los tres componentes, como antes de que esto existiera', () => {
+    // Lo guardado antes no trae las marcas: su cuota no puede cambiar de un día para el otro.
+    expect(cuotaMensual(b, 'servicios')).toBe(b.impuestoIntegrado.servicios + b.aportesSipa + b.aportesObraSocial)
+    expect(cuotaMensual(b, 'servicios', {})).toBe(cuotaMensual(b, 'servicios'))
+  })
+
+  it('el que no aporta jubilación ni obra social paga solo el impuesto integrado', () => {
+    // Relación de dependencia, jubilado, autónomo por otra actividad, locador de bienes.
+    expect(cuotaMensual(b, 'servicios', { aportaSipa: false, aportaObraSocial: false })).toBe(
+      b.impuestoIntegrado.servicios,
+    )
+  })
+
+  it('se pueden sacar por separado', () => {
+    expect(cuotaMensual(b, 'servicios', { aportaSipa: false })).toBe(
+      b.impuestoIntegrado.servicios + b.aportesObraSocial,
+    )
+    expect(cuotaMensual(b, 'servicios', { aportaObraSocial: false })).toBe(
+      b.impuestoIntegrado.servicios + b.aportesSipa,
+    )
+  })
+
+  it('true explícito es lo mismo que no decir nada', () => {
+    expect(cuotaMensual(b, 'muebles', { aportaSipa: true, aportaObraSocial: true })).toBe(cuotaMensual(b, 'muebles'))
+  })
+
+  it('el impuesto integrado nunca se saca: no es optativo', () => {
+    expect(cuotaMensual(b, 'muebles', { aportaSipa: false, aportaObraSocial: false })).toBeGreaterThan(0)
+  })
+})

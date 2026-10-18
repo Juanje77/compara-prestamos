@@ -55,9 +55,36 @@ export const TABLA_MONOTRIBUTO: CategoriaMonotributo[] = [
   { id: 'K', ingresosBrutos: 126610838.75, superficieM2: 200, energiaKw: 20000, alquileres: 8378658.45, impuestoIntegrado: { servicios: 1368514.2, muebles: 456171.4 }, aportesSipa: 158049.02, aportesObraSocial: 87882.82 },
 ]
 
-/** La cuota mensual completa: impuesto integrado de la actividad + jubilación + obra social. */
-export function cuotaMensual(categoria: CategoriaMonotributo, actividad: ActividadMonotributo): number {
-  return categoria.impuestoIntegrado[actividad] + categoria.aportesSipa + categoria.aportesObraSocial
+/**
+ * Qué componentes de la cuota aporta este contribuyente.
+ *
+ * No todos pagan los tres. El que además trabaja en relación de dependencia, el jubilado, el que
+ * ya aporta como autónomo por otra actividad y el locador de bienes no ingresan las cotizaciones
+ * previsionales: pagan solo el impuesto integrado. Y hay casos que pagan uno y no el otro, por eso
+ * son dos marcas y no una sola.
+ *
+ * `undefined` significa que aporta: así, lo que ya estaba guardado antes de que esto existiera
+ * sigue calculando la cuota completa, que es lo que esos usuarios están viendo hoy.
+ */
+export interface ComponentesCuota {
+  aportaSipa?: boolean
+  aportaObraSocial?: boolean
+}
+
+/**
+ * La cuota mensual: impuesto integrado de la actividad, más las cotizaciones que correspondan.
+ *
+ * El impuesto integrado no es optativo: lo paga todo el mundo. Lo que puede no corresponder son
+ * los aportes a la jubilación (SIPA) y a la obra social.
+ */
+export function cuotaMensual(
+  categoria: CategoriaMonotributo,
+  actividad: ActividadMonotributo,
+  componentes: ComponentesCuota = {},
+): number {
+  const sipa = componentes.aportaSipa === false ? 0 : categoria.aportesSipa
+  const obraSocial = componentes.aportaObraSocial === false ? 0 : categoria.aportesObraSocial
+  return categoria.impuestoIntegrado[actividad] + sipa + obraSocial
 }
 
 /** Los parámetros que miden la actividad de los últimos 12 meses. Superficie, energía y alquileres
@@ -213,6 +240,9 @@ export interface DatosMonotributo {
   alquileres?: number
   /** Si se carga, reemplaza al total que sale de los comprobantes. */
   ingresosManual?: number
+  /** Ver ComponentesCuota. Ausente = aporta, para no cambiarle la cuota a quien ya la tenía. */
+  aportaSipa?: boolean
+  aportaObraSocial?: boolean
 }
 
 export const DATOS_MONOTRIBUTO_VACIOS: DatosMonotributo = { actividad: 'servicios' }
