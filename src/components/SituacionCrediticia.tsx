@@ -95,6 +95,7 @@ export function SituacionCrediticia() {
         <input
           type="text"
           inputMode="numeric"
+          aria-label="CUIT o CUIL a consultar"
           placeholder="20-12345678-9"
           value={formatearCuit(input)}
           onChange={(e) => setInput(e.target.value)}

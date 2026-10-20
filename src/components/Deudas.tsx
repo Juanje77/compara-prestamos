@@ -44,6 +44,7 @@ export function Deudas({ deudas, onAgregar, onEliminar }: Props) {
       <form onSubmit={handleSubmit} className="mb-4 flex flex-wrap gap-2">
         <input
           type="text"
+          aria-label="Concepto de la deuda"
           placeholder="Concepto (ej: Préstamo Banco Nación)"
           value={concepto}
           onChange={(e) => setConcepto(e.target.value)}
@@ -51,6 +52,7 @@ export function Deudas({ deudas, onAgregar, onEliminar }: Props) {
           style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
         />
         <InputMoneda
+          aria-label="Monto adeudado"
           placeholder="Monto adeudado"
           value={montoAdeudado}
           onChange={setMontoAdeudado}
@@ -58,6 +60,7 @@ export function Deudas({ deudas, onAgregar, onEliminar }: Props) {
           style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
         />
         <InputMoneda
+          aria-label="Cuota mensual de la deuda"
           placeholder="Cuota mensual"
           value={cuotaMensual}
           onChange={setCuotaMensual}

@@ -8,6 +8,10 @@ interface Props {
   placeholder?: string
   id?: string
   title?: string
+  /** Para los casos en los que el campo no tiene un <label> visible y se guía solo por el
+   * placeholder: un placeholder no es una etiqueta — desaparece al escribir y los lectores de
+   * pantalla no lo anuncian como nombre del campo. */
+  'aria-label'?: string
 }
 
 function formatear(n: number): string {
@@ -28,7 +32,7 @@ function limpiarYParsear(texto: string): number {
  * y se reformatea prolijo recién al perder el foco. Un valor de 0 se muestra vacío, para no
  * confundir un campo recién agregado con uno que ya tiene "$0" cargado a propósito.
  */
-export function InputMoneda({ value, onChange, className, style, placeholder, id, title }: Props) {
+export function InputMoneda({ value, onChange, className, style, placeholder, id, title, 'aria-label': ariaLabel }: Props) {
   const [texto, setTexto] = useState(() => formatear(value))
   const enfocadoRef = useRef(false)
 
@@ -42,6 +46,7 @@ export function InputMoneda({ value, onChange, className, style, placeholder, id
       inputMode="decimal"
       id={id}
       title={title}
+      aria-label={ariaLabel}
       placeholder={placeholder}
       value={texto}
       onFocus={() => {

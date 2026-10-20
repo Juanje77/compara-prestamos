@@ -2167,6 +2167,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso }: Props) {
           <div className="mb-8 flex flex-wrap items-center justify-end gap-3">
             <input
               type="text"
+              aria-label="Nombre del negocio, para el informe"
               placeholder="Nombre del negocio (para el informe)"
               value={nombreNegocio}
               onChange={(e) => setNombreNegocio(e.target.value)}
