@@ -203,7 +203,38 @@ function FeatureCard({ f, acento }: { f: Feature; acento?: boolean }) {
   )
 }
 
-function DashboardCard({ src, alt, rotar }: { src: string; alt: string; rotar?: 'left' | 'right' }) {
+/** El tamaño real de cada captura, para declararlo en el <img>. Sin width/height el navegador no
+ * sabe cuánto alto reservar y el texto de abajo salta cuando la imagen termina de bajar. */
+const CAPTURAS: Record<string, { ancho: number; alto: number }> = {
+  'landing-dashboard-empresas': { ancho: 1192, alto: 620 },
+  'landing-cobranzas-pagos': { ancho: 1088, alto: 760 },
+  'landing-comprobantes': { ancho: 1108, alto: 460 },
+  'landing-presupuesto-real': { ancho: 1088, alto: 620 },
+  'landing-facturacion-electronica': { ancho: 1088, alto: 800 },
+  'landing-sueldos': { ancho: 1088, alto: 1350 },
+}
+
+/**
+ * Una captura de la app, con su marco.
+ *
+ * `nombre` es el archivo sin extensión: hay un .webp y un .png de cada uno, y el navegador elige.
+ * El WebP pesa la mitad; el PNG queda como respaldo para el que no lo soporte.
+ *
+ * Todas cargan en diferido salvo la del hero (`prioritaria`), que es la única que se ve sin
+ * scrollear: ponerla en diferido retrasaría justo la imagen que define la primera impresión.
+ */
+function DashboardCard({
+  nombre,
+  alt,
+  rotar,
+  prioritaria = false,
+}: {
+  nombre: keyof typeof CAPTURAS
+  alt: string
+  rotar?: 'left' | 'right'
+  prioritaria?: boolean
+}) {
+  const { ancho, alto } = CAPTURAS[nombre]
   return (
     <div className="relative">
       {rotar && (
@@ -220,7 +251,19 @@ function DashboardCard({ src, alt, rotar }: { src: string; alt: string; rotar?: 
         className="relative overflow-hidden rounded-2xl"
         style={{ background: C.paper, boxShadow: '0 4px 24px rgba(12, 23, 84, 0.12)' }}
       >
-        <img src={src} alt={alt} className="w-full" />
+        <picture>
+          <source srcSet={`/${nombre}.webp`} type="image/webp" />
+          <img
+            src={`/${nombre}.png`}
+            alt={alt}
+            width={ancho}
+            height={alto}
+            loading={prioritaria ? 'eager' : 'lazy'}
+            decoding={prioritaria ? 'sync' : 'async'}
+            fetchPriority={prioritaria ? 'high' : undefined}
+            className="h-auto w-full"
+          />
+        </picture>
       </div>
     </div>
   )
@@ -325,7 +368,7 @@ export function HomePage() {
             Probá el plan Full 15 días gratis, sin tarjeta
           </p>
         </div>
-        <DashboardCard src="/landing-dashboard-empresas.png" alt="Dashboard financiero de FinCorp para empresas" rotar="left" />
+        <DashboardCard nombre="landing-dashboard-empresas" alt="Dashboard financiero de FinCorp para empresas" rotar="left" prioritaria />
       </section>
 
       {/* ------------------------------------------------------------------ */}
@@ -492,8 +535,8 @@ export function HomePage() {
       </section>
 
       <div className="mb-24 grid grid-cols-1 gap-8 lg:grid-cols-2">
-        <DashboardCard src="/landing-dashboard-empresas.png" alt="Dashboard financiero de FinCorp para empresas" />
-        <DashboardCard src="/landing-cobranzas-pagos.png" alt="Organizador semanal de cobranzas y pagos de FinCorp" />
+        <DashboardCard nombre="landing-dashboard-empresas" alt="Dashboard financiero de FinCorp para empresas" />
+        <DashboardCard nombre="landing-cobranzas-pagos" alt="Organizador semanal de cobranzas y pagos de FinCorp" />
       </div>
 
       {/* ------------------------------------------------------------------ */}
@@ -513,8 +556,8 @@ export function HomePage() {
       </section>
 
       <div className="mb-24 grid grid-cols-1 gap-8 lg:grid-cols-2">
-        <DashboardCard src="/landing-comprobantes.png" alt="Comprobantes en FinCorp Medio: indicadores de cobro y pago, ventas y compras netas por mes" />
-        <DashboardCard src="/landing-presupuesto-real.png" alt="Presupuesto vs Real en FinCorp Medio" />
+        <DashboardCard nombre="landing-comprobantes" alt="Comprobantes en FinCorp Medio: indicadores de cobro y pago, ventas y compras netas por mes" />
+        <DashboardCard nombre="landing-presupuesto-real" alt="Presupuesto vs Real en FinCorp Medio" />
       </div>
 
       {/* ------------------------------------------------------------------ */}
@@ -534,7 +577,7 @@ export function HomePage() {
       </section>
 
       <div className="mb-10">
-        <DashboardCard src="/landing-facturacion-electronica.png" alt="Circuito de habilitación para facturar electrónicamente en FinCorp, con los comandos ya armados con el CUIT del contribuyente" />
+        <DashboardCard nombre="landing-facturacion-electronica" alt="Circuito de habilitación para facturar electrónicamente en FinCorp, con los comandos ya armados con el CUIT del contribuyente" />
         <p className="mx-auto mt-4 max-w-2xl text-center text-sm" style={{ color: C.stone, lineHeight: 1.6 }}>
           El trámite ante ARCA se hace una sola vez y es el que más gente traba. Cada etapa viene con sus
           pasos, los comandos ya armados con tu CUIT, y el aviso de dónde se equivoca todo el mundo.
@@ -542,7 +585,7 @@ export function HomePage() {
       </div>
 
       <div className="mb-24">
-        <DashboardCard src="/landing-sueldos.png" alt="Módulo de sueldos de FinCorp: nómina vigente, costo para la empresa, reparto por sector y pago de sueldos y cargas sociales" />
+        <DashboardCard nombre="landing-sueldos" alt="Módulo de sueldos de FinCorp: nómina vigente, costo para la empresa, reparto por sector y pago de sueldos y cargas sociales" />
         <p className="mx-auto mt-4 max-w-2xl text-center text-sm" style={{ color: C.stone, lineHeight: 1.6 }}>
           Cargá cada empleado con su sueldo bruto y las cargas sociales a cargo de la empresa, repartí el
           costo por sector si hace varias tareas, y lo que pagás sale de la cuenta que elijas — así

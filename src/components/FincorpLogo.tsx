@@ -8,7 +8,10 @@ export function FincorpLogo({ height = 32 }: Props) {
       <img
         src="/fincorp-icon.png"
         alt=""
-        style={{ height, width: height * (393 / 398) }}
+        width={96}
+        height={97}
+        decoding="async"
+        style={{ height, width: height * (96 / 97) }}
       />
       <span
         className="font-extrabold tracking-tight"

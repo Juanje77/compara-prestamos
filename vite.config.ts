@@ -27,7 +27,10 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
+        // webp incluido: las capturas de la landing se sirven en ese formato y, sin esto, el
+        // service worker precachearía solo el PNG de respaldo — el peor de los dos mundos,
+        // porque se descarga el pesado y igual no queda disponible sin conexión.
+        globPatterns: ['**/*.{js,css,html,svg,png,webp,ico}'],
         // Sin esto, una pestaña abierta durante un deploy nuevo puede quedar con el service
         // worker viejo controlándola y terminar pidiendo chunks JS de una build anterior que
         // ya no existen (404 → el servidor devuelve el index.html, y el navegador lo rechaza
