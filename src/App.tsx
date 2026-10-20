@@ -1,4 +1,5 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { Analytics } from '@vercel/analytics/react'
 import { Layout } from './components/Layout'
 import { HomePage } from './pages/HomePage'
 import { PrestamosPage } from './pages/PrestamosPage'
@@ -19,6 +20,13 @@ function App() {
           </Route>
         </Routes>
       </BrowserRouter>
+      {/* Visitas por página. No lleva variable de entorno ni configuración: el script lo sirve
+          el propio dominio, desde /_vercel/insights, y no usa cookies ni identifica a la
+          persona, así que tampoco agrega obligaciones de consentimiento.
+          Solo en el build de producción: en desarrollo esa ruta no existe y el pedido termina
+          en un 404 que ensucia la consola cada vez que se recarga, escondiendo los errores que
+          sí importan. No se pierde nada, porque las visitas que interesan son las de verdad. */}
+      {import.meta.env.PROD && <Analytics />}
     </AuthProvider>
   )
 }

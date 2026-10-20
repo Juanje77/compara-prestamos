@@ -16,6 +16,7 @@
     "test:api": "vitest run src/lib/facturacionElectronica.api.test.ts"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "firebase": "^12.19.0",
     "firebase-admin": "^14.4.0",
     "jspdf": "^4.2.1",
