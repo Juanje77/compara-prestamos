@@ -6,6 +6,12 @@ import { KpiCard } from '../components/KpiCard'
 import { CuentasBancarias } from '../components/CuentasBancarias'
 import { Deudas } from '../components/Deudas'
 import { CobranzasPagosSemanal } from '../components/CobranzasPagosSemanal'
+import { PosicionHoy } from '../components/PosicionHoy'
+import { ResumenMesActual } from '../components/ResumenMesActual'
+import { armarMovimientos } from '../lib/movimientosDelNegocio'
+import { calcularPosicionFinanciera } from '../lib/posicionFinanciera'
+import { obtenerMovimientos } from '../lib/movimientosSemana'
+import { mesAnterior, mesDe, resumenDelMes, variacion } from '../lib/dashboardMes'
 import { AlertasPanel } from '../components/AlertasPanel'
 import { Recomendaciones } from '../components/Recomendaciones'
 import { PresupuestoVsReal } from '../components/PresupuestoVsReal'
@@ -1352,6 +1358,12 @@ export function EmpresasPage({ esPremium, esFull = false, acceso }: Props) {
   )
   const usaIngresosReales = promediosReales?.hayVentas ?? false
   const usaGastosReales = promediosReales?.hayCompras ?? false
+
+  const [verSupuestos, setVerSupuestos] = useState<boolean | null>(null)
+  // Mientras nadie lo toque (null), el panel se abre o se cierra según corresponda: cerrado
+  // cuando los indicadores ya salen de comprobantes reales, abierto cuando el negocio todavía
+  // trabaja con estimaciones. Una vez que el usuario lo abre o lo cierra, manda su decisión.
+  const supuestosAbiertos = verSupuestos ?? !(usaIngresosReales || usaGastosReales)
   const ingresosEfectivos = usaIngresosReales ? promediosReales!.ventasPromedio : ingresos
   // El promedio de compras sale de las facturas recibidas, y los sueldos nunca vienen por factura:
   // sin sumarlos acá, un negocio con empleados y comprobantes cargados mostraría un margen
@@ -1486,6 +1498,47 @@ export function EmpresasPage({ esPremium, esFull = false, acceso }: Props) {
       ),
     [saldoInicial, ingresosProyeccion, gastosProyeccion, meses, esPremium, tasaCrecimiento, gastosAguinaldo],
   )
+
+  // La franja "Tu plata hoy" del Dashboard. Sale de la misma lista de movimientos que arma
+  // Cobranzas y pagos (ver movimientosDelNegocio.ts): si cada pantalla la armara por su cuenta,
+  // tarde o temprano dirían números distintos sobre la misma plata.
+  const posicionHoy = useMemo(
+    () =>
+      calcularPosicionFinanciera(
+        saldoInicial,
+        armarMovimientos({
+          manuales: obtenerMovimientos(),
+          facturas,
+          cheques,
+          pagosSueldos: esFull ? pagosSueldosMesActual : [],
+        }),
+      ),
+    [saldoInicial, facturas, cheques, esFull, pagosSueldosMesActual],
+  )
+
+  // El mes en curso contra el anterior. Un número solo no dice nada: "facturaste 2 millones" se
+  // lee distinto si el mes pasado fueron 3.
+  const mesEnCurso = mesDe(hoyISO())
+  const resumenMes = useMemo(() => resumenDelMes(facturas, pagos, mesEnCurso), [facturas, pagos, mesEnCurso])
+  const resumenMesPrevio = useMemo(
+    () => resumenDelMes(facturas, pagos, mesAnterior(mesEnCurso)),
+    [facturas, pagos, mesEnCurso],
+  )
+  const variacionesMes = useMemo(
+    () => ({
+      facturado: variacion(resumenMes.facturado, resumenMesPrevio.facturado),
+      cobrado: variacion(resumenMes.cobrado, resumenMesPrevio.cobrado),
+      pagado: variacion(resumenMes.pagado, resumenMesPrevio.pagado),
+      margen: variacion(resumenMes.margen, resumenMesPrevio.margen),
+    }),
+    [resumenMes, resumenMesPrevio],
+  )
+
+  // Los supuestos cargados a mano se esconden cuando ya hay comprobantes: en ese caso el sistema
+  // usa los números reales y el formulario deja de afectar los indicadores de abajo (la propia
+  // pantalla lo avisaba con un "(no usado)" al lado de cada campo). Seguía ocupando el lugar
+  // principal del Dashboard sin servir para nada.
+
 
   const mensajeWhatsApp = `Hola Juan! Armé mi dashboard financiero en FinCorp (margen operativo: ${formatoPorcentaje(
     margenOperativo,
@@ -1966,6 +2019,10 @@ export function EmpresasPage({ esPremium, esFull = false, acceso }: Props) {
 
       {seccion === 'dashboard' && (
         <>
+          {/* Primero la plata: es lo que viene a ver cualquiera que entra. Las alertas van
+              después porque son la excepción, no la foto del negocio. */}
+          <PosicionHoy posicion={posicionHoy} onVerDetalle={() => setSeccion('cobranzas')} />
+
           {esPremium ? (
             <>
               <AlertasPanel alertas={alertas} />
@@ -1980,6 +2037,13 @@ export function EmpresasPage({ esPremium, esFull = false, acceso }: Props) {
               <Lock size={14} className="shrink-0" aria-hidden="true" /> Con el plan Medio recibís alertas automáticas sobre tu caja, deudas y facturas vencidas
             </button>
           )}
+
+          <ResumenMesActual
+            actual={resumenMes}
+            anterior={resumenMesPrevio}
+            variaciones={variacionesMes}
+            onVerComprobantes={() => setSeccion('facturas')}
+          />
 
           <section className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
             {esFull ? (
@@ -2017,9 +2081,38 @@ export function EmpresasPage({ esPremium, esFull = false, acceso }: Props) {
             className="mb-6 rounded-xl border p-5"
             style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}
           >
-            <h2 className="mb-4 text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
-              Ingresos y gastos mensuales
-            </h2>
+            {/* Plegado cuando el sistema ya usa los números reales, abierto cuando no hay nada
+                cargado: para quien recién arranca este formulario ES el Dashboard, y esconderlo
+                lo dejaría frente a una pantalla vacía sin saber por dónde empezar. */}
+            <button
+              type="button"
+              onClick={() => setVerSupuestos((v) => !v)}
+              aria-expanded={supuestosAbiertos}
+              className="flex w-full items-center justify-between gap-2 text-left"
+            >
+              <span>
+                <span className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  Ingresos y gastos mensuales
+                </span>
+                <span className="block text-xs" style={{ color: 'var(--text-muted)' }}>
+                  {usaIngresosReales || usaGastosReales
+                    ? 'Tus estimaciones. Ya no se usan para los indicadores, porque hay comprobantes cargados.'
+                    : 'Cargá acá tus números estimados: de esto salen los indicadores de abajo.'}
+                </span>
+              </span>
+              <ChevronDown
+                size={18}
+                aria-hidden="true"
+                style={{
+                  color: 'var(--text-muted)',
+                  transform: supuestosAbiertos ? 'rotate(180deg)' : undefined,
+                  transition: 'transform 150ms',
+                }}
+              />
+            </button>
+
+            {supuestosAbiertos && (
+            <div className="mt-4">
             {(usaIngresosReales || usaGastosReales) && (
               <p className="-mt-2 mb-4 inline-flex items-start gap-1 text-xs" style={{ color: 'var(--series-blue)' }}>
                 <BarChart3 size={13} className="mt-0.5 shrink-0" aria-hidden="true" />
@@ -2077,6 +2170,8 @@ export function EmpresasPage({ esPremium, esFull = false, acceso }: Props) {
                 Nota: cargaste {formatoMoneda(cuotaDeudaTotal)}/mes en cuotas de deudas — verificá que estén
                 incluidas en alguno de los gastos fijos de arriba.
               </p>
+            )}
+            </div>
             )}
           </section>
 

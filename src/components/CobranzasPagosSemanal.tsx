@@ -20,6 +20,7 @@ import {
   PREFIJO_SUELDO,
   calcularPosicionFinanciera,
 } from '../lib/posicionFinanciera'
+import { armarMovimientos } from '../lib/movimientosDelNegocio'
 import { importarMovimientosDesdeExcel } from '../lib/excelImport'
 import { descargarPlantillaMovimientos } from '../lib/plantillasImportacion'
 import { formatoMoneda } from '../lib/finance'
@@ -27,7 +28,6 @@ import { descargarPdfCobranzasSemanal } from '../lib/pdf'
 import { cargarDatosUsuario, guardarDatosUsuario } from '../lib/userSync'
 import { useAuth } from '../lib/AuthContext'
 import {
-  CONCEPTO_PAGO_SUELDOS_LABEL,
   MEDIOS_PAGO_LABEL,
   type Cheque,
   type CuentaBancaria,
@@ -81,45 +81,6 @@ function useFechaActual(): Date {
   }, [])
 
   return hoy
-}
-
-function facturaAMovimiento(f: Factura): Movimiento {
-  return {
-    id: `${PREFIJO_FACTURA}${f.id}`,
-    tipo: f.tipo === 'emitida' ? 'cobro' : 'pago',
-    concepto: f.contraparte,
-    monto: f.monto,
-    fecha: f.fechaEstimadaCobroPago ?? f.fecha,
-    cumplido: f.cumplido ?? false,
-    medioPago: f.medioPago,
-  }
-}
-
-/** Un cheque "cobrado" (o "vendido", si es recibido) ya se hizo efectivo; uno rechazado sigue
- * pendiente de resolución, así que se muestra igual que uno en cartera. */
-function chequeAMovimiento(c: Cheque): Movimiento {
-  return {
-    id: `${PREFIJO_CHEQUE}${c.id}`,
-    tipo: c.tipo === 'recibido' ? 'cobro' : 'pago',
-    concepto: `${c.contraparte} (cheque${c.numero ? ` ${c.numero}` : ''})`,
-    monto: c.monto,
-    fecha: c.fechaCobro,
-    cumplido: c.estado === 'cobrado' || c.estado === 'vendido',
-    medioPago: 'cheque',
-  }
-}
-
-/** Los pagos de la nómina se ven acá para que no sorprendan en la semana, pero se registran
- * desde la solapa Sueldos, que es donde se elige de qué cuenta sale la plata. */
-function sueldoAMovimiento(p: PagoSueldos): Movimiento {
-  return {
-    id: `${PREFIJO_SUELDO}${p.mes}:${p.concepto}`,
-    tipo: 'pago',
-    concepto: CONCEPTO_PAGO_SUELDOS_LABEL[p.concepto],
-    monto: p.monto,
-    fecha: p.fechaEstimada,
-    cumplido: p.pagado,
-  }
 }
 
 /** Un renglón del desglose de la posición. Los que están en cero igual se muestran: ver un
@@ -580,24 +541,10 @@ export function CobranzasPagosSemanal({
   const [errorImport, setErrorImport] = useState<string | null>(null)
   const [importandoTipo, setImportandoTipo] = useState<TipoMovimiento | null>(null)
 
-  // Las facturas que ya están abonadas por un cheque no se listan por separado acá — el cheque
-  // las representa a todas juntas con un solo movimiento (ver chequeAMovimiento).
-  const facturasCubiertasPorCheque = useMemo(
-    () => new Set(cheques.flatMap((c) => c.facturasIds ?? [])),
-    [cheques],
-  )
-  const movimientosDeFacturas = useMemo(
-    () =>
-      facturas
-        .filter((f) => f.tipoComprobante !== 'nota_credito' && !facturasCubiertasPorCheque.has(f.id))
-        .map(facturaAMovimiento),
-    [facturas, facturasCubiertasPorCheque],
-  )
-  const movimientosDeCheques = useMemo(() => cheques.map(chequeAMovimiento), [cheques])
-  const movimientosDeSueldos = useMemo(() => pagosSueldos.map(sueldoAMovimiento), [pagosSueldos])
+  // La misma lista que usa el Dashboard para su franja de hoy — ver movimientosDelNegocio.ts.
   const todosMovimientos = useMemo(
-    () => [...movimientos, ...movimientosDeFacturas, ...movimientosDeCheques, ...movimientosDeSueldos],
-    [movimientos, movimientosDeFacturas, movimientosDeCheques, movimientosDeSueldos],
+    () => armarMovimientos({ manuales: movimientos, facturas, cheques, pagosSueldos }),
+    [movimientos, facturas, cheques, pagosSueldos],
   )
 
   const [nubeLista, setNubeLista] = useState(false)
@@ -648,13 +595,13 @@ export function CobranzasPagosSemanal({
   function handleToggle(id: string) {
     if (id.startsWith(PREFIJO_FACTURA)) {
       const facturaId = id.slice(PREFIJO_FACTURA.length)
-      const actual = movimientosDeFacturas.find((m) => m.id === id)
+      const actual = todosMovimientos.find((m) => m.id === id)
       onCambiarFactura?.(facturaId, { cumplido: !actual?.cumplido })
       return
     }
     if (id.startsWith(PREFIJO_CHEQUE)) {
       const chequeId = id.slice(PREFIJO_CHEQUE.length)
-      const actual = movimientosDeCheques.find((m) => m.id === id)
+      const actual = todosMovimientos.find((m) => m.id === id)
       onCambiarEstadoCheque?.(chequeId, actual?.cumplido ? 'cartera' : 'cobrado')
       return
     }
