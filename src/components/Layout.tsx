@@ -14,7 +14,8 @@ const SECCIONES: { to: string; label: string; end?: boolean }[] = [
   { to: '/empresas', label: 'Para empresas' },
 ]
 
-function SesionUsuario() {
+/** El estado de la sesión y el botón de salir. Lo usan la barra del sitio y la de la app. */
+export function SesionUsuario() {
   const { habilitado, user, cerrarSesion } = useAuth()
   const [mostrarLogin, setMostrarLogin] = useState(false)
 

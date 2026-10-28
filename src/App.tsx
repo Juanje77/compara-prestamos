@@ -2,6 +2,7 @@ import { Suspense, lazy } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { Analytics } from '@vercel/analytics/react'
 import { Layout } from './components/Layout'
+import { LayoutApp } from './components/LayoutApp'
 import { HomePage } from './pages/HomePage'
 import { AuthProvider } from './lib/AuthContext'
 
@@ -35,8 +36,12 @@ function App() {
             <Route element={<Layout />}>
               <Route index element={<HomePage />} />
               <Route path="prestamos" element={<PrestamosPage />} />
-              <Route path="empresas" element={<AccesoEmpresas />} />
               <Route path="admin-plan" element={<AdminPlanPage />} />
+            </Route>
+            {/* La app va aparte: necesita el ancho completo para su barra lateral y no lleva la
+                barra del sitio ni el texto de venta. */}
+            <Route element={<LayoutApp />}>
+              <Route path="empresas" element={<AccesoEmpresas />} />
             </Route>
           </Routes>
         </Suspense>

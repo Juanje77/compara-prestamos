@@ -9,6 +9,37 @@ import { estadoMfa } from '../lib/mfa'
 import { AceptarInvitacion } from '../components/AceptarInvitacion'
 import { invitacionEnLaUrl } from '../lib/empresa'
 import { useAcceso } from '../lib/useAcceso'
+import { FincorpLogo } from '../components/FincorpLogo'
+import { SesionUsuario } from '../components/Layout'
+import { ThemeToggle } from '../components/ThemeToggle'
+import { Link } from 'react-router-dom'
+
+/**
+ * El marco de todo lo que pasa ANTES de entrar al sistema: elegir plan, el segundo factor,
+ * aceptar una invitación, los carteles de espera.
+ *
+ * Es deliberadamente mínimo. Estas pantallas no tienen secciones que navegar, así que ponerles
+ * la barra lateral de la app sería mostrar un menú que todavía no lleva a ningún lado.
+ */
+function Marco({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="min-h-screen" style={{ background: 'var(--surface-2)' }}>
+      <header
+        className="flex items-center justify-between gap-3 border-b px-4 py-3"
+        style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}
+      >
+        <Link to="/" aria-label="Ir al inicio">
+          <FincorpLogo height={26} />
+        </Link>
+        <div className="flex items-center gap-3">
+          <SesionUsuario />
+          <ThemeToggle />
+        </div>
+      </header>
+      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">{children}</div>
+    </div>
+  )
+}
 
 export function AccesoEmpresas() {
   const { user, cargando: cargandoAuth, habilitado } = useAuth()
@@ -165,51 +196,61 @@ export function AccesoEmpresas() {
   }
 
   if (cargandoAuth || (user && cargandoAcceso) || (user && cargandoPlan) || (user && pideCodigo === null)) {
-    return <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Cargando…</p>
+    return (
+      <Marco>
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Cargando…</p>
+      </Marco>
+    )
   }
 
   // Antes que cualquier otra cosa de la cuenta: sin segundo factor no se muestra nada del negocio.
   if (user && pideCodigo) {
-    return <SegundoFactor onVerificado={() => setPideCodigo(false)} />
+    return (
+      <Marco>
+        <SegundoFactor onVerificado={() => setPideCodigo(false)} />
+      </Marco>
+    )
   }
 
   // Entró con el link del mail: hasta que no acepte, su cuenta está vacía y mostrarle el sistema
   // sería mostrarle un negocio en blanco. Va después del segundo factor a propósito.
   if (user && codigoInvitacion) {
     return (
-      <AceptarInvitacion
-        codigo={codigoInvitacion}
-        email={user.email}
-        onAceptada={() => {
-          setCodigoInvitacion(null)
-          // Saca el código de la URL: recargar no tiene que volver a intentar aceptar una
-          // invitación que ya se usó, porque el servidor contestaría "ya se usó" sin motivo.
-          window.history.replaceState(null, '', window.location.pathname)
-          void refrescarAcceso()
-        }}
-        onCancelar={() => {
-          setCodigoInvitacion(null)
-          window.history.replaceState(null, '', window.location.pathname)
-        }}
-      />
-    )
+      <Marco>
+        <AceptarInvitacion
+          codigo={codigoInvitacion}
+          email={user.email}
+          onAceptada={() => {
+            setCodigoInvitacion(null)
+            // Saca el código de la URL: recargar no tiene que volver a intentar aceptar una
+            // invitación que ya se usó, porque el servidor contestaría "ya se usó" sin motivo.
+            window.history.replaceState(null, '', window.location.pathname)
+            void refrescarAcceso()
+          }}
+          onCancelar={() => {
+            setCodigoInvitacion(null)
+            window.history.replaceState(null, '', window.location.pathname)
+          }}
+        /></Marco>
+       )
   }
 
   if (user && plan.estado === 'pendiente' && !confirmacionAgotada) {
     return (
-      <div className="mx-auto max-w-md py-16 text-center">
-        <p className="inline-flex items-center gap-1.5 text-sm font-semibold tracking-wide" style={{ color: 'var(--series-blue)' }}>
-          <Calculator size={14} aria-hidden="true" /> FinCorp para empresas
-        </p>
-        <h1 className="mt-2 text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
-          Confirmando tu pago…
-        </h1>
-        <p className="mt-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-          Ya recibimos tu suscripción y estamos confirmándola con Mercado Pago. Esto puede tardar unos
-          segundos — no hace falta que recargues la página, se va a destrabar solo.
-        </p>
-      </div>
-    )
+      <Marco>
+        <div className="mx-auto max-w-md py-16 text-center">
+          <p className="inline-flex items-center gap-1.5 text-sm font-semibold tracking-wide" style={{ color: 'var(--series-blue)' }}>
+            <Calculator size={14} aria-hidden="true" /> FinCorp para empresas
+          </p>
+          <h1 className="mt-2 text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
+            Confirmando tu pago…
+          </h1>
+          <p className="mt-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+            Ya recibimos tu suscripción y estamos confirmándola con Mercado Pago. Esto puede tardar unos
+            segundos — no hace falta que recargues la página, se va a destrabar solo.
+          </p>
+        </div></Marco>
+       )
   }
 
   if (user && puedeIntentarPrueba && pruebaFallo === null && !pruebaDenegada) {
@@ -217,38 +258,40 @@ export function AccesoEmpresas() {
     // cuanto se cree o actualice el documento, este mismo componente se vuelve a renderizar
     // solo, gracias al listener en tiempo real de usePlanUsuario.
     return (
-      <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-        Activando tu prueba gratis de 15 días…
-      </p>
-    )
+      <Marco>
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+          Activando tu prueba gratis de 15 días…
+        </p></Marco>
+       )
   }
 
   if (user && pruebaFallo !== null && puedeIntentarPrueba) {
     return (
-      <div className="mx-auto max-w-md py-16 text-center">
-        <h1 className="text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
-          No pudimos activar tu prueba
-        </h1>
-        <p className="mt-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-          Fue un problema nuestro, no tuyo, y tu prueba gratis sigue disponible. Probá de nuevo; si
-          vuelve a fallar, escribinos y la activamos a mano.
-        </p>
-        <button
-          type="button"
-          onClick={() => {
-            setPruebaFallo(null)
-            setReintentoNonce((n) => n + 1)
-          }}
-          className="mt-4 rounded-full px-6 py-2.5 text-sm font-semibold text-white"
-          style={{ background: 'var(--series-blue)' }}
-        >
-          Reintentar
-        </button>
-        <p className="mt-4 text-xs" style={{ color: 'var(--text-muted)' }}>
-          Si nos escribís, pasanos este dato: {pruebaFallo}
-        </p>
-      </div>
-    )
+      <Marco>
+        <div className="mx-auto max-w-md py-16 text-center">
+          <h1 className="text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
+            No pudimos activar tu prueba
+          </h1>
+          <p className="mt-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+            Fue un problema nuestro, no tuyo, y tu prueba gratis sigue disponible. Probá de nuevo; si
+            vuelve a fallar, escribinos y la activamos a mano.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setPruebaFallo(null)
+              setReintentoNonce((n) => n + 1)
+            }}
+            className="mt-4 rounded-full px-6 py-2.5 text-sm font-semibold text-white"
+            style={{ background: 'var(--series-blue)' }}
+          >
+            Reintentar
+          </button>
+          <p className="mt-4 text-xs" style={{ color: 'var(--text-muted)' }}>
+            Si nos escribís, pasanos este dato: {pruebaFallo}
+          </p>
+        </div></Marco>
+       )
   }
 
   const vencida = pruebaVencida(plan)
@@ -257,27 +300,32 @@ export function AccesoEmpresas() {
     // Si la prueba se denegó estando en "pendiente" (ver puedeOtorgarsePrueba en _prueba.js), el
     // único motivo posible es que este usuario ya había usado una prueba antes.
     return (
-      <PlanesEmpresa motivoVencimiento={vencida || pruebaDenegada ? 'prueba' : plan.estado ? 'suscripcion' : undefined} />
-    )
+      <Marco>
+        <PlanesEmpresa motivoVencimiento={vencida || pruebaDenegada ? 'prueba' : plan.estado ? 'suscripcion' : undefined} /></Marco>
+       )
   }
 
   if (verPlanesManual) {
     return (
-      <div>
-        <button
-          type="button"
-          onClick={() => setVerPlanesManual(false)}
-          className="mb-4 text-sm font-medium"
-          style={{ color: 'var(--series-blue)' }}
-        >
-          ‹ Volver
-        </button>
-        <PlanesEmpresa motivoVencimiento="suscripcion" />
-      </div>
-    )
+      <Marco>
+        <div>
+          <button
+            type="button"
+            onClick={() => setVerPlanesManual(false)}
+            className="mb-4 text-sm font-medium"
+            style={{ color: 'var(--series-blue)' }}
+          >
+            ‹ Volver
+          </button>
+          <PlanesEmpresa motivoVencimiento="suscripcion" />
+        </div></Marco>
+       )
   }
 
-  return (
+  // Los avisos de prueba y de mora van ADENTRO de la app, no encima: fuera del marco quedarían
+  // pegados al borde de la ventana, sin la barra lateral ni el encabezado, como si fueran de
+  // otra página.
+  const avisos = (
     <>
       {plan.esPrueba && (
         <div
@@ -308,11 +356,15 @@ export function AccesoEmpresas() {
           </button>
         </div>
       )}
-      <EmpresasPage
-        esPremium={plan.plan === 'premium' || plan.plan === 'full'}
-        esFull={plan.plan === 'full'}
-        acceso={acceso ?? undefined}
-      />
     </>
+  )
+
+  return (
+    <EmpresasPage
+      esPremium={plan.plan === 'premium' || plan.plan === 'full'}
+      esFull={plan.plan === 'full'}
+      acceso={acceso ?? undefined}
+      aviso={avisos}
+    />
   )
 }

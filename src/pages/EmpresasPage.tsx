@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { BarChart3, Calculator, ChevronDown, Cloud, FileDown, Lock } from 'lucide-react'
+import { BarChart3, ChevronDown, FileDown, Lock } from 'lucide-react'
 import { FlujoDeCaja } from '../components/FlujoDeCaja'
 import { GastosPorCategoria } from '../components/GastosPorCategoria'
 import { KpiCard } from '../components/KpiCard'
@@ -7,6 +7,9 @@ import { CuentasBancarias } from '../components/CuentasBancarias'
 import { Deudas } from '../components/Deudas'
 import { CobranzasPagosSemanal } from '../components/CobranzasPagosSemanal'
 import { PosicionHoy } from '../components/PosicionHoy'
+import { AppShell } from '../components/AppShell'
+import { SesionUsuario } from '../components/Layout'
+import type { ReactNode } from 'react'
 import { ResumenMesActual } from '../components/ResumenMesActual'
 import { armarMovimientos } from '../lib/movimientosDelNegocio'
 import { calcularPosicionFinanciera } from '../lib/posicionFinanciera'
@@ -220,12 +223,15 @@ interface Props {
    * viene (Firebase apagado en desarrollo), se asume dueño de una cuenta sin uid: la app se
    * comporta como siempre, contra el almacenamiento local. */
   acceso?: AccesoEmpresa
+  /** Avisos de la cuenta (prueba gratis, mora) que se muestran arriba del contenido, adentro del
+   * marco de la app. */
+  aviso?: ReactNode
   /** Plan Full (arriba de Medio) — desbloquea Cuentas corrientes, Remitos/presupuestos y
    * Cheques, el sistema de gestión de uso diario. */
   esFull?: boolean
 }
 
-export function EmpresasPage({ esPremium, esFull = false, acceso }: Props) {
+export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props) {
   const { user } = useAuth()
   // El uid con el que se habla con Firestore. Para un empleado NO es el suyo: es el del dueño de
   // la empresa. Es el cambio que hace que un usuario invitado vea datos y no una cuenta vacía.
@@ -235,28 +241,12 @@ export function EmpresasPage({ esPremium, esFull = false, acceso }: Props) {
 
   /** Si esta solapa se le muestra a quien está mirando — ver puedeVerSeccion en empresa.ts. */
   const puedeVerSeccion = useCallback((key: Seccion) => seccionVisible(accesoEfectivo, key), [accesoEfectivo])
-  const [seccion, setSeccionRaw] = useState<Seccion>('dashboard')
-  // Qué grupo del menú está desplegado — null si ninguno. Cambiar de sección por cualquier vía
-  // (clic en el menú, o un atajo como "Ir a Tesorería" desde el Dashboard) abre el grupo que la
-  // contiene, para que el usuario no pierda de vista en qué grupo quedó parado.
-  const [grupoAbierto, setGrupoAbierto] = useState<string | null>(null)
-  function setSeccion(s: Seccion) {
-    setSeccionRaw(s)
-    setGrupoAbierto(GRUPOS.find((g) => (g.secciones as Seccion[]).includes(s))?.key ?? null)
-  }
+  // La barra lateral muestra todos los grupos a la vez, así que ya no hay ninguno "abierto":
+  // cambiar de sección es un solo clic y no hace falta recordar dónde quedó parado el menú.
+  const [seccion, setSeccion] = useState<Seccion>('dashboard')
   function seccionBloqueada(key: Seccion): boolean {
     return SECCIONES_FULL.has(key) ? !esFull : !esPremium && SECCIONES_MEDIO.includes(key)
   }
-  /** Los grupos del menú, sin las solapas que esta persona no puede ver, y sin los que quedaron
-   * vacíos — un desplegable que se abre y no muestra nada es peor que no estar. */
-  const gruposVisibles = useMemo(
-    () =>
-      GRUPOS.map((g) => ({ ...g, secciones: g.secciones.filter(puedeVerSeccion) })).filter(
-        (g) => g.secciones.length > 0,
-      ),
-    [puedeVerSeccion],
-  )
-
   // Si la solapa en la que está parado no le corresponde (recién aceptó la invitación, o el dueño
   // le sacó un módulo), lo movemos a la primera que sí. El default es 'dashboard' y un empleado
   // puede perfectamente no tenerlo.
@@ -1655,104 +1645,39 @@ export function EmpresasPage({ esPremium, esFull = false, acceso }: Props) {
     setMostrarPlanes(true)
   }
 
+  const gruposShell = useMemo(
+    () =>
+      [{ key: 'principal', label: 'Principal', secciones: SECCIONES_SUELTAS }, ...GRUPOS]
+        .map((g) => ({
+          label: g.label,
+          items: (g.secciones as Seccion[]).filter(puedeVerSeccion).map((key) => ({
+            key,
+            label: SECCIONES.find((x) => x.key === key)!.label,
+            bloqueada: seccionBloqueada(key),
+          })),
+        }))
+        .filter((g) => g.items.length > 0),
+    // seccionBloqueada depende del plan, que no cambia durante el render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [puedeVerSeccion, esPremium, esFull],
+  )
+
+  // Lo que va en la barra inferior del celular: lo que se usa todos los días. El resto entra por
+  // "Más", que abre la lista completa.
+  const destacadas = (['dashboard', 'facturas', 'cobranzas'] as Seccion[]).filter(puedeVerSeccion)
+
   return (
-    <>
-      <div className="mb-8">
-        <p className="mt-1 inline-flex items-center gap-1.5 text-sm font-semibold tracking-wide" style={{ color: 'var(--series-blue)' }}>
-          <Calculator size={14} aria-hidden="true" /> FinCorp para empresas
-        </p>
-        <h1 className="mt-1 text-3xl font-semibold sm:text-4xl" style={{ color: 'var(--text-primary)' }}>
-          Gestioná las finanzas de tu negocio, sin ser financista
-        </h1>
-        <p className="mt-2 max-w-2xl text-sm" style={{ color: 'var(--text-secondary)' }}>
-          Cargá los números estimados de tu negocio una sola vez y armamos tu tablero: indicadores clave,
-          composición de gastos y proyección de caja.
-        </p>
-        {user && (
-          <p className="mt-2 inline-flex items-center gap-1 text-xs" style={{ color: nubeLista ? 'var(--status-good-text)' : 'var(--text-muted)' }}>
-            {nubeLista ? (<><Cloud size={12} aria-hidden="true" /> Guardado en tu cuenta</>) : 'Sincronizando con tu cuenta…'}
-          </p>
-        )}
-      </div>
-
-      <div className="mb-6 space-y-2">
-        <nav className="flex flex-wrap gap-2" role="tablist">
-          {SECCIONES_SUELTAS.filter(puedeVerSeccion).map((key) => {
-            const s = SECCIONES.find((x) => x.key === key)!
-            return (
-              <button
-                key={key}
-                role="tab"
-                aria-selected={seccion === key}
-                onClick={() => setSeccion(key)}
-                className="inline-flex items-center gap-1 rounded-full border px-4 py-2 text-sm font-medium transition-colors"
-                style={
-                  seccion === key
-                    ? { background: 'var(--series-blue)', borderColor: 'var(--series-blue)', color: 'white' }
-                    : { borderColor: 'var(--border)', color: 'var(--text-secondary)', background: 'var(--surface-1)' }
-                }
-              >
-                {s.label}
-                {seccionBloqueada(key) && <Lock size={12} aria-hidden="true" />}
-              </button>
-            )
-          })}
-          {gruposVisibles.map((g) => {
-            const activo = (g.secciones as Seccion[]).includes(seccion)
-            const abierto = grupoAbierto === g.key
-            return (
-              <button
-                key={g.key}
-                aria-expanded={abierto}
-                onClick={() => setGrupoAbierto(abierto ? null : g.key)}
-                className="inline-flex items-center gap-1.5 rounded-full border px-4 py-2 text-sm font-medium transition-colors"
-                style={
-                  activo
-                    ? { background: 'color-mix(in srgb, var(--series-blue) 16%, transparent)', borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }
-                    : { borderColor: 'var(--border)', color: 'var(--text-secondary)', background: 'var(--surface-1)' }
-                }
-              >
-                {g.label}
-                <ChevronDown
-                  size={14}
-                  aria-hidden="true"
-                  style={{ transform: abierto ? 'rotate(180deg)' : undefined, transition: 'transform 150ms' }}
-                />
-              </button>
-            )
-          })}
-        </nav>
-
-        {grupoAbierto && (
-          <nav
-            className="flex flex-wrap gap-2 rounded-xl border p-2"
-            style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
-            role="tablist"
-          >
-            {(gruposVisibles.find((g) => g.key === grupoAbierto)?.secciones ?? []).map((key) => {
-              const s = SECCIONES.find((x) => x.key === key)!
-              return (
-                <button
-                  key={key}
-                  role="tab"
-                  aria-selected={seccion === key}
-                  onClick={() => setSeccion(key)}
-                  className="inline-flex items-center gap-1 rounded-full border px-4 py-2 text-sm font-medium transition-colors"
-                  style={
-                    seccion === key
-                      ? { background: 'var(--series-blue)', borderColor: 'var(--series-blue)', color: 'white' }
-                      : { borderColor: 'var(--border)', color: 'var(--text-secondary)', background: 'var(--surface-1)' }
-                  }
-                >
-                  {s.label}
-                  {seccionBloqueada(key) && <Lock size={12} aria-hidden="true" />}
-                </button>
-              )
-            })}
-          </nav>
-        )}
-      </div>
-
+    <AppShell
+      grupos={gruposShell}
+      activa={seccion}
+      onElegir={setSeccion}
+      destacadas={destacadas}
+      titulo={SECCIONES.find((x) => x.key === seccion)?.label ?? 'FinCorp'}
+      contexto={nombreNegocio || undefined}
+      guardado={user ? (nubeLista ? 'guardado' : 'sincronizando') : null}
+      sesion={<SesionUsuario />}
+    >
+      {aviso}
       {seccion === 'ingresosGastos' && (
         <IngresosGastos
           movimientos={movimientosDiariosVista}
@@ -2368,6 +2293,6 @@ export function EmpresasPage({ esPremium, esFull = false, acceso }: Props) {
       )}
 
       {mostrarPlanes && <PremiumUpgradeModal onCerrar={() => setMostrarPlanes(false)} />}
-    </>
+    </AppShell>
   )
 }
