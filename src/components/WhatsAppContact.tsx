@@ -21,9 +21,7 @@ export function WhatsAppFloatingButton() {
       target="_blank"
       rel="noreferrer"
       aria-label="Contactar por WhatsApp"
-      // Arriba de la barra inferior del celular: con bottom-5 quedaba encima de "Más" y tapaba el
-      // último renglón de cada pantalla. En escritorio no hay barra, así que vuelve abajo.
-      className="fixed right-5 bottom-20 z-50 flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-transform hover:scale-105 lg:bottom-5"
+      className="fixed right-5 bottom-5 z-50 flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-transform hover:scale-105"
       style={{ background: '#25D366', color: 'white' }}
     >
       <WhatsAppIcon size={28} />

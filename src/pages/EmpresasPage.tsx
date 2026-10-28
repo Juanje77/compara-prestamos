@@ -1662,16 +1662,11 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
     [puedeVerSeccion, esPremium, esFull],
   )
 
-  // Lo que va en la barra inferior del celular: lo que se usa todos los días. El resto entra por
-  // "Más", que abre la lista completa.
-  const destacadas = (['dashboard', 'facturas', 'cobranzas'] as Seccion[]).filter(puedeVerSeccion)
-
   return (
     <AppShell
       grupos={gruposShell}
       activa={seccion}
       onElegir={setSeccion}
-      destacadas={destacadas}
       titulo={SECCIONES.find((x) => x.key === seccion)?.label ?? 'FinCorp'}
       contexto={nombreNegocio || undefined}
       guardado={user ? (nubeLista ? 'guardado' : 'sincronizando') : null}

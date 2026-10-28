@@ -4,7 +4,13 @@ import { Cloud, Lock, Menu, Search, X } from 'lucide-react'
 import { FincorpLogo } from './FincorpLogo'
 import { ThemeToggle } from './ThemeToggle'
 
-// El marco de la aplicación: barra lateral en escritorio, barra inferior en celular.
+// El marco de la aplicación: barra lateral en escritorio, y el mismo menú en un cajón lateral
+// en celular.
+//
+// Hubo una barra inferior con cuatro accesos y quedó afuera: con cuatro nombres repartidos en
+// 390 píxeles, cada uno entraba en letra tan chica que no se leía de un vistazo, que es lo único
+// que justifica una barra así. El botón de menú del encabezado abre la lista completa, con los
+// nombres enteros y el buscador.
 //
 // Antes la app vivía adentro de la página de ventas: arriba de todo estaban la barra del sitio
 // público y el título "Gestioná las finanzas de tu negocio, sin ser financista" con su bajada.
@@ -32,8 +38,6 @@ interface Props<T extends string> {
   grupos: GrupoSeccion<T>[]
   activa: T
   onElegir: (seccion: T) => void
-  /** Las que van en la barra inferior del celular: lo que se usa todos los días. */
-  destacadas: T[]
   titulo: string
   /** Lo que se muestra arriba a la derecha: el nombre del negocio, el plan. */
   contexto?: ReactNode
@@ -54,7 +58,6 @@ export function AppShell<T extends string>({
   grupos,
   activa,
   onElegir,
-  destacadas,
   titulo,
   contexto,
   guardado,
@@ -144,10 +147,6 @@ export function AppShell<T extends string>({
     </nav>
   )
 
-  const itemsDestacados = destacadas
-    .map((k) => todas.find((i) => i.key === k))
-    .filter((i): i is ItemSeccion<T> => i !== undefined)
-
   return (
     <div className="flex min-h-screen" style={{ background: 'var(--surface-2)' }}>
       {/* Escritorio: la lateral queda fija y el contenido scrollea solo. */}
@@ -205,9 +204,7 @@ export function AppShell<T extends string>({
           <ThemeToggle />
         </header>
 
-        {/* El padding de abajo deja lugar a la barra inferior del celular, que es fija y si no
-            taparía la última fila de cada pantalla. */}
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 pb-28 sm:px-6 lg:pb-10">{children}</main>
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 pb-10 sm:px-6">{children}</main>
       </div>
 
       {/* Celular: el menú completo entra desde el costado. */}
@@ -240,33 +237,6 @@ export function AppShell<T extends string>({
         </div>
       )}
 
-      {/* Celular: lo de todos los días, siempre a mano, sin ocupar lugar arriba. */}
-      <nav
-        className="fixed inset-x-0 bottom-0 z-30 flex border-t lg:hidden"
-        style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}
-        aria-label="Accesos rápidos"
-      >
-        {itemsDestacados.map((i) => (
-          <button
-            key={i.key}
-            type="button"
-            onClick={() => onElegir(i.key)}
-            aria-current={i.key === activa ? 'page' : undefined}
-            className="flex-1 px-1 py-2.5 text-[11px] font-medium"
-            style={{ color: i.key === activa ? 'var(--series-blue)' : 'var(--text-muted)' }}
-          >
-            <span className="block truncate">{i.label}</span>
-          </button>
-        ))}
-        <button
-          type="button"
-          onClick={() => setMenuAbierto(true)}
-          className="flex-1 px-1 py-2.5 text-[11px] font-medium"
-          style={{ color: 'var(--text-muted)' }}
-        >
-          Más
-        </button>
-      </nav>
     </div>
   )
 }
