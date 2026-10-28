@@ -1,6 +1,7 @@
 import type { OfertaCalculada } from '../lib/finance'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
 import type { TipoPrestamo } from '../data/loans'
+import { Star } from 'lucide-react'
 
 interface Props {
   oferta: OfertaCalculada
@@ -17,7 +18,7 @@ export function BestOfferCard({ oferta, tipo }: Props) {
       }}
     >
       <p className="text-xs font-semibold tracking-wide uppercase" style={{ color: 'var(--status-good-text)' }}>
-        ★ Opción más conveniente
+        <Star size={12} aria-hidden="true" className="inline align-[-1px]" /> Opción más conveniente
       </p>
       <p className="mt-1 text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
         {oferta.banco}

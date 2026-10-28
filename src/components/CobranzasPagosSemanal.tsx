@@ -419,8 +419,8 @@ function ColumnaMovimientos({
           </div>
 
           {pendientes.length === 0 ? (
-            <p className="mb-2 text-sm" style={{ color: 'var(--text-muted)' }}>
-              No hay nada pendiente. 🎉
+            <p className="mb-2 inline-flex items-center gap-1.5 text-sm" style={{ color: 'var(--status-good-text)' }}>
+              <Check size={14} aria-hidden="true" /> No hay nada pendiente.
             </p>
           ) : (
             <ul className="mb-2 max-h-72 space-y-1.5 overflow-y-auto">
@@ -770,7 +770,7 @@ export function CobranzasPagosSemanal({
               Te queda
             </p>
             <p
-              className="tabular text-3xl font-semibold"
+              className="text-3xl font-semibold"
               style={{ color: posicion.posicionNeta >= 0 ? 'var(--status-good-text)' : 'var(--status-critical)' }}
             >
               {formatoMoneda(posicion.posicionNeta)}

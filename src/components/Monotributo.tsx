@@ -239,7 +239,7 @@ export function Monotributo({ facturas, datos, onCambiar }: Props) {
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                 Cuota mensual
               </p>
-              <p className="tabular text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
+              <p className="text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
                 {formatoMoneda(cuota ?? 0)}
               </p>
               <p className="mt-0.5 text-xs" style={{ color: 'var(--text-muted)' }}>
@@ -302,7 +302,7 @@ export function Monotributo({ facturas, datos, onCambiar }: Props) {
           <>
             <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
               <p
-                className="tabular text-3xl font-semibold"
+                className="text-3xl font-semibold"
                 style={{ color: relacion.cumple ? 'var(--series-blue)' : 'var(--status-warning)' }}
               >
                 {formatoPorcentaje(relacion.proporcion * 100)}

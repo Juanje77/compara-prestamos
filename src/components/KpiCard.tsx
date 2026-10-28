@@ -69,7 +69,7 @@ export function KpiCard({ label, value, status, statusLabel, info, comparacion }
         {label}
         {info && <InfoTooltip texto={info} />}
       </p>
-      <p className="tabular text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
+      <p className="text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
         {value}
       </p>
       {comparacion && (

@@ -32,7 +32,7 @@ function Monto({
       <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
         {etiqueta}
       </p>
-      <p className="tabular text-xl font-semibold" style={{ color: color ?? 'var(--text-primary)' }}>
+      <p className="text-xl font-semibold" style={{ color: color ?? 'var(--text-primary)' }}>
         {formatoMoneda(valor)}
       </p>
       {detalle && (
@@ -84,7 +84,7 @@ export function PosicionHoy({ posicion, onVerDetalle }: Props) {
             Te queda
           </p>
           <p
-            className="tabular text-xl font-semibold"
+            className="text-xl font-semibold"
             style={{ color: posicionNeta >= 0 ? 'var(--status-good-text)' : 'var(--status-critical)' }}
           >
             {formatoMoneda(posicionNeta)}

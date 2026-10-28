@@ -111,9 +111,20 @@ body {
   margin: 0;
   background: var(--surface-2);
   color: var(--text-primary);
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Inter, la misma de la landing. Ya se descarga en todas las páginas —está en el <link> de
+     index.html— pero la app venía usando la tipografía del sistema, así que en Windows se veía
+     con Segoe UI y en Linux con la que hubiera: el mismo producto con otra cara según la
+     computadora, y ninguna de las dos la elegida. El system-ui queda de respaldo por si la
+     fuente no llega a cargar. */
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Sin esto, Inter se ve más gruesa de lo que es en pantallas sin retina. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
+/* Dígitos de ancho fijo, para que una columna de importes quede alineada y no "baile" al
+   actualizarse. Va en tablas, ejes y renglones — NO en los números grandes de las tarjetas: a
+   ese tamaño el ancho fijo deja huecos visibles entre las cifras. */
 .tabular {
   font-variant-numeric: tabular-nums;
 }

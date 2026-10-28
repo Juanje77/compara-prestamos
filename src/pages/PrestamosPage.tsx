@@ -15,6 +15,7 @@ import { IncomeCalculator } from '../components/IncomeCalculator'
 import { Glosario } from '../components/Glosario'
 import { VeredictoCredito } from '../components/VeredictoCredito'
 import { RefinanciacionCalculator } from '../components/RefinanciacionCalculator'
+import { Save } from 'lucide-react'
 
 const CONDICIONES: { key: CondicionLaboral | 'todos'; label: string }[] = [
   { key: 'todos', label: 'Todos' },
@@ -260,7 +261,7 @@ export function PrestamosPage() {
           className="rounded-full px-5 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
           style={{ background: 'var(--series-blue)' }}
         >
-          💾 Guardar simulación
+          <Save size={15} aria-hidden="true" /> Guardar simulación
         </button>
         {guardadoOk && (
           <span className="text-sm font-medium" style={{ color: 'var(--status-good-text)' }}>

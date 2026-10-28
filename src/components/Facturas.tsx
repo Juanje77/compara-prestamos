@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { AlertTriangle, FileDown, FileSpreadsheet, FileUp, ScanBarcode, Search, Trash2 } from 'lucide-react'
-import { Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type {
   CuentaBancaria,
   DatosEmisorFiscal,
@@ -116,14 +116,15 @@ function EvolucionTooltip({ active, payload }: { active?: boolean; payload?: { p
       style={{ background: 'var(--surface-1)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
     >
       <p className="mb-1 font-semibold capitalize">{mesLegible(r.mes)}</p>
-      <p className="tabular" style={{ color: 'var(--series-blue)' }}>
+      {/* El color lo lleva el puntito, no el texto: un renglón entero pintado del color de la
+          serie se lee peor y, en el azul claro o el naranja, encima pierde contraste. */}
+      <p className="tabular flex items-center gap-1.5" style={{ color: 'var(--text-secondary)' }}>
+        <span className="h-2 w-2 rounded-full" style={{ background: 'var(--series-blue)' }} />
         Ventas: {formatoMoneda(r.ventasNetas)}
       </p>
-      <p className="tabular" style={{ color: 'var(--series-2)' }}>
+      <p className="tabular flex items-center gap-1.5" style={{ color: 'var(--text-secondary)' }}>
+        <span className="h-2 w-2 rounded-full" style={{ background: 'var(--series-2)' }} />
         Compras: {formatoMoneda(r.comprasNetas)}
-      </p>
-      <p className="tabular" style={{ color: 'var(--series-4)' }}>
-        Margen: {formatoPorcentaje(r.margenPct)}
       </p>
     </div>
   )
@@ -879,53 +880,42 @@ export function Facturas({ facturas, pagos = [], cuentas, cuentaPorFactura = {},
               porque una compra y la venta que genera no siempre caen en el mismo mes.
             </p>
 
-            {resumenMensual.length > 1 && (
-              <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={resumenMensual} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
-                  <XAxis
-                    dataKey="mes"
-                    tickFormatter={mesLegible}
-                    stroke="var(--axis)"
-                    tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
-                    axisLine={{ stroke: 'var(--gridline)' }}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    yAxisId="monto"
-                    tickFormatter={(v) => formatoMoneda(v)}
-                    stroke="var(--axis)"
-                    tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
-                    axisLine={{ stroke: 'var(--gridline)' }}
-                    tickLine={false}
-                    width={90}
-                  />
-                  <YAxis
-                    yAxisId="pct"
-                    orientation="right"
-                    tickFormatter={(v) => `${v}%`}
-                    stroke="var(--axis)"
-                    tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
-                    axisLine={{ stroke: 'var(--gridline)' }}
-                    tickLine={false}
-                    width={44}
-                  />
-                  <Tooltip content={<EvolucionTooltip />} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Line yAxisId="monto" type="monotone" dataKey="ventasNetas" name="Ventas netas" stroke="var(--series-blue)" strokeWidth={2} dot={{ r: 3 }} />
-                  <Line yAxisId="monto" type="monotone" dataKey="comprasNetas" name="Compras netas" stroke="var(--series-2)" strokeWidth={2} dot={{ r: 3 }} />
-                  <Line
-                    yAxisId="pct"
-                    type="monotone"
-                    dataKey="margenPct"
-                    name="Margen %"
-                    stroke="var(--series-4)"
-                    strokeWidth={2}
-                    strokeDasharray="4 3"
-                    dot={{ r: 3 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
+            <ResponsiveContainer width="100%" height={240}>
+              <LineChart data={resumenMensual} margin={{ top: 8, right: 12, bottom: 8, left: 8 }}>
+                <CartesianGrid stroke="var(--gridline)" strokeWidth={1} vertical={false} />
+                <XAxis
+                  dataKey="mes"
+                  tickFormatter={mesLegible}
+                  stroke="var(--axis)"
+                  tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+                  axisLine={{ stroke: 'var(--gridline)' }}
+                  tickLine={false}
+                />
+                {/* Un solo eje. Antes había un segundo a la derecha con el margen en porcentaje,
+                    y dos escalas en un mismo gráfico inventan una correlación que no está en los
+                    datos: la altura a la que queda la línea del margen depende de cómo se
+                    alinearon las dos escalas, que es arbitrario. Además contradecía el texto de
+                    acá arriba, que explica que un margen mes a mes no significa nada porque la
+                    compra y la venta que genera no caen en el mismo mes. El margen del año está
+                    en la tarjeta de arriba, bien calculado. */}
+                <YAxis
+                  tickFormatter={(v) => formatoMoneda(v)}
+                  stroke="var(--axis)"
+                  tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+                  axisLine={{ stroke: 'var(--gridline)' }}
+                  tickLine={false}
+                  width={90}
+                />
+                <Tooltip content={<EvolucionTooltip />} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                {/* Rectas y no curvas: la curva dibuja valores entre dos meses que no existen —
+                    con la mayoría de los meses en cero quedaban lomas que sugieren una subida
+                    gradual donde en realidad hubo una sola factura. Y puntos de 8px, porque más
+                    chicos agarrarlos con el mouse se vuelve puntería. */}
+                <Line type="linear" dataKey="ventasNetas" name="Ventas netas" stroke="var(--series-blue)" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                <Line type="linear" dataKey="comprasNetas" name="Compras netas" stroke="var(--series-2)" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+              </LineChart>
+            </ResponsiveContainer>
 
             <div className="overflow-x-auto">
               <table className="w-full min-w-[400px] text-sm">

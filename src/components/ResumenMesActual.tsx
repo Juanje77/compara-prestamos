@@ -74,7 +74,7 @@ function Celda({
       <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
         {etiqueta}
       </p>
-      <p className="tabular text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>
+      <p className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>
         {valor}
       </p>
       <p className="mt-1">

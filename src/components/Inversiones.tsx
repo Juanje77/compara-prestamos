@@ -94,7 +94,7 @@ export function Inversiones({ caja, gastosFijosMensuales }: Props) {
               {r.excedente > 0 ? 'Excedente que podés invertir' : 'Te falta para el colchón'}
             </p>
             <p
-              className="tabular text-2xl font-semibold"
+              className="text-2xl font-semibold"
               style={{ color: r.excedente > 0 ? 'var(--status-good-text)' : 'var(--text-secondary)' }}
             >
               {formatoMoneda(r.excedente > 0 ? r.excedente : r.faltante)}

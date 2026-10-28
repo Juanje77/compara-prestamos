@@ -203,7 +203,7 @@ export function PuntoDeVenta({ productos, cuentas, onCobrar }: Props) {
             <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
               Total
             </span>
-            <span className="tabular text-3xl font-semibold" style={{ color: 'var(--text-primary)' }}>
+            <span className="text-3xl font-semibold" style={{ color: 'var(--text-primary)' }}>
               {formatoMoneda(total)}
             </span>
           </div>

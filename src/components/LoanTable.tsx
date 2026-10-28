@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { OfertaCalculada } from '../lib/finance'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
 import type { TipoPrestamo } from '../data/loans'
+import { Star } from 'lucide-react'
 
 type Columna = 'cft' | 'tna' | 'cuotaMensual' | 'costoTotal' | 'banco'
 
@@ -104,7 +105,7 @@ export function LoanTable({
                       className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
                       style={{ background: 'var(--status-good)', color: 'white' }}
                     >
-                      ★ MEJOR
+                      <Star size={11} aria-hidden="true" className="inline align-[-1px]" /> MEJOR
                     </span>
                   )}
                   <a href={o.sitioWeb} target="_blank" rel="noreferrer" className="hover:underline">

@@ -217,7 +217,7 @@ function bloqueRecomendaciones(recomendaciones: Recomendacion[]): string {
   const items = recomendaciones
     .map((r) => `<li>${badgePrioridad(r.prioridad)}<span>${escapeHtml(r.texto)}</span></li>`)
     .join('')
-  return seccion('💡 Qué hacer', `<ul class="recomendaciones">${items}</ul>`)
+  return seccion('Qué hacer', `<ul class="recomendaciones">${items}</ul>`)
 }
 
 function mesLegible(mes: string): string {
@@ -335,7 +335,7 @@ function documentoBase(titulo: string, tituloNegocio: string, cuerpo: string, pi
 </head>
 <body>
   <div class="barra-imprimir">
-    <button onclick="window.print()">🖨️ Imprimir / Guardar como PDF</button>
+    <button onclick="window.print()">Imprimir / Guardar como PDF</button>
   </div>
   <div class="hoja">
     ${cuerpo}
