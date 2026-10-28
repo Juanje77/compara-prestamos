@@ -49,6 +49,7 @@ export const CAMPOS_POR_BLOQUE: Record<BloqueDatos, string[]> = {
     'tasaCrecimiento',
     'nombreNegocio',
     'actualizadoEn',
+    'historialMensual',
   ],
   // El único campo que no vive adentro de negocioData: la planilla semanal de cobranzas y pagos
   // se guarda al lado. Igual va acá, porque la razón de los bloques es la misma —es un documento

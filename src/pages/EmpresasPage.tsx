@@ -12,6 +12,8 @@ import { armarMovimientos } from '../lib/movimientosDelNegocio'
 import { calcularPosicionFinanciera } from '../lib/posicionFinanciera'
 import { obtenerMovimientos } from '../lib/movimientosSemana'
 import { mesAnterior, mesDe, resumenDelMes, variacion } from '../lib/dashboardMes'
+import { fotoAnteriorA, hayQueTomarFoto, registrarFoto, type FotoMensual } from '../lib/historialMensual'
+import type { ComparacionKpi } from '../components/KpiCard'
 import { AlertasPanel } from '../components/AlertasPanel'
 import { Recomendaciones } from '../components/Recomendaciones'
 import { PresupuestoVsReal } from '../components/PresupuestoVsReal'
@@ -154,6 +156,13 @@ const CATEGORIAS_CONFIG = CATEGORIAS_GASTO
 
 function mesActualISO(): string {
   return new Date().toISOString().slice(0, 7)
+}
+
+/** "2026-09" → "sep. 2026", para que la comparación diga contra qué mes es sin ocupar media
+ * tarjeta. No siempre es el mes inmediato anterior: ver fotoAnteriorA. */
+function mesCorto(mes: string): string {
+  const [anio, m] = mes.split('-')
+  return new Date(Number(anio), Number(m) - 1, 1).toLocaleDateString('es-AR', { month: 'short', year: 'numeric' })
 }
 
 function hoyISO(): string {
@@ -322,6 +331,9 @@ export function EmpresasPage({ esPremium, esFull = false, acceso }: Props) {
   )
   const [tasaCrecimiento, setTasaCrecimiento] = useState(() => cargarNegocioData()?.tasaCrecimiento ?? 0)
   const [nombreNegocio, setNombreNegocio] = useState(() => cargarNegocioData()?.nombreNegocio ?? '')
+  const [historialMensual, setHistorialMensual] = useState<FotoMensual[]>(
+    () => cargarNegocioData()?.historialMensual ?? [],
+  )
 
   // Instante de la última EDICIÓN — el mismo valor va tanto al guardado local (inmediato) como al
   // de Firestore (debounceado 800ms). Sirve para que la carga desde la nube no pise con datos
@@ -377,6 +389,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso }: Props) {
       datosEmisorFiscal, anticipos, productos, movimientosStock,
       movimientosTesoreria, movimientosBancarios, ivaManualPorMes, ingresosBrutosManualPorMes,
       movimientosDiarios, monotributo, tasaCrecimiento, nombreNegocio, actualizadoEn,
+      historialMensual,
     }),
     [
       ingresos, meses, montos, cuentas, deudas, bienes, realManualPorMes, ventasManualPorMes,
@@ -384,6 +397,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso }: Props) {
       datosEmisorFiscal, anticipos, productos, movimientosStock,
       movimientosTesoreria, movimientosBancarios, ivaManualPorMes, ingresosBrutosManualPorMes,
       movimientosDiarios, monotributo, tasaCrecimiento, nombreNegocio, actualizadoEn,
+      historialMensual,
     ],
   )
 
@@ -469,6 +483,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso }: Props) {
           setMonotributo(d.monotributo ?? DATOS_MONOTRIBUTO_VACIOS)
           setTasaCrecimiento(d.tasaCrecimiento ?? 0)
           setNombreNegocio(d.nombreNegocio ?? '')
+          setHistorialMensual(d.historialMensual ?? [])
         }
         setBackupsAutomaticos(datos.backupsIndex ?? [])
         // Se dispara con el dato recién leído de la nube (coherente entre sí, no hace falta
@@ -590,6 +605,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso }: Props) {
     setMonotributo(d.monotributo ?? DATOS_MONOTRIBUTO_VACIOS)
     setTasaCrecimiento(d.tasaCrecimiento ?? 0)
     setNombreNegocio(d.nombreNegocio ?? '')
+    setHistorialMensual(d.historialMensual ?? [])
   }
 
   function handleObtenerBackupAutomatico(id: string) {
@@ -1534,10 +1550,52 @@ export function EmpresasPage({ esPremium, esFull = false, acceso }: Props) {
     [resumenMes, resumenMesPrevio],
   )
 
-  // Los supuestos cargados a mano se esconden cuando ya hay comprobantes: en ese caso el sistema
-  // usa los números reales y el formulario deja de afectar los indicadores de abajo (la propia
-  // pantalla lo avisaba con un "(no usado)" al lado de cada campo). Seguía ocupando el lugar
-  // principal del Dashboard sin servir para nada.
+  // La foto mensual de los indicadores (ver historialMensual.ts).
+  //
+  // Se toma una vez por día y recién cuando la nube ya contestó: guardarla antes la escribiría
+  // sobre un negocio a medio cargar, y una foto con la caja en cero porque los datos todavía no
+  // llegaron es peor que no tener foto. Los meses ya cerrados no se vuelven a tocar.
+  useEffect(() => {
+    if (user && !nubeLista) return
+    if (!hayQueTomarFoto(historialMensual, mesEnCurso)) return
+    setHistorialMensual((prev) =>
+      registrarFoto(prev, {
+        mes: mesEnCurso,
+        tomadaEn: Date.now(),
+        margenOperativo,
+        runwayMeses: Number.isFinite(runwayMeses) ? runwayMeses : undefined,
+        puntoEquilibrio: puntoEquilibrio.alcanzable ? puntoEquilibrio.ingresosNecesarios : undefined,
+        endeudamientoMeses: Number.isFinite(endeudamientoMeses) ? endeudamientoMeses : undefined,
+        caja: saldoInicial,
+        facturado: resumenMes.facturado,
+        cobrado: resumenMes.cobrado,
+        pagado: resumenMes.pagado,
+      }),
+    )
+    // Se mira solo lo que decide SI hay que tomarla. Si dependiera de cada indicador, cualquier
+    // tecla volvería a entrar acá y la foto se reescribiría todo el día.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, nubeLista, historialMensual, mesEnCurso])
+
+  /** La comparación de un indicador contra la última foto anterior a este mes. */
+  function compararConFoto(
+    campo: 'margenOperativo' | 'runwayMeses' | 'puntoEquilibrio' | 'endeudamientoMeses',
+    actual: number | null,
+    formatear: (v: number) => string,
+    bueno: 'sube' | 'baja',
+  ): ComparacionKpi | undefined {
+    const anterior = fotoAnteriorA(historialMensual, mesEnCurso)
+    const valor = anterior?.[campo]
+    if (anterior === null || valor === undefined || actual === null || !Number.isFinite(actual)) return undefined
+    const v = variacion(actual, valor)
+    return {
+      valorAnterior: formatear(valor),
+      porcentaje: v.porcentaje,
+      direccion: v.direccion,
+      bueno,
+      mes: mesCorto(anterior.mes),
+    }
+  }
 
 
   const mensajeWhatsApp = `Hola Juan! Armé mi dashboard financiero en FinCorp (margen operativo: ${formatoPorcentaje(
@@ -2178,6 +2236,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso }: Props) {
           <section className={`mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 ${esPremium ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}>
             <KpiCard
               label="Margen operativo"
+              comparacion={compararConFoto('margenOperativo', margenOperativo, formatoPorcentaje, 'sube')}
               info="Qué porcentaje de cada peso que factura tu negocio queda como ganancia, después de pagar todos los gastos."
               value={formatoPorcentaje(margenOperativo)}
               status={margenOperativo >= 15 ? 'good' : margenOperativo >= 0 ? 'warning' : 'critical'}
@@ -2191,6 +2250,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso }: Props) {
             />
             <KpiCard
               label="Runway de caja"
+              comparacion={compararConFoto('runwayMeses', Number.isFinite(runwayMeses) ? runwayMeses : null, (v) => `${v.toFixed(1)} meses`, 'sube')}
               info="Cuántos meses te alcanza la plata que tenés en el banco para cubrir tus gastos fijos, si de golpe dejaras de facturar."
               value={runwayMeses === Infinity ? '∞' : `${runwayMeses.toFixed(1)} meses`}
               status={runwayMeses >= 6 ? 'good' : runwayMeses >= 3 ? 'warning' : 'critical'}
@@ -2211,6 +2271,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso }: Props) {
             )}
             <KpiCard
               label="Punto de equilibrio"
+              comparacion={compararConFoto('puntoEquilibrio', puntoEquilibrio.alcanzable ? puntoEquilibrio.ingresosNecesarios : null, formatoMoneda, 'baja')}
               info="Cuánto tenés que facturar por mes como mínimo para no perder plata — ni ganar ni perder."
               value={puntoEquilibrio.alcanzable ? formatoMoneda(puntoEquilibrio.ingresosNecesarios) : 'No alcanzable'}
               status={
@@ -2230,6 +2291,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso }: Props) {
             />
             <KpiCard
               label="Endeudamiento"
+              comparacion={compararConFoto('endeudamientoMeses', Number.isFinite(endeudamientoMeses) ? endeudamientoMeses : null, (v) => `${v.toFixed(1)} meses`, 'baja')}
               info="Cuántos meses de tu ingreso actual necesitarías, sin gastar en nada más, para pagar toda la deuda que tenés pendiente."
               value={deudaTotal <= 0 ? 'Sin deudas' : endeudamientoMeses === Infinity ? '∞' : `${endeudamientoMeses.toFixed(1)} meses de ingreso`}
               status={deudaTotal <= 0 || endeudamientoMeses <= 3 ? 'good' : endeudamientoMeses <= 6 ? 'warning' : 'critical'}

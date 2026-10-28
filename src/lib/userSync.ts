@@ -2,6 +2,7 @@ import { app, firebaseHabilitado } from './firebase'
 import type { Anticipo, Bien, Cheque, ClasificacionesProveedores, CuentaBancaria, DatosEmisorFiscal, Deuda, Empleado, Factura, IngresosBrutosManualMes, IvaManualMes, MovimientoBancario, MovimientoDiario, MovimientoStock, MovimientoTesoreria, Pago, Producto, RemitoPresupuesto, Sector } from './cfo'
 import type { Movimiento } from './movimientosSemana'
 import type { DatosMonotributo } from './monotributo'
+import type { FotoMensual } from './historialMensual'
 import {
   BLOQUES,
   bloquesQueCambiaron,
@@ -41,6 +42,7 @@ export interface NegocioDataUsuario {
   monotributo?: DatosMonotributo
   tasaCrecimiento?: number
   nombreNegocio?: string
+  historialMensual?: FotoMensual[]
   /** Ver NegocioData.actualizadoEn en negocioData.ts — mismo propósito, del lado de la nube. */
   actualizadoEn?: number
 }

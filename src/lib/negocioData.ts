@@ -1,5 +1,6 @@
 import type { Anticipo, Bien, Cheque, ClasificacionesProveedores, CuentaBancaria, DatosEmisorFiscal, Deuda, Empleado, Factura, IngresosBrutosManualMes, IvaManualMes, MovimientoBancario, MovimientoDiario, MovimientoStock, MovimientoTesoreria, Pago, Producto, RemitoPresupuesto, Sector } from './cfo'
 import type { DatosMonotributo } from './monotributo'
+import type { FotoMensual } from './historialMensual'
 
 export interface NegocioData {
   ingresos: number
@@ -53,6 +54,9 @@ export interface NegocioData {
   monotributo?: DatosMonotributo
   tasaCrecimiento: number
   nombreNegocio: string
+  /** La foto de los indicadores, mes a mes — ver historialMensual.ts. Es lo que permite comparar
+   * contra el mes pasado indicadores que, por sí solos, son una foto de hoy. */
+  historialMensual?: FotoMensual[]
   /** Instante (Date.now()) de la última edición — para no dejar que una carga de la nube, más
    * vieja porque el guardado en Firestore está debounceado, pise una edición local más reciente
    * que todavía no llegó a viajar (ver el efecto de carga en EmpresasPage). Es la última EDICIÓN,

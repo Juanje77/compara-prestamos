@@ -33,6 +33,7 @@ const NEGOCIO_COMPLETO: Record<string, unknown> = {
   tasaCrecimiento: 5,
   nombreNegocio: 'Mi negocio',
   actualizadoEn: 1760000000000,
+  historialMensual: [{ mes: '2026-09', tomadaEn: 1760000000000, caja: 1 }],
   // No es un campo de negocioData, pero se parte con el mismo mecanismo y en su propio bloque.
   movimientosSemana: [{ id: 'mv1' }],
 }
