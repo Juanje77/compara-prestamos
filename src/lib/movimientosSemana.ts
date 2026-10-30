@@ -79,6 +79,21 @@ export function cambiarMedioPago(id: string, medioPago: MedioPago | undefined) {
   escribirStorage(leerStorage().map((m) => (m.id === id ? { ...m, medioPago } : m)))
 }
 
+/**
+ * Corrige un movimiento ya cargado: el concepto, el importe o la fecha.
+ *
+ * Hasta ahora, para arreglar un monto mal tipeado había que borrar la fila y cargarla de nuevo —
+ * y si venía de una importación de Excel con cincuenta filas, encontrarla y rehacerla era peor
+ * que el error. Solo vale para los cargados a mano: los que salen de Comprobantes, Cheques o
+ * Sueldos se corrigen en su propia pantalla, que es donde está el dato de verdad.
+ */
+export function editarMovimiento(
+  id: string,
+  cambios: Partial<Pick<Movimiento, 'concepto' | 'monto' | 'fecha'>>,
+) {
+  escribirStorage(leerStorage().map((m) => (m.id === id ? { ...m, ...cambios } : m)))
+}
+
 export function eliminarMovimiento(id: string) {
   escribirStorage(leerStorage().filter((m) => m.id !== id))
 }

@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, Check, ChevronDown, Cloud, Download, FileDown, FileUp, Landmark, Receipt, Trash2, Users } from 'lucide-react'
+import { AlertTriangle, Check, ChevronDown, Cloud, Download, FileDown, FileUp, Landmark, Pencil, Receipt, Trash2, Users } from 'lucide-react'
 import {
   agregarMovimiento,
   agregarMovimientos,
   alternarCumplido,
   cambiarMedioPago,
+  editarMovimiento,
   eliminarMovimiento,
   marcarCumplidoVarios,
   obtenerMovimientos,
@@ -200,6 +201,8 @@ interface ColumnaProps {
   onAgregar: (concepto: string, monto: number, fecha: string) => void
   onToggle: (id: string) => void
   onEliminar: (id: string) => void
+  /** Corregir un movimiento cargado a mano: concepto, importe o fecha. */
+  onEditar: (id: string, cambios: { concepto: string; monto: number; fecha: string }) => void
   onMarcarVarios: (ids: string[], cumplido: boolean) => void
   onCambiarMedioPago: (id: string, medioPago: MedioPago | undefined) => void
   /** Cuentas bancarias/caja (plan Full) para elegir dónde entró/salió la plata de una factura. */
@@ -215,6 +218,7 @@ function FilaMovimiento({
   onSeleccionar,
   onToggle,
   onEliminar,
+  onEditar,
   onCambiarMedioPago,
   cuentas,
   onCambiarCuentaFactura,
@@ -225,6 +229,7 @@ function FilaMovimiento({
   onSeleccionar: (id: string, marcado: boolean) => void
   onToggle: (id: string) => void
   onEliminar: (id: string) => void
+  onEditar: (id: string, cambios: { concepto: string; monto: number; fecha: string }) => void
   onCambiarMedioPago: (id: string, medioPago: MedioPago | undefined) => void
   cuentas?: CuentaBancaria[]
   onCambiarCuentaFactura: (id: string, cuentaId: string) => void
@@ -233,6 +238,81 @@ function FilaMovimiento({
   const deFactura = m.id.startsWith(PREFIJO_FACTURA)
   const deCheque = m.id.startsWith(PREFIJO_CHEQUE)
   const deSueldo = m.id.startsWith(PREFIJO_SUELDO)
+  // Solo se editan acá los cargados a mano. Los que vienen de Comprobantes, Cheques o Sueldos se
+  // corrigen en su propia pantalla, que es donde está el dato de verdad: cambiarle el importe
+  // acá a una factura dejaría la factura diciendo una cosa y la proyección otra.
+  const editable = !deFactura && !deCheque && !deSueldo
+  const [editando, setEditando] = useState(false)
+  const [concepto, setConcepto] = useState(m.concepto)
+  const [monto, setMonto] = useState(m.monto)
+  const [fecha, setFecha] = useState(m.fecha)
+
+  function abrirEdicion() {
+    setConcepto(m.concepto)
+    setMonto(m.monto)
+    setFecha(m.fecha)
+    setEditando(true)
+  }
+
+  function guardar() {
+    if (!concepto.trim() || monto <= 0 || !fecha) return
+    onEditar(m.id, { concepto: concepto.trim(), monto, fecha })
+    setEditando(false)
+  }
+
+  if (editando) {
+    return (
+      <li className="rounded-lg border px-3 py-2" style={{ borderColor: 'var(--series-blue)' }}>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="text"
+            value={concepto}
+            onChange={(e) => setConcepto(e.target.value)}
+            aria-label="Concepto"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') guardar()
+              if (e.key === 'Escape') setEditando(false)
+            }}
+            className="min-w-[140px] flex-1 rounded-lg border px-2 py-1 text-sm"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+          />
+          <InputMoneda
+            value={monto}
+            onChange={setMonto}
+            aria-label="Monto"
+            className="tabular w-28 shrink-0 rounded-lg border px-2 py-1 text-sm"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+          />
+          <input
+            type="date"
+            value={fecha}
+            onChange={(e) => setFecha(e.target.value)}
+            aria-label="Fecha"
+            className="shrink-0 rounded-lg border px-2 py-1 text-sm"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+          />
+          <button
+            type="button"
+            onClick={guardar}
+            className="shrink-0 rounded-lg px-3 py-1 text-xs font-semibold text-white"
+            style={{ background: 'var(--series-blue)' }}
+          >
+            Guardar
+          </button>
+          <button
+            type="button"
+            onClick={() => setEditando(false)}
+            className="shrink-0 text-xs font-medium"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            Cancelar
+          </button>
+        </div>
+      </li>
+    )
+  }
+
   return (
     <li
       className="flex items-center gap-3 rounded-lg border px-3 py-2 text-sm"
@@ -327,6 +407,9 @@ function FilaMovimiento({
       <span className="tabular shrink-0 font-medium" style={{ color: 'var(--text-primary)' }}>
         {formatoMoneda(m.monto)}
       </span>
+      {editable && (
+        <IconButton icon={Pencil} onClick={abrirEdicion} label="Editar" className="shrink-0" />
+      )}
       {!deFactura && !deCheque && (
         <IconButton icon={Trash2} onClick={() => onEliminar(m.id)} label="Eliminar" className="shrink-0" />
       )}
@@ -342,6 +425,7 @@ function ColumnaMovimientos({
   onAgregar,
   onToggle,
   onEliminar,
+  onEditar,
   onMarcarVarios,
   onCambiarMedioPago,
   cuentas,
@@ -502,6 +586,7 @@ function ColumnaMovimientos({
                   onSeleccionar={alternarSeleccion}
                   onToggle={onToggle}
                   onEliminar={onEliminar}
+                  onEditar={onEditar}
                   onCambiarMedioPago={onCambiarMedioPago}
                   cuentas={cuentas}
                   onCambiarCuentaFactura={onCambiarCuentaFactura}
@@ -543,6 +628,7 @@ function ColumnaMovimientos({
                         onSeleccionar={alternarSeleccion}
                         onToggle={onToggle}
                         onEliminar={onEliminar}
+                        onEditar={onEditar}
                         onCambiarMedioPago={onCambiarMedioPago}
                         cuentas={cuentas}
                         onCambiarCuentaFactura={onCambiarCuentaFactura}
@@ -680,6 +766,11 @@ export function CobranzasPagosSemanal({
       return
     }
     alternarCumplido(id)
+    refrescar()
+  }
+
+  function handleEditar(id: string, cambios: { concepto: string; monto: number; fecha: string }) {
+    editarMovimiento(id, cambios)
     refrescar()
   }
 
@@ -978,6 +1069,7 @@ export function CobranzasPagosSemanal({
           onAgregar={handleAgregar('cobro')}
           onToggle={handleToggle}
           onEliminar={handleEliminar}
+          onEditar={handleEditar}
           onMarcarVarios={handleMarcarVarios}
           onCambiarMedioPago={handleCambiarMedioPago}
           cuentas={cuentas}
@@ -1003,6 +1095,7 @@ export function CobranzasPagosSemanal({
           onAgregar={handleAgregar('pago')}
           onToggle={handleToggle}
           onEliminar={handleEliminar}
+          onEditar={handleEditar}
           onMarcarVarios={handleMarcarVarios}
           onCambiarMedioPago={handleCambiarMedioPago}
           cuentas={cuentas}
