@@ -9,18 +9,30 @@
 // sola plata. Si se sumaran las facturas y los cheques por separado, esa plata se contaría dos
 // veces. Acá la representa el cheque y la factura no se lista.
 
-import { CONCEPTO_PAGO_SUELDOS_LABEL, type Cheque, type Factura, type PagoSueldos } from './cfo'
+import { CONCEPTO_PAGO_SUELDOS_LABEL, calcularSaldoFactura, type Cheque, type Factura, type Pago, type PagoSueldos } from './cfo'
 import type { Movimiento } from './movimientosSemana'
 import { PREFIJO_CHEQUE, PREFIJO_FACTURA, PREFIJO_SUELDO } from './posicionFinanciera'
 
-export function facturaAMovimiento(f: Factura): Movimiento {
+/**
+ * Lo que falta cobrar (o pagar) de una factura, que NO es siempre su monto.
+ *
+ * Si ya entraron pagos a cuenta, esa plata está en otro lado —en la caja, o en el cheque que la
+ * respalda— y contar la factura completa la sumaría dos veces. Una factura de 100.000 con 60.000
+ * cobrados aporta 40.000, no 100.000.
+ *
+ * Cuando los pagos la cubren entera queda saldada aunque nadie la haya tildado: se muestra por su
+ * monto, que es lo que se cobró, pero no suma a lo pendiente.
+ */
+export function facturaAMovimiento(f: Factura, pagos: Pago[] = []): Movimiento {
+  const saldo = calcularSaldoFactura(f, pagos)
+  const saldada = saldo <= 0
   return {
     id: `${PREFIJO_FACTURA}${f.id}`,
     tipo: f.tipo === 'emitida' ? 'cobro' : 'pago',
     concepto: f.contraparte,
-    monto: f.monto,
+    monto: saldada ? f.monto : saldo,
     fecha: f.fechaEstimadaCobroPago ?? f.fecha,
-    cumplido: f.cumplido ?? false,
+    cumplido: (f.cumplido ?? false) || saldada,
     medioPago: f.medioPago,
   }
 }
@@ -64,18 +76,21 @@ export function armarMovimientos({
   facturas = [],
   cheques = [],
   pagosSueldos = [],
+  pagos = [],
 }: {
   manuales?: Movimiento[]
   facturas?: Factura[]
   cheques?: Cheque[]
   pagosSueldos?: PagoSueldos[]
+  /** Los pagos a cuenta ya recibidos o hechos, para descontarlos del saldo de cada factura. */
+  pagos?: Pago[]
 }): Movimiento[] {
   const cubiertasPorCheque = new Set(cheques.flatMap((c) => c.facturasIds ?? []))
   return [
     ...manuales,
     ...facturas
       .filter((f) => f.tipoComprobante !== 'nota_credito' && !cubiertasPorCheque.has(f.id))
-      .map(facturaAMovimiento),
+      .map((f) => facturaAMovimiento(f, pagos)),
     ...cheques.map(chequeAMovimiento),
     ...pagosSueldos.map(sueldoAMovimiento),
   ]

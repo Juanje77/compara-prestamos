@@ -35,6 +35,7 @@ import {
   type Factura,
   calcularSaldoTotalBancos,
   type MedioPago,
+  type Pago as PagoFactura,
   type PagoSueldos,
 } from '../lib/cfo'
 import { InputMoneda } from './InputMoneda'
@@ -517,6 +518,10 @@ interface Props {
   /** Pagos que genera la nómina del mes (plan Full) — se muestran para verlos venir, pero se
    * registran desde la solapa Sueldos. */
   pagosSueldos?: PagoSueldos[]
+  /** Los pagos a cuenta ya registrados, para que una factura cobrada a medias cuente solo por su
+   * saldo y no por el monto completo. Se llama así y no `pagos` porque en esta pantalla `pagos`
+   * ya son los movimientos de salida de la semana, que es otra cosa. */
+  pagosDeFacturas?: PagoFactura[]
   /** De quién son los datos en Firestore. Para un empleado es el uid del dueño, no el suyo (ver
    * src/lib/empresa.ts). Sin esto, un usuario invitado guardaría la planilla en su propia cuenta
    * vacía y el dueño nunca la vería. */
@@ -530,6 +535,7 @@ export function CobranzasPagosSemanal({
   onCambiarEstadoCheque,
   cuentas,
   pagosSueldos = [],
+  pagosDeFacturas = [],
   uidDatos,
 }: Props) {
   const { user } = useAuth()
@@ -543,8 +549,8 @@ export function CobranzasPagosSemanal({
 
   // La misma lista que usa el Dashboard para su franja de hoy — ver movimientosDelNegocio.ts.
   const todosMovimientos = useMemo(
-    () => armarMovimientos({ manuales: movimientos, facturas, cheques, pagosSueldos }),
-    [movimientos, facturas, cheques, pagosSueldos],
+    () => armarMovimientos({ manuales: movimientos, facturas, cheques, pagosSueldos, pagos: pagosDeFacturas }),
+    [movimientos, facturas, cheques, pagosSueldos, pagosDeFacturas],
   )
 
   const [nubeLista, setNubeLista] = useState(false)

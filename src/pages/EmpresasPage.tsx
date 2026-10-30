@@ -1517,9 +1517,10 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
           facturas,
           cheques,
           pagosSueldos: esFull ? pagosSueldosMesActual : [],
+          pagos,
         }),
       ),
-    [saldoInicial, facturas, cheques, esFull, pagosSueldosMesActual],
+    [saldoInicial, facturas, cheques, esFull, pagosSueldosMesActual, pagos],
   )
 
   // El mes en curso contra el anterior. Un número solo no dice nada: "facturaste 2 millones" se
@@ -1690,6 +1691,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
           onCambiarEstadoCheque={esFull ? handleCambiarEstadoCheque : undefined}
           cuentas={esFull ? cuentas : undefined}
           pagosSueldos={esFull ? pagosSueldosMesActual : undefined}
+          pagosDeFacturas={pagos}
         />
       )}
 
