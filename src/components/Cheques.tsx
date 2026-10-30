@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Receipt, Trash2 } from 'lucide-react'
+import { Download, FileUp, Receipt, Trash2 } from 'lucide-react'
 import type { Cheque, CuentaBancaria, EstadoCheque, Factura, TipoCheque } from '../lib/cfo'
 import { calcularTotalesCheques, estadosChequeDisponibles, etiquetaEstadoCheque, montoNetoCheque } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
@@ -7,6 +7,8 @@ import { InputMoneda } from './InputMoneda'
 import { IconButton } from './IconButton'
 import { Card } from './Card'
 import { Button } from './Button'
+import { importarChequesDesdeExcel } from '../lib/excelImport'
+import { descargarPlantillaCheques } from '../lib/plantillasImportacion'
 
 interface Props {
   cheques: Cheque[]
@@ -27,6 +29,8 @@ function hoyISO(): string {
 
 export function Cheques({ cheques, facturas, cuentas, onAgregar, onCambiarEstado, onCambiarCuenta, onCambiarComision, onEliminar }: Props) {
   const [tipo, setTipo] = useState<TipoCheque>('recibido')
+  const [importando, setImportando] = useState(false)
+  const [mensajeImport, setMensajeImport] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const [numero, setNumero] = useState('')
   const [banco, setBanco] = useState('')
   const [contraparte, setContraparte] = useState('')
@@ -73,6 +77,37 @@ export function Cheques({ cheques, facturas, cuentas, onAgregar, onCambiarEstado
     })
   }
 
+  /**
+   * Alta masiva desde la chequera en Excel.
+   *
+   * Entran todos como "en cartera": un cheque que ya se cobró o se pagó no hace falta importarlo,
+   * porque su plata ya está en el saldo de la cuenta. Importarlo como cobrado la sumaría de nuevo.
+   */
+  async function handleImportar(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    const inputEl = e.target
+    if (!file) return
+    setImportando(true)
+    setMensajeImport(null)
+    try {
+      const filas = await importarChequesDesdeExcel(file)
+      if (filas.length === 0) {
+        setMensajeImport({ tipo: 'error', texto: 'No se encontraron cheques válidos en el archivo.' })
+      } else {
+        for (const f of filas) onAgregar({ ...f, tipo, estado: 'cartera' })
+        setMensajeImport({
+          tipo: 'ok',
+          texto: `Se importaron ${filas.length} cheques ${tipo === 'emitido' ? 'emitidos' : 'recibidos'}.`,
+        })
+      }
+    } catch (err) {
+      setMensajeImport({ tipo: 'error', texto: err instanceof Error ? err.message : 'No se pudo leer el archivo.' })
+    } finally {
+      setImportando(false)
+      inputEl.value = ''
+    }
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!banco.trim() || !contraparte.trim() || !monto || monto <= 0 || !fechaEmision || !fechaCobro) return
@@ -105,6 +140,37 @@ export function Cheques({ cheques, facturas, cuentas, onAgregar, onCambiarEstado
           vencimiento, o venderlo (descontarlo) antes en un banco a cambio de una comisión. Junto con tus
           cuentas bancarias, es la base para armar un balance contable a fin de año.
         </p>
+
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <label
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium"
+            style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
+          >
+            <FileUp size={14} aria-hidden="true" />
+            {importando ? 'Importando…' : `Importar ${tipo === 'emitido' ? 'emitidos' : 'recibidos'} desde Excel`}
+            <input type="file" accept=".xlsx,.xls" onChange={handleImportar} className="hidden" disabled={importando} />
+          </label>
+          <button
+            type="button"
+            onClick={() => descargarPlantillaCheques(tipo)}
+            className="inline-flex items-center gap-1 text-[11px] font-medium"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            <Download size={11} aria-hidden="true" /> Descargar plantilla
+          </button>
+          <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+            Importa los del tipo elegido abajo. Entran todos en cartera.
+          </span>
+        </div>
+
+        {mensajeImport && (
+          <p
+            className="mb-3 text-xs"
+            style={{ color: mensajeImport.tipo === 'ok' ? 'var(--status-good-text)' : 'var(--status-critical)' }}
+          >
+            {mensajeImport.texto}
+          </p>
+        )}
 
         <form onSubmit={handleSubmit} className="flex flex-wrap gap-2">
           <select

@@ -56,3 +56,17 @@ export async function descargarPlantillaExtracto() {
     'plantilla-extracto-bancario.xlsx',
   )
 }
+
+/** Para Cheques — la chequera, emitidos o recibidos. */
+export async function descargarPlantillaCheques(tipo: 'emitido' | 'recibido') {
+  const emitido = tipo === 'emitido'
+  await descargarHoja(
+    'Cheques',
+    [
+      encabezado('Número', 'Banco', emitido ? 'Proveedor' : 'Cliente', 'Monto', 'Fecha de emisión', 'Fecha de pago'),
+      ['00012345', 'Banco Nación', emitido ? 'Proveedor de ejemplo SA' : 'Cliente de ejemplo SA', 450000, '2026-10-05', '2026-12-10'],
+      ['00012346', 'Banco Galicia', emitido ? 'Otro proveedor SRL' : 'Otro cliente SRL', 180000, '2026-10-05', '2027-01-15'],
+    ],
+    `plantilla-cheques-${emitido ? 'emitidos' : 'recibidos'}.xlsx`,
+  )
+}

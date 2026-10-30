@@ -199,3 +199,82 @@ export async function importarExtractoBancario(file: File): Promise<FilaExtracto
 
   return resultado
 }
+
+export interface FilaChequeImportada {
+  numero?: string
+  banco: string
+  contraparte: string
+  monto: number
+  fechaEmision: string
+  fechaCobro: string
+}
+
+const ALIAS_NUMERO = ['numero', 'nro', 'n', 'numero de cheque', 'nro cheque', 'cheque']
+const ALIAS_BANCO = ['banco', 'entidad', 'banco emisor']
+const ALIAS_CONTRAPARTE_CHEQUE = ['proveedor', 'beneficiario', 'cliente', 'a la orden de', 'contraparte', 'razon social', 'nombre']
+const ALIAS_FECHA_EMISION = ['fecha de emision', 'fecha emision', 'emision', 'fecha libramiento', 'libramiento']
+const ALIAS_FECHA_COBRO = ['fecha de pago', 'fecha pago', 'fecha de cobro', 'fecha cobro', 'vencimiento', 'fecha de vencimiento', 'pago diferido', 'fecha']
+
+/**
+ * Lee un Excel de chequera para dar de alta varios cheques de una.
+ *
+ * Lo único que se exige es el importe y a nombre de quién va: sin eso no hay cheque. Banco y
+ * número se completan después a mano si faltan — es lo que pasa cuando alguien lleva la chequera
+ * en una planilla propia, que casi nunca tiene todas las columnas.
+ *
+ * Las dos fechas se tratan distinto a propósito. La de pago es la que importa, porque es la que
+ * ubica el cheque en la proyección de caja: si falta, el cheque no sirve para proyectar y la fila
+ * se saltea. La de emisión, si falta, se toma igual a la de pago: suponer que se emitió el mismo
+ * día que se paga es conservador y no cambia ningún número.
+ */
+export async function importarChequesDesdeExcel(file: File): Promise<FilaChequeImportada[]> {
+  const { readSheet } = await import('read-excel-file/browser')
+  const filas = await readSheet(file)
+  if (filas.length < 2) return []
+
+  const encabezados = filas[0].map(normalizar)
+  const buscar = (alias: string[]) => encabezados.findIndex((h) => alias.includes(h))
+  const idxNumero = buscar(ALIAS_NUMERO)
+  const idxBanco = buscar(ALIAS_BANCO)
+  const idxContraparte = buscar(ALIAS_CONTRAPARTE_CHEQUE)
+  const idxMonto = buscar(ALIAS_MONTO)
+  const idxEmision = buscar(ALIAS_FECHA_EMISION)
+  const idxCobro = buscar(ALIAS_FECHA_COBRO)
+
+  if (idxContraparte === -1 || idxMonto === -1) {
+    throw new Error(
+      'No se encontraron columnas de "Proveedor/Beneficiario" y "Monto" en el archivo. Verificá que la primera fila tenga esos encabezados.',
+    )
+  }
+  if (idxCobro === -1) {
+    throw new Error(
+      'Falta la columna de "Fecha de pago" (o "Vencimiento"). Sin esa fecha el cheque no se puede ubicar en la proyección de caja.',
+    )
+  }
+
+  const resultado: FilaChequeImportada[] = []
+
+  for (let i = 1; i < filas.length; i++) {
+    const fila = filas[i]
+    const contraparte = fila[idxContraparte]
+    const monto = fila[idxMonto]
+    if (!contraparte || typeof monto !== 'number' || monto <= 0) continue
+
+    const fechaCobro = aFechaISO(fila[idxCobro])
+    if (!fechaCobro) continue
+
+    const fechaEmision = idxEmision !== -1 ? aFechaISO(fila[idxEmision]) : null
+    const numero = idxNumero !== -1 && fila[idxNumero] ? String(fila[idxNumero]).trim() : undefined
+
+    resultado.push({
+      numero,
+      banco: idxBanco !== -1 && fila[idxBanco] ? String(fila[idxBanco]).trim() : '',
+      contraparte: String(contraparte).trim(),
+      monto,
+      fechaEmision: fechaEmision ?? fechaCobro,
+      fechaCobro,
+    })
+  }
+
+  return resultado
+}
