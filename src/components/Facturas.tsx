@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, FileDown, FileSpreadsheet, FileUp, ScanBarcode, Search, Trash2 } from 'lucide-react'
 import { CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type {
@@ -46,6 +46,10 @@ import { Button } from './Button'
 
 interface Props {
   facturas: Factura[]
+  /** Texto con el que arranca el buscador del listado. Lo usa el lápiz de Cobranzas y pagos: al
+   * traer a alguien hasta acá para corregir una factura puntual, dejarle el listado ya filtrado
+   * por esa contraparte le ahorra buscarla entre todas. */
+  busquedaInicial?: string
   pagos?: Pago[]
   /** Solo se pasa con el plan Full — habilita elegir con qué cuenta se cobró/pagó cada factura. */
   cuentas?: CuentaBancaria[]
@@ -154,7 +158,7 @@ function BotonExportarContador({ onExportar }: { onExportar: Props['onExportarCo
   )
 }
 
-export function Facturas({ facturas, pagos = [], cuentas, cuentaPorFactura = {}, sectores = [], productos = [], onAgregar, onImportarVarias, onCambiar, onEliminar, emisorFiscal, onEmitida, onVaciar, onExportarContador, onDescargarInforme }: Props) {
+export function Facturas({ facturas, busquedaInicial, pagos = [], cuentas, cuentaPorFactura = {}, sectores = [], productos = [], onAgregar, onImportarVarias, onCambiar, onEliminar, emisorFiscal, onEmitida, onVaciar, onExportarContador, onDescargarInforme }: Props) {
   const [facturaAEmitir, setFacturaAEmitir] = useState<Factura | null>(null)
   const [facturaANotear, setFacturaANotear] = useState<Factura | null>(null)
   const [tipo, setTipo] = useState<TipoFactura>('emitida')
@@ -175,7 +179,7 @@ export function Facturas({ facturas, pagos = [], cuentas, cuentaPorFactura = {},
   const [cantidadLinea, setCantidadLinea] = useState(0)
   const [precioLinea, setPrecioLinea] = useState(0)
   const [filtro, setFiltro] = useState<'todas' | TipoFactura>('todas')
-  const [busqueda, setBusqueda] = useState('')
+  const [busqueda, setBusqueda] = useState(busquedaInicial ?? '')
   const [importando, setImportando] = useState(false)
   const [mensajeImport, setMensajeImport] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const [plazoDias, setPlazoDias] = useState(30)
@@ -215,6 +219,12 @@ export function Facturas({ facturas, pagos = [], cuentas, cuentaPorFactura = {},
     }
     return { netoVentas, ivaVentas, netoCompras, ivaCompras }
   }, [facturasAnio])
+
+  // Si llegan con una búsqueda nueva desde otra pantalla, se aplica aunque el componente ya
+  // estuviera montado: sin esto, volver a tocar el lápiz por otra factura no haría nada.
+  useEffect(() => {
+    if (busquedaInicial !== undefined) setBusqueda(busquedaInicial)
+  }, [busquedaInicial])
 
   const busquedaNormalizada = busqueda.trim().toLowerCase()
   const listado = facturas

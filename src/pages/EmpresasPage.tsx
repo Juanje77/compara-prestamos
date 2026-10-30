@@ -12,7 +12,7 @@ import { SesionUsuario } from '../components/Layout'
 import type { ReactNode } from 'react'
 import { ResumenMesActual } from '../components/ResumenMesActual'
 import { armarMovimientos } from '../lib/movimientosDelNegocio'
-import { calcularPosicionFinanciera } from '../lib/posicionFinanciera'
+import { calcularPosicionFinanciera, type OrigenMovimiento } from '../lib/posicionFinanciera'
 import { obtenerMovimientos } from '../lib/movimientosSemana'
 import { mesAnterior, mesDe, resumenDelMes, variacion } from '../lib/dashboardMes'
 import { fotoAnteriorA, hayQueTomarFoto, registrarFoto, type FotoMensual } from '../lib/historialMensual'
@@ -1366,6 +1366,27 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
   const usaGastosReales = promediosReales?.hayCompras ?? false
 
   const [verSupuestos, setVerSupuestos] = useState<boolean | null>(null)
+  /** Lo que se escribe solo en el buscador de Comprobantes al llegar desde el lápiz de Cobranzas. */
+  const [busquedaComprobantes, setBusquedaComprobantes] = useState<string | undefined>(undefined)
+
+  /**
+   * El lápiz de un movimiento generado lleva a la pantalla que manda sobre ese dato.
+   *
+   * No se edita desde Cobranzas a propósito: el importe de una factura vive en Comprobantes, y
+   * cambiarlo en dos lugares distintos termina con las dos pantallas diciendo cosas diferentes
+   * sobre la misma plata. Llevar hasta ahí es la forma de que igual sea un solo clic.
+   */
+  function irAlOrigen(origen: OrigenMovimiento, concepto: string) {
+    if (origen === 'factura') {
+      // El concepto del movimiento es la contraparte de la factura, así que sirve de búsqueda.
+      setBusquedaComprobantes(concepto)
+      setSeccion('facturas')
+    } else if (origen === 'cheque') {
+      setSeccion('cheques')
+    } else if (origen === 'sueldo') {
+      setSeccion('sueldos')
+    }
+  }
   // Mientras nadie lo toque (null), el panel se abre o se cierra según corresponda: cerrado
   // cuando los indicadores ya salen de comprobantes reales, abierto cuando el negocio todavía
   // trabaja con estimaciones. Una vez que el usuario lo abre o lo cierra, manda su decisión.
@@ -1692,6 +1713,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
           cuentas={esFull ? cuentas : undefined}
           pagosSueldos={esFull ? pagosSueldosMesActual : undefined}
           pagosDeFacturas={pagos}
+          onIrAlOrigen={irAlOrigen}
         />
       )}
 
@@ -1722,6 +1744,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
         >
           <Facturas
             facturas={facturas}
+            busquedaInicial={busquedaComprobantes}
             pagos={pagos}
             cuentas={esFull ? cuentas : undefined}
             cuentaPorFactura={cuentasDeFacturas}

@@ -20,6 +20,7 @@ import {
   PREFIJO_FACTURA,
   PREFIJO_SUELDO,
   calcularPosicionFinanciera,
+  type OrigenMovimiento,
 } from '../lib/posicionFinanciera'
 import { armarMovimientos } from '../lib/movimientosDelNegocio'
 import { importarMovimientosDesdeExcel } from '../lib/excelImport'
@@ -203,6 +204,8 @@ interface ColumnaProps {
   onEliminar: (id: string) => void
   /** Corregir un movimiento cargado a mano: concepto, importe o fecha. */
   onEditar: (id: string, cambios: { concepto: string; monto: number; fecha: string }) => void
+  /** Ir a la pantalla que manda sobre un movimiento generado (Comprobantes, Cheques, Sueldos). */
+  onIrAlOrigen: (origen: OrigenMovimiento, concepto: string) => void
   onMarcarVarios: (ids: string[], cumplido: boolean) => void
   onCambiarMedioPago: (id: string, medioPago: MedioPago | undefined) => void
   /** Cuentas bancarias/caja (plan Full) para elegir dónde entró/salió la plata de una factura. */
@@ -219,6 +222,7 @@ function FilaMovimiento({
   onToggle,
   onEliminar,
   onEditar,
+  onIrAlOrigen,
   onCambiarMedioPago,
   cuentas,
   onCambiarCuentaFactura,
@@ -230,6 +234,7 @@ function FilaMovimiento({
   onToggle: (id: string) => void
   onEliminar: (id: string) => void
   onEditar: (id: string, cambios: { concepto: string; monto: number; fecha: string }) => void
+  onIrAlOrigen: (origen: OrigenMovimiento, concepto: string) => void
   onCambiarMedioPago: (id: string, medioPago: MedioPago | undefined) => void
   cuentas?: CuentaBancaria[]
   onCambiarCuentaFactura: (id: string, cuentaId: string) => void
@@ -407,9 +412,24 @@ function FilaMovimiento({
       <span className="tabular shrink-0 font-medium" style={{ color: 'var(--text-primary)' }}>
         {formatoMoneda(m.monto)}
       </span>
-      {editable && (
-        <IconButton icon={Pencil} onClick={abrirEdicion} label="Editar" className="shrink-0" />
-      )}
+      {/* El mismo lápiz para todos. En los cargados a mano abre la edición en la fila; en los que
+          vienen de otra pantalla lleva hasta ahí, que es donde está el dato de verdad. Tener dos
+          íconos distintos haría pensar que unos se editan y otros no, cuando todos se editan: lo
+          único que cambia es dónde. */}
+      <IconButton
+        icon={Pencil}
+        onClick={() =>
+          editable
+            ? abrirEdicion()
+            : onIrAlOrigen(deFactura ? 'factura' : deCheque ? 'cheque' : 'sueldo', m.concepto)
+        }
+        label={
+          editable
+            ? 'Editar'
+            : `Editar en ${deFactura ? 'Comprobantes' : deCheque ? 'Cheques' : 'Sueldos'}`
+        }
+        className="shrink-0"
+      />
       {!deFactura && !deCheque && (
         <IconButton icon={Trash2} onClick={() => onEliminar(m.id)} label="Eliminar" className="shrink-0" />
       )}
@@ -426,6 +446,7 @@ function ColumnaMovimientos({
   onToggle,
   onEliminar,
   onEditar,
+  onIrAlOrigen,
   onMarcarVarios,
   onCambiarMedioPago,
   cuentas,
@@ -587,6 +608,7 @@ function ColumnaMovimientos({
                   onToggle={onToggle}
                   onEliminar={onEliminar}
                   onEditar={onEditar}
+                  onIrAlOrigen={onIrAlOrigen}
                   onCambiarMedioPago={onCambiarMedioPago}
                   cuentas={cuentas}
                   onCambiarCuentaFactura={onCambiarCuentaFactura}
@@ -629,6 +651,7 @@ function ColumnaMovimientos({
                         onToggle={onToggle}
                         onEliminar={onEliminar}
                         onEditar={onEditar}
+                        onIrAlOrigen={onIrAlOrigen}
                         onCambiarMedioPago={onCambiarMedioPago}
                         cuentas={cuentas}
                         onCambiarCuentaFactura={onCambiarCuentaFactura}
@@ -676,6 +699,9 @@ interface Props {
    * saldo y no por el monto completo. Se llama así y no `pagos` porque en esta pantalla `pagos`
    * ya son los movimientos de salida de la semana, que es otra cosa. */
   pagosDeFacturas?: PagoFactura[]
+  /** Llevar a la pantalla que manda sobre un movimiento generado. Sin esto el lápiz de esas
+   * filas no tendría a dónde ir, así que el botón directamente no se muestra. */
+  onIrAlOrigen?: (origen: OrigenMovimiento, concepto: string) => void
   /** De quién son los datos en Firestore. Para un empleado es el uid del dueño, no el suyo (ver
    * src/lib/empresa.ts). Sin esto, un usuario invitado guardaría la planilla en su propia cuenta
    * vacía y el dueño nunca la vería. */
@@ -690,6 +716,7 @@ export function CobranzasPagosSemanal({
   cuentas,
   pagosSueldos = [],
   pagosDeFacturas = [],
+  onIrAlOrigen,
   uidDatos,
 }: Props) {
   const { user } = useAuth()
@@ -1070,6 +1097,7 @@ export function CobranzasPagosSemanal({
           onToggle={handleToggle}
           onEliminar={handleEliminar}
           onEditar={handleEditar}
+          onIrAlOrigen={onIrAlOrigen ?? (() => {})}
           onMarcarVarios={handleMarcarVarios}
           onCambiarMedioPago={handleCambiarMedioPago}
           cuentas={cuentas}
@@ -1096,6 +1124,7 @@ export function CobranzasPagosSemanal({
           onToggle={handleToggle}
           onEliminar={handleEliminar}
           onEditar={handleEditar}
+          onIrAlOrigen={onIrAlOrigen ?? (() => {})}
           onMarcarVarios={handleMarcarVarios}
           onCambiarMedioPago={handleCambiarMedioPago}
           cuentas={cuentas}
