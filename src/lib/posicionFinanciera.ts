@@ -33,6 +33,10 @@ export interface DesglosePosicion {
   /** Lo cargado a mano (o importado de Excel) en esta misma pantalla. */
   otros: number
   total: number
+  /** Qué movimientos componen cada renglón. Sin esto, un número que no cierra no hay forma de
+   * revisarlo: el usuario ve "$ 29.676.690" y no puede saber de dónde sale, ni si hay algo
+   * cargado dos veces. Con el detalle se mira la lista y se encuentra solo. */
+  detalle: Record<OrigenMovimiento, Movimiento[]>
 }
 
 export interface PosicionFinanciera {
@@ -47,7 +51,14 @@ export interface PosicionFinanciera {
 }
 
 function desgloseVacio(): DesglosePosicion {
-  return { cheques: 0, facturas: 0, sueldos: 0, otros: 0, total: 0 }
+  return {
+    cheques: 0,
+    facturas: 0,
+    sueldos: 0,
+    otros: 0,
+    total: 0,
+    detalle: { cheque: [], factura: [], sueldo: [], manual: [] },
+  }
 }
 
 /**
@@ -69,6 +80,7 @@ export function calcularPosicionFinanciera(caja: number, movimientos: Movimiento
     else if (origen === 'cheque') lado.cheques += m.monto
     else if (origen === 'sueldo') lado.sueldos += m.monto
     else lado.otros += m.monto
+    lado.detalle[origen].push(m)
     lado.total += m.monto
   }
 

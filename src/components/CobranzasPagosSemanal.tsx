@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, Check, Cloud, Download, FileDown, FileUp, Landmark, Receipt, Trash2, Users } from 'lucide-react'
+import { AlertTriangle, Check, ChevronDown, Cloud, Download, FileDown, FileUp, Landmark, Receipt, Trash2, Users } from 'lucide-react'
 import {
   agregarMovimiento,
   agregarMovimientos,
@@ -87,15 +87,83 @@ function useFechaActual(): Date {
 /** Un renglón del desglose de la posición. Los que están en cero igual se muestran: ver un
  * "Cheques a cobrar $ 0" dice algo —que no hay cheques—, mientras que esconder el renglón deja al
  * usuario preguntándose si el sistema los está contando. */
-function LineaPosicion({ etiqueta, monto }: { etiqueta: string; monto: number }) {
+/**
+ * Un renglón del desglose, que se abre para ver qué lo compone.
+ *
+ * Poder abrirlo no es un adorno: un total que no cierra es imposible de revisar si no se ve de
+ * qué está hecho. Con la lista a la vista, un movimiento cargado dos veces o una fecha mal
+ * puesta se encuentran en segundos, sin tener que exportar nada.
+ */
+function LineaPosicion({
+  etiqueta,
+  monto,
+  movimientos = [],
+}: {
+  etiqueta: string
+  monto: number
+  movimientos?: Movimiento[]
+}) {
+  const [abierto, setAbierto] = useState(false)
+  const sePuedeAbrir = movimientos.length > 0
+
   return (
-    <div className="flex items-center justify-between">
-      <span style={{ color: 'var(--text-secondary)' }}>{etiqueta}</span>
-      <span className="tabular font-medium" style={{ color: 'var(--text-primary)' }}>
-        {formatoMoneda(monto)}
-      </span>
+    <div>
+      <button
+        type="button"
+        onClick={() => sePuedeAbrir && setAbierto((v) => !v)}
+        aria-expanded={sePuedeAbrir ? abierto : undefined}
+        disabled={!sePuedeAbrir}
+        className="flex w-full items-center justify-between gap-2 text-left"
+        style={{ cursor: sePuedeAbrir ? 'pointer' : 'default' }}
+      >
+        <span className="inline-flex items-center gap-1" style={{ color: 'var(--text-secondary)' }}>
+          {etiqueta}
+          {sePuedeAbrir && (
+            <>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                ({movimientos.length})
+              </span>
+              <ChevronDown
+                size={12}
+                aria-hidden="true"
+                style={{ transform: abierto ? 'rotate(180deg)' : undefined, transition: 'transform 150ms' }}
+              />
+            </>
+          )}
+        </span>
+        <span className="tabular font-medium" style={{ color: 'var(--text-primary)' }}>
+          {formatoMoneda(monto)}
+        </span>
+      </button>
+
+      {abierto && (
+        <ul className="mt-1 mb-2 max-h-56 space-y-0.5 overflow-y-auto rounded-md px-2 py-1.5 text-xs" style={{ background: 'var(--surface-2)' }}>
+          {[...movimientos]
+            .sort((a, b) => b.monto - a.monto)
+            .map((m) => (
+              <li key={m.id} className="flex items-baseline justify-between gap-2">
+                <span className="truncate" style={{ color: 'var(--text-secondary)' }}>
+                  {m.concepto}
+                  <span className="ml-1" style={{ color: 'var(--text-muted)' }}>
+                    {fechaCorta(m.fecha)}
+                  </span>
+                </span>
+                <span className="tabular shrink-0" style={{ color: 'var(--text-secondary)' }}>
+                  {formatoMoneda(m.monto)}
+                </span>
+              </li>
+            ))}
+        </ul>
+      )}
     </div>
   )
+}
+
+/** "2026-04-15" → "15/04". En el detalle la fecha es para ubicar el movimiento, no para leerla
+ * completa: el año ocupa lugar y casi siempre es el mismo. */
+function fechaCorta(fechaISO: string): string {
+  const [, mes, dia] = fechaISO.split('-')
+  return `${dia}/${mes}`
 }
 
 function etiquetaSemana(fechaISO: string, semanas: RangoSemana[]): { texto: string; color: string } {
@@ -734,9 +802,9 @@ export function CobranzasPagosSemanal({
             </p>
             <div className="space-y-1 text-sm">
               <LineaPosicion etiqueta="Caja y bancos" monto={posicion.caja} />
-              <LineaPosicion etiqueta="Cheques a cobrar" monto={posicion.aCobrar.cheques} />
-              <LineaPosicion etiqueta="Clientes (comprobantes)" monto={posicion.aCobrar.facturas} />
-              <LineaPosicion etiqueta="Otras cobranzas cargadas" monto={posicion.aCobrar.otros} />
+              <LineaPosicion etiqueta="Cheques a cobrar" monto={posicion.aCobrar.cheques} movimientos={posicion.aCobrar.detalle.cheque} />
+              <LineaPosicion etiqueta="Clientes (comprobantes)" monto={posicion.aCobrar.facturas} movimientos={posicion.aCobrar.detalle.factura} />
+              <LineaPosicion etiqueta="Otras cobranzas cargadas" monto={posicion.aCobrar.otros} movimientos={posicion.aCobrar.detalle.manual} />
               <div className="flex items-center justify-between border-t pt-1" style={{ borderColor: 'var(--gridline)' }}>
                 <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>
                   Total disponible
@@ -753,10 +821,10 @@ export function CobranzasPagosSemanal({
               Vas a pagar
             </p>
             <div className="space-y-1 text-sm">
-              <LineaPosicion etiqueta="Cheques a pagar" monto={posicion.aPagar.cheques} />
-              <LineaPosicion etiqueta="Proveedores (comprobantes)" monto={posicion.aPagar.facturas} />
-              <LineaPosicion etiqueta="Sueldos y cargas" monto={posicion.aPagar.sueldos} />
-              <LineaPosicion etiqueta="Otros pagos cargados" monto={posicion.aPagar.otros} />
+              <LineaPosicion etiqueta="Cheques a pagar" monto={posicion.aPagar.cheques} movimientos={posicion.aPagar.detalle.cheque} />
+              <LineaPosicion etiqueta="Proveedores (comprobantes)" monto={posicion.aPagar.facturas} movimientos={posicion.aPagar.detalle.factura} />
+              <LineaPosicion etiqueta="Sueldos y cargas" monto={posicion.aPagar.sueldos} movimientos={posicion.aPagar.detalle.sueldo} />
+              <LineaPosicion etiqueta="Otros pagos cargados" monto={posicion.aPagar.otros} movimientos={posicion.aPagar.detalle.manual} />
               <div className="flex items-center justify-between border-t pt-1" style={{ borderColor: 'var(--gridline)' }}>
                 <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>
                   Total a pagar

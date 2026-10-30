@@ -38,12 +38,12 @@ describe('calcularPosicionFinanciera', () => {
 
   it('desglosa lo que falta cobrar por su origen', () => {
     const p = calcularPosicionFinanciera(1000000, movimientos)
-    expect(p.aCobrar).toEqual({ cheques: 300000, facturas: 500000, sueldos: 0, otros: 50000, total: 850000 })
+    expect(p.aCobrar).toMatchObject({ cheques: 300000, facturas: 500000, sueldos: 0, otros: 50000, total: 850000 })
   })
 
   it('desglosa lo que falta pagar, con los sueldos aparte', () => {
     const p = calcularPosicionFinanciera(1000000, movimientos)
-    expect(p.aPagar).toEqual({ cheques: 100000, facturas: 200000, sueldos: 400000, otros: 25000, total: 725000 })
+    expect(p.aPagar).toMatchObject({ cheques: 100000, facturas: 200000, sueldos: 400000, otros: 25000, total: 725000 })
   })
 
   it('el disponible proyectado es la caja más todo lo que falta cobrar', () => {
@@ -124,5 +124,32 @@ describe('la caja proyectada de la última semana coincide con la posición', ()
     const vencidoPendiente = 150000
     const { totalesPorSemana } = agruparPorSemana(movimientos, 4, HOY, CAJA + vencidoPendiente)
     expect(totalesPorSemana[3].saldoAcumulado).toBe(posicion.posicionNeta)
+  })
+})
+
+describe('el detalle de cada renglón', () => {
+  const p = calcularPosicionFinanciera(1000000, [
+    mov(`${PREFIJO_CHEQUE}c1`, 'cobro', 300000),
+    mov(`${PREFIJO_CHEQUE}c3`, 'cobro', 120000),
+    mov(`${PREFIJO_FACTURA}f1`, 'cobro', 500000),
+    mov('manual-1', 'cobro', 50000),
+    mov(`${PREFIJO_SUELDO}2026-10:netos`, 'pago', 400000),
+    mov(`${PREFIJO_FACTURA}f9`, 'pago', 90000, true),
+  ])
+
+  it('guarda los movimientos que componen cada número', () => {
+    // Sin esto, un total que no cierra no hay forma de revisarlo.
+    const sumaCheques = p.aCobrar.detalle.cheque.reduce((s, m) => s + m.monto, 0)
+    expect(sumaCheques).toBe(p.aCobrar.cheques)
+  })
+
+  it('cada movimiento pendiente aparece en un solo renglón', () => {
+    const todos = [...Object.values(p.aCobrar.detalle), ...Object.values(p.aPagar.detalle)].flat()
+    expect(new Set(todos.map((m) => m.id)).size).toBe(todos.length)
+  })
+
+  it('lo ya cumplido no aparece en ningún detalle', () => {
+    const todos = [...Object.values(p.aCobrar.detalle), ...Object.values(p.aPagar.detalle)].flat()
+    expect(todos.every((m) => !m.cumplido)).toBe(true)
   })
 })
