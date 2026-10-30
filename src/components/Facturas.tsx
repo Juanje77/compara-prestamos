@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, FileDown, FileSpreadsheet, FileUp, ScanBarcode, Search, Trash2 } from 'lucide-react'
+import { AlertTriangle, FileDown, FileSpreadsheet, FileUp, Pencil, ScanBarcode, Search, Trash2 } from 'lucide-react'
 import { CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type {
   CuentaBancaria,
@@ -65,7 +65,20 @@ interface Props {
   onImportarVarias: (facturas: Omit<Factura, 'id'>[]) => void
   onCambiar: (
     id: string,
-    cambios: Partial<Pick<Factura, 'fechaEstimadaCobroPago' | 'cumplido' | 'medioPago' | 'sectorId'>> & { cuentaId?: string },
+    cambios: Partial<
+      Pick<
+        Factura,
+        | 'fechaEstimadaCobroPago'
+        | 'cumplido'
+        | 'medioPago'
+        | 'sectorId'
+        | 'contraparte'
+        | 'monto'
+        | 'iva'
+        | 'fecha'
+        | 'numero'
+      >
+    > & { cuentaId?: string },
   ) => void
   onEliminar: (id: string) => void
   /** Solo con el plan Full y el circuito de ARCA habilitado — permite emitir el comprobante. */
@@ -80,6 +93,12 @@ const TIPO_COMPROBANTE_LABEL: Record<TipoComprobante, string> = {
   factura: 'Factura',
   nota_credito: 'Nota de Crédito',
   nota_debito: 'Nota de Débito',
+}
+
+const campoEdicion = {
+  borderColor: 'var(--border)',
+  background: 'var(--surface-1)',
+  color: 'var(--text-primary)',
 }
 
 function mesLegible(mes: string): string {
@@ -183,6 +202,41 @@ export function Facturas({ facturas, busquedaInicial, pagos = [], cuentas, cuent
   const [importando, setImportando] = useState(false)
   const [mensajeImport, setMensajeImport] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const [plazoDias, setPlazoDias] = useState(30)
+  /** Qué comprobante se está corrigiendo, y con qué valores provisorios. */
+  const [editando, setEditando] = useState<{
+    id: string
+    contraparte: string
+    monto: number
+    iva: number
+    fecha: string
+    numero: string
+  } | null>(null)
+
+  function abrirEdicion(f: Factura) {
+    setEditando({
+      id: f.id,
+      contraparte: f.contraparte,
+      monto: f.monto,
+      iva: f.iva ?? 0,
+      fecha: f.fecha,
+      numero: f.numero ?? '',
+    })
+  }
+
+  function guardarEdicion() {
+    if (!editando) return
+    if (!editando.contraparte.trim() || editando.monto <= 0 || !editando.fecha) return
+    onCambiar(editando.id, {
+      contraparte: editando.contraparte.trim(),
+      monto: editando.monto,
+      // Un IVA en cero se guarda como "sin IVA discriminado", que es lo que significa: así una
+      // factura de monotributo no queda con un 0 que después se suma como crédito fiscal.
+      iva: editando.iva > 0 ? editando.iva : undefined,
+      fecha: editando.fecha,
+      numero: editando.numero.trim() || undefined,
+    })
+    setEditando(null)
+  }
 
   // El resumen mira un año calendario exacto, no todo lo cargado. "El período" sin fecha de corte
   // crecía con cada comprobante: el margen del año pasado se mezclaba con el de este y dos años
@@ -1077,7 +1131,74 @@ export function Facturas({ facturas, busquedaInicial, pagos = [], cuentas, cuent
               </p>
             ) : (
               <ul className="max-h-80 space-y-1.5 overflow-y-auto">
-                {listado.map((f) => (
+                {listado.map((f) =>
+                  editando?.id === f.id ? (
+                    <li key={f.id} className="rounded-lg border px-3 py-2" style={{ borderColor: 'var(--series-blue)' }}>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <input
+                          type="text"
+                          value={editando.contraparte}
+                          onChange={(e) => setEditando({ ...editando, contraparte: e.target.value })}
+                          aria-label="Cliente / proveedor"
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') guardarEdicion()
+                            if (e.key === 'Escape') setEditando(null)
+                          }}
+                          className="min-w-[150px] flex-1 rounded-lg border px-2 py-1 text-sm"
+                          style={campoEdicion}
+                        />
+                        <input
+                          type="text"
+                          value={editando.numero}
+                          onChange={(e) => setEditando({ ...editando, numero: e.target.value })}
+                          aria-label="Número"
+                          placeholder="Número"
+                          className="w-28 shrink-0 rounded-lg border px-2 py-1 text-sm"
+                          style={campoEdicion}
+                        />
+                        <InputMoneda
+                          value={editando.monto}
+                          onChange={(v) => setEditando({ ...editando, monto: v })}
+                          aria-label="Monto"
+                          className="tabular w-28 shrink-0 rounded-lg border px-2 py-1 text-sm"
+                          style={campoEdicion}
+                        />
+                        <InputMoneda
+                          value={editando.iva}
+                          onChange={(v) => setEditando({ ...editando, iva: v })}
+                          aria-label="IVA"
+                          placeholder="IVA"
+                          className="tabular w-24 shrink-0 rounded-lg border px-2 py-1 text-sm"
+                          style={campoEdicion}
+                        />
+                        <input
+                          type="date"
+                          value={editando.fecha}
+                          onChange={(e) => setEditando({ ...editando, fecha: e.target.value })}
+                          aria-label="Fecha"
+                          className="shrink-0 rounded-lg border px-2 py-1 text-sm"
+                          style={campoEdicion}
+                        />
+                        <button
+                          type="button"
+                          onClick={guardarEdicion}
+                          className="shrink-0 rounded-lg px-3 py-1 text-xs font-semibold text-white"
+                          style={{ background: 'var(--series-blue)' }}
+                        >
+                          Guardar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditando(null)}
+                          className="shrink-0 text-xs font-medium"
+                          style={{ color: 'var(--text-muted)' }}
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </li>
+                  ) : (
                   <li
                     key={f.id}
                     className="flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2 text-sm"
@@ -1257,9 +1378,16 @@ export function Facturas({ facturas, busquedaInicial, pagos = [], cuentas, cuent
                           </button>
                         )
                       ))}
+                    {/* Una factura ya autorizada por ARCA no se corrige: tiene CAE y es un
+                        documento fiscal. Lo que corresponde ahí es una nota de crédito, que es
+                        justo el botón de al lado. */}
+                    {f.emision?.estado !== 'autorizado' && (
+                      <IconButton icon={Pencil} onClick={() => abrirEdicion(f)} label="Editar comprobante" className="shrink-0" />
+                    )}
                     <IconButton icon={Trash2} onClick={() => onEliminar(f.id)} label="Eliminar comprobante" className="shrink-0" />
                   </li>
-                ))}
+                  ),
+                )}
               </ul>
             )}
           </Card>

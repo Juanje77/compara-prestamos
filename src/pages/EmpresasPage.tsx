@@ -765,7 +765,20 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
 
   function handleCambiarFactura(
     id: string,
-    cambios: Partial<Pick<Factura, 'fechaEstimadaCobroPago' | 'cumplido' | 'medioPago' | 'sectorId'>> & { cuentaId?: string },
+    cambios: Partial<
+      Pick<
+        Factura,
+        | 'fechaEstimadaCobroPago'
+        | 'cumplido'
+        | 'medioPago'
+        | 'sectorId'
+        | 'contraparte'
+        | 'monto'
+        | 'iva'
+        | 'fecha'
+        | 'numero'
+      >
+    > & { cuentaId?: string },
   ) {
     const { cuentaId, ...cambiosFactura } = cambios
     setFacturas((prev) => prev.map((f) => (f.id === id ? { ...f, ...cambiosFactura } : f)))
