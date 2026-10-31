@@ -18,15 +18,27 @@ export function Patrimonio({ bienes, runwayExtendido, onAgregar, onEliminar }: P
   const [concepto, setConcepto] = useState('')
   const [tipo, setTipo] = useState<TipoBien>('inversion')
   const [valorEstimado, setValorEstimado] = useState(0)
+  // Para amortizar en el estado de resultados. Los dos opcionales: un plazo fijo o un inmueble no
+  // se amortizan, y obligarlos haría cargar un dato inventado con tal de poder guardar.
+  const [fechaAlta, setFechaAlta] = useState('')
+  const [vidaUtilAnios, setVidaUtilAnios] = useState('')
 
   const total = bienes.reduce((s, b) => s + b.valorEstimado, 0)
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!concepto.trim() || !valorEstimado || valorEstimado <= 0) return
-    onAgregar({ concepto: concepto.trim(), tipo, valorEstimado })
+    onAgregar({
+      concepto: concepto.trim(),
+      tipo,
+      valorEstimado,
+      fechaAlta: fechaAlta || undefined,
+      vidaUtilAnios: Number(vidaUtilAnios) > 0 ? Number(vidaUtilAnios) : undefined,
+    })
     setConcepto('')
     setValorEstimado(0)
+    setFechaAlta('')
+    setVidaUtilAnios('')
   }
 
   return (
@@ -68,10 +80,35 @@ export function Patrimonio({ bienes, runwayExtendido, onAgregar, onEliminar }: P
           className="tabular w-36 shrink-0 rounded-lg border px-3 py-1.5 text-sm"
           style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
         />
+        <label className="shrink-0 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+          Alta
+          <input
+            type="date"
+            value={fechaAlta}
+            onChange={(e) => setFechaAlta(e.target.value)}
+            title="Desde cuándo está en el patrimonio — hace falta para amortizarlo"
+            className="ml-1 rounded-lg border px-2 py-1.5 text-sm"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+          />
+        </label>
+        <input
+          type="number"
+          min={0}
+          placeholder="Vida útil (años)"
+          value={vidaUtilAnios}
+          onChange={(e) => setVidaUtilAnios(e.target.value)}
+          title="Años de vida útil. Vacío = no se amortiza (un plazo fijo, un inmueble)"
+          className="tabular w-32 shrink-0 rounded-lg border px-3 py-1.5 text-sm"
+          style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+        />
         <Button type="submit" variante="primario">
           Agregar
         </Button>
       </form>
+      <p className="mb-4 -mt-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+        La fecha de alta y la vida útil son opcionales y sirven para amortizar el bien en el Estado de
+        resultados. Lo que las tenga vacías no amortiza, que es lo correcto para un plazo fijo o un inmueble.
+      </p>
 
       {bienes.length === 0 ? (
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>

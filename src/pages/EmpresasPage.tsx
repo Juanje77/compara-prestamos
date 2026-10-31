@@ -7,6 +7,8 @@ import { CuentasBancarias } from '../components/CuentasBancarias'
 import { Deudas } from '../components/Deudas'
 import { CobranzasPagosSemanal } from '../components/CobranzasPagosSemanal'
 import { PosicionHoy } from '../components/PosicionHoy'
+import { EstadoResultados } from '../components/EstadoResultados'
+import { calcularEstadoResultados, type CriterioResultados } from '../lib/estadoResultados'
 import { AppShell } from '../components/AppShell'
 import { SesionUsuario } from '../components/Layout'
 import type { ReactNode } from 'react'
@@ -85,6 +87,7 @@ import {
   calcularRunwayExtendido,
   calcularRunwayMeses,
   calcularSaldoFactura,
+  aniosConComprobantes,
   calcularSaldoTotalBancos,
   cuentaPorFactura,
   calcularTendenciaMensual,
@@ -189,7 +192,7 @@ const SECCIONES: { key: Seccion; label: string }[] = [
 
 /** Secciones exclusivas del plan Full (el sistema de gestión de uso diario) — el resto que
  * requiere pago sigue disponible desde el plan Medio. */
-const SECCIONES_FULL = new Set(['facturacionElectronica', 'puntoDeVenta', 'cuentasCorrientes', 'remitos', 'margenes', 'sueldos', 'cheques', 'stock', 'tesoreria'])
+const SECCIONES_FULL = new Set(['facturacionElectronica', 'puntoDeVenta', 'cuentasCorrientes', 'remitos', 'margenes', 'sueldos', 'cheques', 'stock', 'tesoreria', 'estadoResultados'])
 
 type Seccion = Modulo | 'usuarios' | 'ayuda'
 
@@ -214,7 +217,7 @@ const GRUPOS: { key: string; label: string; secciones: Seccion[] }[] = [
   { key: 'tesoreria', label: 'Tesorería y stock', secciones: ['tesoreria', 'cheques', 'stock'] },
   { key: 'rrhh', label: 'RRHH', secciones: ['sueldos'] },
   { key: 'impuestos', label: 'Impuestos', secciones: ['iva', 'iibb', 'monotributo'] },
-  { key: 'negocio', label: 'Negocio', secciones: ['patrimonio', 'inversiones', 'backup', 'usuarios', 'ayuda'] },
+  { key: 'negocio', label: 'Negocio', secciones: ['estadoResultados', 'patrimonio', 'inversiones', 'backup', 'usuarios', 'ayuda'] },
 ]
 
 interface Props {
@@ -1523,6 +1526,42 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
     () => calcularPosicionIngresosBrutosPorMes(facturas, ingresosBrutosManualPorMes),
     [facturas, ingresosBrutosManualPorMes],
   )
+  // Estado de resultados del ejercicio. El año arranca en el corriente y el criterio en el de
+  // gestión: es el que muestra el negocio como es, y el fiscal está a un clic.
+  const [anioResultados, setAnioResultados] = useState(() => new Date().getFullYear())
+  const [criterioResultados, setCriterioResultados] = useState<CriterioResultados>('gestion')
+  const estadoResultados = useMemo(
+    () =>
+      calcularEstadoResultados({
+        anio: anioResultados,
+        criterio: criterioResultados,
+        facturas,
+        clasificaciones,
+        empleados,
+        bienes,
+        productos,
+        movimientosStock,
+        comisionesCheques: cheques
+          .filter((c) => c.estado === 'vendido' && c.fechaCobro.startsWith(String(anioResultados)))
+          .reduce((t, c) => t + (c.comisionDescuento ?? 0), 0),
+        impuestos: posicionIngresosBrutos
+          .filter((p) => p.mes.startsWith(String(anioResultados)))
+          .reduce((t, p) => t + p.saldoAPagar, 0),
+      }),
+    [
+      anioResultados,
+      criterioResultados,
+      facturas,
+      clasificaciones,
+      empleados,
+      bienes,
+      productos,
+      movimientosStock,
+      cheques,
+      posicionIngresosBrutos,
+    ],
+  )
+
   const alertas = useMemo(
     () => generarAlertas({ margenOperativo, runwayMeses, proyeccion, deudas, facturas, cheques, productos }),
     [margenOperativo, runwayMeses, proyeccion, deudas, facturas, cheques, productos],
@@ -2045,6 +2084,22 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
           onObtenerBackupAutomatico={handleObtenerBackupAutomatico}
           onGuardarAhora={user ? handleGuardarBackupAhora : undefined}
         />
+      )}
+
+      {seccion === 'estadoResultados' && (
+        <PremiumLock
+          activo={esFull}
+          titulo="Estado de resultados"
+          descripcion="El resultado del ejercicio armado con lo que ya cargaste: ventas netas, costo de ventas, sueldos, gastos, amortizaciones e impuestos. Por lo devengado y sin IVA, como corresponde."
+          onQuieroPremium={abrirPlanes}
+        >
+          <EstadoResultados
+            estado={estadoResultados}
+            aniosDisponibles={aniosConComprobantes(facturas)}
+            onCambiarAnio={setAnioResultados}
+            onCambiarCriterio={setCriterioResultados}
+          />
+        </PremiumLock>
       )}
 
       {seccion === 'usuarios' && <UsuariosEmpresa />}

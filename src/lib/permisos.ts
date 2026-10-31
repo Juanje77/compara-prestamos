@@ -80,6 +80,7 @@ export type Modulo =
   | 'iibb'
   | 'monotributo'
   | 'patrimonio'
+  | 'estadoResultados'
   | 'inversiones'
   | 'backup'
 
@@ -112,6 +113,8 @@ export const BLOQUES_POR_MODULO: Record<Modulo, BloqueDatos[]> = {
   iibb: ['comercial', 'impuestos'],
   monotributo: ['comercial', 'impuestos'],
   patrimonio: ['negocio'],
+  // Toma de todos lados: ventas y compras, nómina, bienes para amortizar e impuestos del período.
+  estadoResultados: ['comercial', 'sueldos', 'negocio', 'impuestos'],
   inversiones: ['negocio', 'tesoreria'],
   backup: ['negocio', 'comercial', 'tesoreria', 'sueldos', 'impuestos'],
 }
@@ -143,6 +146,7 @@ export const MODULO_LABEL: Record<Modulo, string> = {
   iibb: 'Ingresos Brutos',
   monotributo: 'Monotributo',
   patrimonio: 'Patrimonio',
+  estadoResultados: 'Estado de resultados',
   inversiones: 'Inversiones',
   backup: 'Backup',
 }

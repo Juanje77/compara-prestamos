@@ -34,6 +34,7 @@ export const BLOQUES_POR_MODULO = {
   iibb: ['comercial', 'impuestos'],
   monotributo: ['comercial', 'impuestos'],
   patrimonio: ['negocio'],
+  estadoResultados: ['comercial', 'sueldos', 'negocio', 'impuestos'],
   inversiones: ['negocio', 'tesoreria'],
   backup: ['negocio', 'comercial', 'tesoreria', 'sueldos', 'impuestos'],
 }

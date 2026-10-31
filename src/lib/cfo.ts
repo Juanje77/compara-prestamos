@@ -204,6 +204,13 @@ export interface Bien {
   concepto: string
   tipo: TipoBien
   valorEstimado: number
+  /** Desde cuándo está en el patrimonio. Hace falta para amortizar: sin fecha no se sabe cuántos
+   * meses del ejercicio le corresponden. Opcional porque los bienes cargados antes de que esto
+   * existiera no la tienen, y en ese caso simplemente no amortizan. */
+  fechaAlta?: string
+  /** Años de vida útil. El inmueble no se amortiza en la práctica de una PyME chica, así que se
+   * deja vacío y listo: lo que no tiene vida útil cargada, no amortiza. */
+  vidaUtilAnios?: number
 }
 
 export function calcularValorTotalBienes(bienes: Bien[]): number {
