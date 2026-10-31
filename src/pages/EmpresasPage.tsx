@@ -1007,6 +1007,23 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
     if (cheque) sincronizarTesoreriaCheque({ ...cheque, cuentaId })
   }
 
+  /**
+   * Corrige los datos de un cheque ya cargado.
+   *
+   * Después de cambiarlo hay que resincronizar tesorería: si el cheque ya estaba cobrado, su
+   * plata está dentro del saldo de una cuenta por el importe viejo. `sincronizarTesoreriaCheque`
+   * revierte ese movimiento y lo vuelve a aplicar con el importe nuevo — sin esto, corregir un
+   * cheque cobrado dejaría la cuenta con el número de antes.
+   */
+  function handleEditarCheque(
+    id: string,
+    cambios: Partial<Pick<Cheque, 'numero' | 'banco' | 'contraparte' | 'monto' | 'fechaEmision' | 'fechaCobro'>>,
+  ) {
+    setCheques((prev) => prev.map((c) => (c.id === id ? { ...c, ...cambios } : c)))
+    const cheque = cheques.find((c) => c.id === id)
+    if (cheque) sincronizarTesoreriaCheque({ ...cheque, ...cambios })
+  }
+
   function handleCambiarComisionCheque(id: string, comisionDescuento: number) {
     setCheques((prev) => prev.map((c) => (c.id === id ? { ...c, comisionDescuento } : c)))
     const cheque = cheques.find((c) => c.id === id)
@@ -1967,6 +1984,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
             onCambiarEstado={handleCambiarEstadoCheque}
             onCambiarCuenta={handleCambiarCuentaCheque}
             onCambiarComision={handleCambiarComisionCheque}
+            onEditar={handleEditarCheque}
             onEliminar={handleEliminarCheque}
           />
         </PremiumLock>

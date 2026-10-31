@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Download, FileUp, Receipt, Trash2 } from 'lucide-react'
+import { Download, FileUp, Pencil, Receipt, Trash2 } from 'lucide-react'
 import type { Cheque, CuentaBancaria, EstadoCheque, Factura, TipoCheque } from '../lib/cfo'
 import { calcularTotalesCheques, estadosChequeDisponibles, etiquetaEstadoCheque, montoNetoCheque } from '../lib/cfo'
 import { formatoMoneda } from '../lib/finance'
@@ -20,16 +20,60 @@ interface Props {
   onCambiarEstado: (id: string, estado: EstadoCheque) => void
   onCambiarCuenta: (id: string, cuentaId: string | undefined) => void
   onCambiarComision: (id: string, comisionDescuento: number) => void
+  /** Corregir los datos del cheque: número, banco, a nombre de quién, importe y fechas. */
+  onEditar: (id: string, cambios: Partial<Pick<Cheque, 'numero' | 'banco' | 'contraparte' | 'monto' | 'fechaEmision' | 'fechaCobro'>>) => void
   onEliminar: (id: string) => void
+}
+
+const campoEdicion = {
+  borderColor: 'var(--border)',
+  background: 'var(--surface-1)',
+  color: 'var(--text-primary)',
 }
 
 function hoyISO(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
-export function Cheques({ cheques, facturas, cuentas, onAgregar, onCambiarEstado, onCambiarCuenta, onCambiarComision, onEliminar }: Props) {
+export function Cheques({ cheques, facturas, cuentas, onAgregar, onCambiarEstado, onCambiarCuenta, onCambiarComision, onEditar, onEliminar }: Props) {
   const [tipo, setTipo] = useState<TipoCheque>('recibido')
   const [importando, setImportando] = useState(false)
+  /** Qué cheque se está corrigiendo, con sus valores provisorios. */
+  const [editando, setEditando] = useState<{
+    id: string
+    numero: string
+    banco: string
+    contraparte: string
+    monto: number
+    fechaEmision: string
+    fechaCobro: string
+  } | null>(null)
+
+  function abrirEdicion(c: Cheque) {
+    setEditando({
+      id: c.id,
+      numero: c.numero ?? '',
+      banco: c.banco,
+      contraparte: c.contraparte,
+      monto: c.monto,
+      fechaEmision: c.fechaEmision,
+      fechaCobro: c.fechaCobro,
+    })
+  }
+
+  function guardarEdicion() {
+    if (!editando) return
+    if (!editando.contraparte.trim() || editando.monto <= 0 || !editando.fechaCobro) return
+    onEditar(editando.id, {
+      numero: editando.numero.trim() || undefined,
+      banco: editando.banco.trim(),
+      contraparte: editando.contraparte.trim(),
+      monto: editando.monto,
+      fechaEmision: editando.fechaEmision,
+      fechaCobro: editando.fechaCobro,
+    })
+    setEditando(null)
+  }
   const [mensajeImport, setMensajeImport] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const [numero, setNumero] = useState('')
   const [banco, setBanco] = useState('')
@@ -339,7 +383,94 @@ export function Cheques({ cheques, facturas, cuentas, onAgregar, onCambiarEstado
               Cheques cargados
             </h3>
             <ul className="max-h-96 space-y-1.5 overflow-y-auto">
-              {listado.map((c) => (
+              {listado.map((c) =>
+                editando?.id === c.id ? (
+                  <li key={c.id} className="rounded-lg border px-3 py-2" style={{ borderColor: 'var(--series-blue)' }}>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        type="text"
+                        value={editando.banco}
+                        onChange={(e) => setEditando({ ...editando, banco: e.target.value })}
+                        aria-label="Banco"
+                        placeholder="Banco"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') guardarEdicion()
+                          if (e.key === 'Escape') setEditando(null)
+                        }}
+                        className="w-32 shrink-0 rounded-lg border px-2 py-1 text-sm"
+                        style={campoEdicion}
+                      />
+                      <input
+                        type="text"
+                        value={editando.numero}
+                        onChange={(e) => setEditando({ ...editando, numero: e.target.value })}
+                        aria-label="Número"
+                        placeholder="Número"
+                        className="w-28 shrink-0 rounded-lg border px-2 py-1 text-sm"
+                        style={campoEdicion}
+                      />
+                      <input
+                        type="text"
+                        value={editando.contraparte}
+                        onChange={(e) => setEditando({ ...editando, contraparte: e.target.value })}
+                        aria-label="Cliente / proveedor"
+                        className="min-w-[140px] flex-1 rounded-lg border px-2 py-1 text-sm"
+                        style={campoEdicion}
+                      />
+                      <InputMoneda
+                        value={editando.monto}
+                        onChange={(v) => setEditando({ ...editando, monto: v })}
+                        aria-label="Monto"
+                        className="tabular w-28 shrink-0 rounded-lg border px-2 py-1 text-sm"
+                        style={campoEdicion}
+                      />
+                      <label className="shrink-0 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                        Emisión
+                        <input
+                          type="date"
+                          value={editando.fechaEmision}
+                          onChange={(e) => setEditando({ ...editando, fechaEmision: e.target.value })}
+                          className="ml-1 rounded-lg border px-2 py-1 text-sm"
+                          style={campoEdicion}
+                        />
+                      </label>
+                      <label className="shrink-0 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                        Cobro
+                        <input
+                          type="date"
+                          value={editando.fechaCobro}
+                          onChange={(e) => setEditando({ ...editando, fechaCobro: e.target.value })}
+                          className="ml-1 rounded-lg border px-2 py-1 text-sm"
+                          style={campoEdicion}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={guardarEdicion}
+                        className="shrink-0 rounded-lg px-3 py-1 text-xs font-semibold text-white"
+                        style={{ background: 'var(--series-blue)' }}
+                      >
+                        Guardar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditando(null)}
+                        className="shrink-0 text-xs font-medium"
+                        style={{ color: 'var(--text-muted)' }}
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                    {c.facturasIds && c.facturasIds.length > 0 && (
+                      <p className="mt-1.5 text-[11px]" style={{ color: 'var(--status-warning)' }}>
+                        Este cheque abona {c.facturasIds.length} comprobante{c.facturasIds.length === 1 ? '' : 's'}.
+                        Si cambiás el importe, revisá que siga cubriéndolos: lo que se imputó a esas facturas no
+                        se recalcula solo.
+                      </p>
+                    )}
+                  </li>
+                ) : (
                 <li
                   key={c.id}
                   className="flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2 text-sm"
@@ -433,9 +564,11 @@ export function Cheques({ cheques, facturas, cuentas, onAgregar, onCambiarEstado
                       {formatoMoneda(c.monto)}
                     </span>
                   )}
+                  <IconButton icon={Pencil} onClick={() => abrirEdicion(c)} label="Editar cheque" className="shrink-0" />
                   <IconButton icon={Trash2} onClick={() => onEliminar(c.id)} label="Eliminar cheque" className="shrink-0" />
                 </li>
-              ))}
+                ),
+              )}
             </ul>
           </Card>
         </>
