@@ -12,6 +12,12 @@ interface Props {
   onCambiarMes: (mes: string) => void
   onCambiarReal: (key: string, monto: number) => void
   onCambiarVentas: (monto: number) => void
+  /** Editar el presupuesto desde acá. Antes solo se podía desde el Dashboard, que es donde se
+   * cargan los números estimados del negocio — pero esta es la pantalla donde uno se da cuenta
+   * de que el presupuesto quedó viejo, y tener que irse a otra para corregirlo es justo lo que
+   * hace que nadie lo corrija. */
+  onCambiarPresupuesto: (key: string, monto: number) => void
+  onCambiarVentasPresupuestadas: (monto: number) => void
 }
 
 function etiquetaMes(mesISO: string): string {
@@ -21,7 +27,16 @@ function etiquetaMes(mesISO: string): string {
   return texto.charAt(0).toUpperCase() + texto.slice(1)
 }
 
-export function PresupuestoVsReal({ desvios, ventas, mes, onCambiarMes, onCambiarReal, onCambiarVentas }: Props) {
+export function PresupuestoVsReal({
+  desvios,
+  ventas,
+  mes,
+  onCambiarMes,
+  onCambiarReal,
+  onCambiarVentas,
+  onCambiarPresupuesto,
+  onCambiarVentasPresupuestadas,
+}: Props) {
   const totalPresupuestado = desvios.reduce((s, d) => s + d.presupuestado, 0)
   const totalReal = desvios.reduce((s, d) => s + d.real, 0)
   const desvioTotalPct = totalPresupuestado > 0 ? ((totalReal - totalPresupuestado) / totalPresupuestado) * 100 : 0
@@ -62,8 +77,9 @@ export function PresupuestoVsReal({ desvios, ventas, mes, onCambiarMes, onCambia
         </div>
       </div>
       <p className="mb-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
-        Ventas y gastos de ese mes se completan solos con tus facturas (<Receipt size={12} className="inline align-text-bottom" aria-hidden="true" /> auto). Podés pisarlos a mano si hace
-        falta.
+        La columna <strong>Real</strong> se completa sola con tus facturas (<Receipt size={12} className="inline align-text-bottom" aria-hidden="true" /> auto) y podés pisarla a mano si hace falta.
+        La columna <strong>Presupuestado</strong> la cargás vos: es el presupuesto mensual del negocio y se
+        edita acá mismo. Es el mismo que aparece en el Dashboard, así que al cambiarlo acá cambia allá.
       </p>
 
       <div className="mb-4 rounded-xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
@@ -75,9 +91,13 @@ export function PresupuestoVsReal({ desvios, ventas, mes, onCambiarMes, onCambia
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
               Presupuestado
             </p>
-            <p className="tabular text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-              {formatoMoneda(ventas.presupuestado)}
-            </p>
+            <InputMoneda
+              value={ventas.presupuestado}
+              onChange={onCambiarVentasPresupuestadas}
+              aria-label="Ventas presupuestadas"
+              className="tabular w-32 rounded-lg border px-2 py-1 text-sm font-semibold"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+            />
           </div>
           <div>
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
@@ -168,8 +188,14 @@ export function PresupuestoVsReal({ desvios, ventas, mes, onCambiarMes, onCambia
                 <td className="py-2" style={{ color: 'var(--text-primary)' }}>
                   {d.label}
                 </td>
-                <td className="tabular py-2 text-right" style={{ color: 'var(--text-secondary)' }}>
-                  {formatoMoneda(d.presupuestado)}
+                <td className="py-2 text-right">
+                  <InputMoneda
+                    value={d.presupuestado}
+                    onChange={(v) => onCambiarPresupuesto(d.key, v)}
+                    aria-label={`Presupuesto de ${d.label}`}
+                    className="tabular w-28 rounded-lg border px-2 py-1 text-right text-sm"
+                    style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+                  />
                 </td>
                 <td className="py-2 text-right">
                   <div className="flex items-center justify-end gap-1.5">

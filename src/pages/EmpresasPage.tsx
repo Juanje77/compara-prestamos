@@ -1809,6 +1809,8 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
             onCambiarMes={setMesPresupuesto}
             onCambiarReal={cambiarReal}
             onCambiarVentas={cambiarVentasReales}
+            onCambiarPresupuesto={cambiarMonto}
+            onCambiarVentasPresupuestadas={setIngresos}
           />
         </PremiumLock>
       )}
@@ -2194,8 +2196,8 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
                 </span>
                 <span className="block text-xs" style={{ color: 'var(--text-muted)' }}>
                   {usaIngresosReales || usaGastosReales
-                    ? 'Tus estimaciones. Ya no se usan para los indicadores, porque hay comprobantes cargados.'
-                    : 'Cargá acá tus números estimados: de esto salen los indicadores de abajo.'}
+                    ? 'Tu presupuesto mensual. Los indicadores de abajo ya no lo usan —salen de tus comprobantes— pero Presupuesto vs. Real sí: es contra estos números que se mide el desvío.'
+                    : 'Cargá acá tus números estimados: de esto salen los indicadores de abajo y el presupuesto contra el que se mide cada mes.'}
                 </span>
               </span>
               <ChevronDown
