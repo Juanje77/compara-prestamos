@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, Check, ChevronDown, Cloud, Download, FileDown, FileUp, Landmark, Pencil, Receipt, Trash2, Users } from 'lucide-react'
+import { AlertTriangle, Check, ChevronDown, ChevronLeft, ChevronRight, Cloud, Download, FileDown, FileUp, Landmark, Pencil, Receipt, Trash2, Users } from 'lucide-react'
 import {
   agregarMovimiento,
   agregarMovimientos,
@@ -168,11 +168,25 @@ function fechaCorta(fechaISO: string): string {
   return `${dia}/${mes}`
 }
 
-function etiquetaSemana(fechaISO: string, semanas: RangoSemana[]): { texto: string; color: string } {
+/**
+ * La etiqueta de semana de un movimiento.
+ *
+ * `hoy` es la fecha real, no el principio de la ventana que se está mirando: algo de la semana
+ * que viene no está vencido porque uno esté mirando las semanas de dentro de un mes. Vencido es
+ * vencido contra hoy y nada más.
+ */
+function etiquetaSemana(
+  fechaISO: string,
+  semanas: RangoSemana[],
+  hoy: Date,
+): { texto: string; color: string } {
   const idx = indiceDeSemana(fechaISO, semanas)
   if (idx !== null) return { texto: semanas[idx].labelCorto, color: 'var(--text-muted)' }
   const fecha = new Date(`${fechaISO}T00:00:00`)
-  if (fecha < semanas[0].inicio) return { texto: 'Vencido', color: 'var(--status-critical)' }
+  const inicioDeHoy = new Date(hoy)
+  inicioDeHoy.setHours(0, 0, 0, 0)
+  if (fecha < inicioDeHoy) return { texto: 'Vencido', color: 'var(--status-critical)' }
+  if (fecha < semanas[0].inicio) return { texto: 'Antes', color: 'var(--text-muted)' }
   return { texto: 'Más adelante', color: 'var(--text-muted)' }
 }
 
@@ -206,6 +220,8 @@ interface ColumnaProps {
   onEditar: (id: string, cambios: { concepto: string; monto: number; fecha: string }) => void
   /** Ir a la pantalla que manda sobre un movimiento generado (Comprobantes, Cheques, Sueldos). */
   onIrAlOrigen: (origen: OrigenMovimiento, concepto: string) => void
+  /** La fecha real, para decidir qué está vencido aunque se estén mirando otras semanas. */
+  hoy: Date
   onMarcarVarios: (ids: string[], cumplido: boolean) => void
   onCambiarMedioPago: (id: string, medioPago: MedioPago | undefined) => void
   /** Cuentas bancarias/caja (plan Full) para elegir dónde entró/salió la plata de una factura. */
@@ -226,6 +242,7 @@ function FilaMovimiento({
   onCambiarMedioPago,
   cuentas,
   onCambiarCuentaFactura,
+  hoy,
 }: {
   m: Movimiento
   semanas: RangoSemana[]
@@ -238,8 +255,9 @@ function FilaMovimiento({
   onCambiarMedioPago: (id: string, medioPago: MedioPago | undefined) => void
   cuentas?: CuentaBancaria[]
   onCambiarCuentaFactura: (id: string, cuentaId: string) => void
+  hoy: Date
 }) {
-  const etiqueta = etiquetaSemana(m.fecha, semanas)
+  const etiqueta = etiquetaSemana(m.fecha, semanas, hoy)
   const deFactura = m.id.startsWith(PREFIJO_FACTURA)
   const deCheque = m.id.startsWith(PREFIJO_CHEQUE)
   const deSueldo = m.id.startsWith(PREFIJO_SUELDO)
@@ -447,6 +465,7 @@ function ColumnaMovimientos({
   onEliminar,
   onEditar,
   onIrAlOrigen,
+  hoy,
   onMarcarVarios,
   onCambiarMedioPago,
   cuentas,
@@ -609,6 +628,7 @@ function ColumnaMovimientos({
                   onEliminar={onEliminar}
                   onEditar={onEditar}
                   onIrAlOrigen={onIrAlOrigen}
+                  hoy={hoy}
                   onCambiarMedioPago={onCambiarMedioPago}
                   cuentas={cuentas}
                   onCambiarCuentaFactura={onCambiarCuentaFactura}
@@ -652,6 +672,7 @@ function ColumnaMovimientos({
                         onEliminar={onEliminar}
                         onEditar={onEditar}
                         onIrAlOrigen={onIrAlOrigen}
+                        hoy={hoy}
                         onCambiarMedioPago={onCambiarMedioPago}
                         cuentas={cuentas}
                         onCambiarCuentaFactura={onCambiarCuentaFactura}
@@ -881,17 +902,30 @@ export function CobranzasPagosSemanal({
   // El acumulado arranca en la caja de hoy más lo vencido que sigue pendiente, así cada semana
   // dice con cuánta plata se termina y no cuánto se movió. Lo vencido ya cumplido no entra: esa
   // plata ya entró o salió y por lo tanto ya está dentro del saldo de las cuentas.
+  // Qué cuatro semanas se están mirando. 0 es la ventana que arranca hoy; cada paso corre un mes
+  // (cuatro semanas), que es el salto natural cuando se mira de a cuatro.
+  const [desplazamiento, setDesplazamiento] = useState(0)
+  const hoyVentana = useMemo(() => {
+    const d = new Date(hoy)
+    d.setDate(d.getDate() + desplazamiento * 28)
+    return d
+  }, [hoy, desplazamiento])
+  const mirandoElPasado = desplazamiento < 0
+
+  // El acumulado arranca en la caja de hoy más todo lo pendiente anterior a la ventana. Para la
+  // ventana de hoy eso es "lo vencido"; para una más adelante, además, todo lo que hay entre hoy
+  // y esa ventana — que es justamente lo que hace falta para que la proyección tenga sentido.
   const arrastreVencido = useMemo(
     () =>
-      agruparPorSemana(todosMovimientos, 4, hoy)
+      agruparPorSemana(todosMovimientos, 4, hoyVentana)
         .vencidos.filter((m) => !m.cumplido)
         .reduce((s, m) => s + (m.tipo === 'cobro' ? m.monto : -m.monto), 0),
-    [todosMovimientos, hoy],
+    [todosMovimientos, hoyVentana],
   )
   const saldoInicialSemanal = posicion.caja + arrastreVencido
   const agrupacion = useMemo(
-    () => agruparPorSemana(todosMovimientos, 4, hoy, saldoInicialSemanal),
-    [todosMovimientos, hoy, saldoInicialSemanal],
+    () => agruparPorSemana(todosMovimientos, 4, hoyVentana, saldoInicialSemanal),
+    [todosMovimientos, hoyVentana, saldoInicialSemanal],
   )
   const totalVencidos = agrupacion.vencidos.reduce(
     (s, m) => s + (m.tipo === 'cobro' ? m.monto : -m.monto),
@@ -986,10 +1020,19 @@ export function CobranzasPagosSemanal({
               Resumen semanal — ingresos y gastos por semana
             </h2>
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              La caja proyectada arranca en {formatoMoneda(posicion.caja)} de caja y bancos
-              {arrastreVencido !== 0 && ` más ${formatoMoneda(arrastreVencido)} de vencido sin cobrar ni pagar`} y
-              arrastra el saldo de cada semana: es con cuánta plata terminás cada domingo, no cómo le fue a esa
-              semana sola.
+              {mirandoElPasado ? (
+                <>
+                  Semanas que ya pasaron: se ve cuánto se cobró y se pagó en cada una. La caja proyectada no
+                  se muestra porque esa plata ya se movió y está en el saldo de tus cuentas.
+                </>
+              ) : (
+                <>
+                  La caja proyectada arranca en {formatoMoneda(posicion.caja)} de caja y bancos
+                  {arrastreVencido !== 0 && ` más ${formatoMoneda(arrastreVencido)} pendiente de antes`} y
+                  arrastra el saldo de cada semana: es con cuánta plata terminás cada domingo, no cómo le fue a
+                  esa semana sola.
+                </>
+              )}
             </p>
             {user && (
               <p className="inline-flex items-center gap-1 text-xs" style={{ color: nubeLista ? 'var(--status-good-text)' : 'var(--text-muted)' }}>
@@ -997,7 +1040,29 @@ export function CobranzasPagosSemanal({
               </p>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1">
+              <IconButton
+                icon={ChevronLeft}
+                onClick={() => setDesplazamiento((d) => d - 1)}
+                label="Ver las cuatro semanas anteriores"
+              />
+              <button
+                type="button"
+                onClick={() => setDesplazamiento(0)}
+                disabled={desplazamiento === 0}
+                className="rounded-full border px-3 py-1 text-xs font-medium disabled:opacity-40"
+                style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
+                title="Volver a la semana actual"
+              >
+                Hoy
+              </button>
+              <IconButton
+                icon={ChevronRight}
+                onClick={() => setDesplazamiento((d) => d + 1)}
+                label="Ver las cuatro semanas siguientes"
+              />
+            </div>
             <button
               onClick={() => descargarPdfCobranzasSemanal(agrupacion, todosMovimientos)}
               className="inline-flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-xs font-medium"
@@ -1048,6 +1113,10 @@ export function CobranzasPagosSemanal({
                       {formatoMoneda(t.saldo)}
                     </span>
                   </div>
+                  {/* Render condicional y no el atributo `hidden`: la clase `flex` define
+                      display y pisa el display:none que trae `hidden`, así que el renglón se
+                      seguía viendo. */}
+                  {!mirandoElPasado && (
                   <div className="flex items-center justify-between">
                     <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>
                       Caja proyectada
@@ -1059,6 +1128,7 @@ export function CobranzasPagosSemanal({
                       {formatoMoneda(t.saldoAcumulado)}
                     </span>
                   </div>
+                  )}
                 </div>
               </div>
             )
@@ -1098,6 +1168,7 @@ export function CobranzasPagosSemanal({
           onEliminar={handleEliminar}
           onEditar={handleEditar}
           onIrAlOrigen={onIrAlOrigen ?? (() => {})}
+          hoy={hoy}
           onMarcarVarios={handleMarcarVarios}
           onCambiarMedioPago={handleCambiarMedioPago}
           cuentas={cuentas}
@@ -1125,6 +1196,7 @@ export function CobranzasPagosSemanal({
           onEliminar={handleEliminar}
           onEditar={handleEditar}
           onIrAlOrigen={onIrAlOrigen ?? (() => {})}
+          hoy={hoy}
           onMarcarVarios={handleMarcarVarios}
           onCambiarMedioPago={handleCambiarMedioPago}
           cuentas={cuentas}
