@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { Cloud, Lock, Menu, Search, X } from 'lucide-react'
+import { AlertTriangle, Cloud, Lock, Menu, Search, X } from 'lucide-react'
 import { FincorpLogo } from './FincorpLogo'
 import { ThemeToggle } from './ThemeToggle'
 
@@ -43,6 +43,11 @@ interface Props<T extends string> {
   contexto?: ReactNode
   /** Estado de la sincronización, cuando hay sesión. */
   guardado?: 'guardado' | 'sincronizando' | null
+  /** El motivo por el que la nube rechazó el último guardado, si pasó. Se muestra arriba de todo
+   * y en rojo: antes esto se descartaba en silencio y la persona seguía cargando durante horas
+   * creyendo que se guardaba. Perder una tarde de trabajo sin que nada avise es lo peor que
+   * puede hacer un sistema como este. */
+  errorGuardado?: string | null
   /** Acciones de la cuenta (cerrar sesión), que antes vivían en la barra del sitio. */
   sesion?: ReactNode
   children: ReactNode
@@ -61,6 +66,7 @@ export function AppShell<T extends string>({
   titulo,
   contexto,
   guardado,
+  errorGuardado,
   sesion,
   children,
 }: Props<T>) {
@@ -191,7 +197,16 @@ export function AppShell<T extends string>({
             )}
           </div>
 
-          {guardado && (
+          {errorGuardado ? (
+            <span
+              className="hidden items-center gap-1 text-xs font-medium sm:inline-flex"
+              style={{ color: 'var(--status-critical)' }}
+              title={errorGuardado}
+            >
+              <AlertTriangle size={12} aria-hidden="true" /> Sin guardar
+            </span>
+          ) : (
+            guardado && (
             <span
               className="hidden items-center gap-1 text-xs sm:inline-flex"
               style={{ color: guardado === 'guardado' ? 'var(--status-good-text)' : 'var(--text-muted)' }}
@@ -199,12 +214,28 @@ export function AppShell<T extends string>({
               <Cloud size={12} aria-hidden="true" />
               {guardado === 'guardado' ? 'Guardado' : 'Sincronizando…'}
             </span>
+            )
           )}
           {sesion}
           <ThemeToggle />
         </header>
 
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 pb-10 sm:px-6">{children}</main>
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 pb-10 sm:px-6">
+          {errorGuardado && (
+            <div
+              className="mb-6 flex items-start gap-2 rounded-lg border p-3 text-sm"
+              style={{ borderColor: 'var(--status-critical)', color: 'var(--text-primary)' }}
+            >
+              <AlertTriangle size={16} className="mt-0.5 shrink-0" style={{ color: 'var(--status-critical)' }} />
+              <span>
+                <strong>Lo que estás cargando no se está guardando en tu cuenta.</strong> Queda en este
+                navegador, así que no lo pierdas: no cierres la pestaña ni limpies el historial hasta
+                resolverlo. El servidor dice: <em>{errorGuardado}</em>
+              </span>
+            </div>
+          )}
+          {children}
+        </main>
       </div>
 
       {/* Celular: el menú completo entra desde el costado. */}

@@ -513,9 +513,15 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
     function enviarAhora() {
       if (enviado) return
       enviado = true
-      guardarDatosUsuario(uidDatos!, { negocioData }, bloquesVisibles).catch(() => {
-        // Idem: si falla el guardado en la nube, los datos siguen a salvo en localStorage.
-      })
+      guardarDatosUsuario(uidDatos!, { negocioData }, bloquesVisibles)
+        .then(() => setErrorGuardado(null))
+        .catch((e: unknown) => {
+          // Los datos siguen a salvo en localStorage, pero esto NO se descarta en silencio: antes
+          // se tragaba el error y la persona seguía cargando durante horas creyendo que todo iba
+          // a su cuenta. El mensaje del servidor se muestra tal cual porque es lo único que
+          // permite diagnosticar (permisos, cuota, sin red).
+          setErrorGuardado(e instanceof Error ? e.message : 'No se pudo guardar en la nube.')
+        })
     }
 
     const timeout = setTimeout(enviarAhora, 800)
@@ -1399,6 +1405,8 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
   const usaGastosReales = promediosReales?.hayCompras ?? false
 
   const [verSupuestos, setVerSupuestos] = useState<boolean | null>(null)
+  /** Por qué la nube rechazó el último guardado, si pasó. */
+  const [errorGuardado, setErrorGuardado] = useState<string | null>(null)
   /** Lo que se escribe solo en el buscador de Comprobantes al llegar desde el lápiz de Cobranzas. */
   const [busquedaComprobantes, setBusquedaComprobantes] = useState<string | undefined>(undefined)
 
@@ -1761,6 +1769,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
       titulo={SECCIONES.find((x) => x.key === seccion)?.label ?? 'FinCorp'}
       contexto={nombreNegocio || undefined}
       guardado={user ? (nubeLista ? 'guardado' : 'sincronizando') : null}
+      errorGuardado={errorGuardado}
       sesion={<SesionUsuario />}
     >
       {aviso}
