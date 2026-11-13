@@ -1,4 +1,5 @@
 import { app, firebaseHabilitado } from './firebase'
+import { sinUndefined } from './sinUndefined'
 import type { Anticipo, Bien, Cheque, ClasificacionesProveedores, CuentaBancaria, DatosEmisorFiscal, Deuda, Empleado, Factura, IngresosBrutosManualMes, IvaManualMes, MovimientoBancario, MovimientoDiario, MovimientoStock, MovimientoTesoreria, Pago, Producto, RemitoPresupuesto, Sector } from './cfo'
 import type { Movimiento } from './movimientosSemana'
 import type { DatosMonotributo } from './monotributo'
@@ -86,7 +87,14 @@ function obtenerApi(): Promise<FirestoreApi | null> {
     apiPromise = (async () => {
       if (!firebaseHabilitado || !app) return null
       const { getFirestore, doc, getDoc, setDoc, deleteDoc, onSnapshot } = await import('firebase/firestore')
-      return { db: getFirestore(app), doc, getDoc, setDoc, deleteDoc, onSnapshot }
+      // Toda escritura pasa por la limpieza de undefined — ver sinUndefined.ts. Va acá, en la
+      // única puerta de salida, y no en cada pantalla: un campo opcional que quedó vacío hacía
+      // fallar el guardado entero y el usuario perdía la sesión de carga.
+      const setDocLimpio = ((ref: never, datos: never, opciones?: never) =>
+        opciones === undefined
+          ? setDoc(ref, sinUndefined(datos))
+          : setDoc(ref, sinUndefined(datos), opciones)) as typeof setDoc
+      return { db: getFirestore(app), doc, getDoc, setDoc: setDocLimpio, deleteDoc, onSnapshot }
     })()
   }
   return apiPromise

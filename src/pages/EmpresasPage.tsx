@@ -661,7 +661,9 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
       tipo: 'ajuste',
       monto,
       fecha,
-      concepto,
+      // Sin concepto la clave no va: `concepto: undefined` dejaría el campo puesto apuntando a
+      // nada, y así salía la escritura que Firestore rechazaba.
+      ...(concepto ? { concepto } : {}),
       origen: 'manual',
     }
     setCuentas((prev) => aplicarMovimientoTesoreria(prev, movimiento))
