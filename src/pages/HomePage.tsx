@@ -19,13 +19,17 @@ import {
   FileSpreadsheet,
   FileText,
   HardHat,
+  History,
   Inbox,
   Landmark,
   LineChart,
   Package,
+  PanelsTopLeft,
+  PencilLine,
   Receipt,
   Ruler,
   ScanLine,
+  Scale,
   ShoppingCart,
   Target,
   UserCog,
@@ -72,14 +76,16 @@ const FEATURES_BASICO: Feature[] = [
   { icon: Landmark, titulo: 'Cuentas bancarias y deudas', texto: 'Cargá el saldo de cada cuenta y tus deudas pendientes, con un indicador de endeudamiento.' },
   { icon: BarChart3, titulo: 'Indicadores clave', texto: 'Margen operativo, runway de caja, punto de equilibrio y endeudamiento, con semáforo y explicación de cada uno.' },
   { icon: LineChart, titulo: 'Flujo de caja proyectado', texto: 'Proyección de tu saldo mes a mes, con alerta si te vas a quedar sin caja.' },
-  { icon: CalendarCheck2, titulo: 'Cobranzas y pagos semanales', texto: 'Qué cobrás y qué pagás en las próximas 4 semanas, arrancando desde la caja que tenés hoy: sumás los cheques y lo que te deben los clientes, restás lo que vas a pagar, y el saldo de cada semana arranca donde terminó la anterior.' },
+  { icon: CalendarCheck2, titulo: 'Cobranzas y pagos semanales', texto: 'Qué cobrás y qué pagás semana a semana, arrancando desde la caja que tenés hoy: sumás los cheques y lo que te deben los clientes, restás lo que vas a pagar, y el saldo de cada semana arranca donde terminó la anterior. Te movés hacia adelante y hacia atrás, y abrís cada renglón de la posición para ver exactamente qué lo compone.' },
+  { icon: History, titulo: 'Tu negocio mes a mes', texto: 'Al cerrar cada mes el sistema guarda una foto de tus indicadores, y después te muestra cada uno con la variación contra el mes anterior. Así ves si vas mejorando o empeorando, y podés fijar objetivos sobre números propios y no sobre una sensación.' },
+  { icon: PencilLine, titulo: 'Corregí lo que ya cargaste', texto: 'Todo lo cargado se puede editar: un cobro, un pago, una factura o un cheque. El lápiz te lleva derecho a la pantalla donde se corrige, y el cambio se refleja solo en la posición financiera y en los indicadores.' },
   { icon: FileSpreadsheet, titulo: 'Informe y Excel', texto: 'Importá tus cuentas a cobrar desde Excel y descargá un informe financiero con gráficos, listo para imprimir.' },
 ]
 
 const FEATURES_MEDIO: Feature[] = [
   { icon: Inbox, titulo: 'Comprobantes', texto: 'Cargá cada factura emitida y recibida, o importalas desde ARCA, y mirá ventas, compras, margen e IVA discriminado. Con eso, Clientes, Proveedores y Monotributo dejan de depender de la carga diaria.' },
   { icon: ScanLine, titulo: 'Leer factura con una foto', texto: 'Sacale una foto a la factura de tu proveedor y se carga sola: fecha, CUIT, neto e IVA. El CUIT se confirma contra el padrón de ARCA y vos revisás antes de guardar.' },
-  { icon: Target, titulo: 'Presupuesto vs. Real', texto: 'Comparás lo presupuestado contra lo que realmente gastaste, con el desvío por categoría y comentarios automáticos.' },
+  { icon: Target, titulo: 'Presupuesto vs. Real', texto: 'Comparás lo presupuestado contra lo que realmente gastaste, con el desvío por categoría y comentarios automáticos. El Real sale solo de tus comprobantes, y el presupuesto lo corregís ahí mismo: justo donde te das cuenta de que quedó viejo.' },
   { icon: BarChart3, titulo: 'Proyección con escenarios', texto: 'Sumá una tasa de crecimiento mensual esperada, con escenarios optimista y pesimista, no solo lineal.' },
   { icon: Bell, titulo: 'Alertas y recomendaciones', texto: 'Avisos si tu caja se agota, una deuda está por vencer, o tu margen se pone negativo, con qué hacer al respecto.' },
   { icon: Calculator, titulo: 'Posición de IVA', texto: 'Débito y crédito fiscal mes a mes, con el saldo a pagar o a favor, y ajustes manuales para que cuadre con lo declarado en ARCA.' },
@@ -95,7 +101,8 @@ const FEATURES_FULL: Feature[] = [
   { icon: FileText, titulo: 'Remitos y presupuestos', texto: 'Armás el presupuesto, lo mandás, y cuando te lo aprueban se convierte en factura sin volver a cargar nada.' },
   { icon: Banknote, titulo: 'Tesorería', texto: 'Todos los movimientos de caja y bancos en un solo lugar, con el saldo real de cada cuenta al día.' },
   { icon: Package, titulo: 'Stock', texto: 'Catálogo de productos con costo y precio, movimientos de entrada y salida, y aviso cuando algo baja del mínimo.' },
-  { icon: CreditCard, titulo: 'Gestión de cheques', texto: 'Vinculados a tus facturas y cuentas corrientes, para armar tu balance contable sin cargar todo dos veces.' },
+  { icon: Scale, titulo: 'Estado de resultados', texto: 'El resultado del ejercicio armado con lo que ya cargaste, con un interruptor entre criterio de gestión y criterio fiscal. Calcula el costo de mercadería vendida —por compras o por variación de stock, según lleves stock o no— y te deja cargar las amortizaciones de tus bienes de uso.' },
+  { icon: CreditCard, titulo: 'Gestión de cheques', texto: 'Vinculados a tus facturas y cuentas corrientes, para armar tu balance contable sin cargar todo dos veces. Si ya tenés la chequera en una planilla, te damos la plantilla y la importás de una vez en lugar de cargar cheque por cheque.' },
   { icon: Workflow, titulo: 'Todo integrado', texto: 'Un sistema de uso diario: cada cheque, sueldo o anticipo que cargás actualiza solo tus indicadores de CFO, sin pasos extra.' },
 ]
 
@@ -117,7 +124,12 @@ const FEATURES_EQUIPO: Feature[] = [
   {
     icon: CloudUpload,
     titulo: 'Copia de seguridad todos los días',
-    texto: 'Guardamos una copia diaria de tu negocio y podés pedir una cuando quieras, antes de tocar algo importante. Si conectás tu Google Drive, la copia también queda en una carpeta tuya, que seguís teniendo aunque te des de baja.',
+    texto: 'Guardamos una copia diaria de tu negocio y podés pedir una cuando quieras, antes de tocar algo importante. Si conectás tu Google Drive, la copia también queda en una carpeta tuya, que seguís teniendo aunque te des de baja. Y si alguna vez algo no llega a guardarse, te lo decimos en la pantalla en vez de dejarte creer que quedó guardado.',
+  },
+  {
+    icon: PanelsTopLeft,
+    titulo: 'Todas las secciones a mano',
+    texto: 'Barra lateral fija con las secciones agrupadas y un buscador arriba: escribís "sueldos" o "IVA" y caés en la pantalla, sin recorrer el menú. En el celular la misma barra se abre de costado, con las pantallas completas y no una versión recortada.',
   },
 ]
 
@@ -353,8 +365,9 @@ export function HomePage() {
           <p className="mt-6 max-w-lg text-base sm:text-lg" style={{ color: C.stone, lineHeight: 1.65 }}>
             Comparás préstamos de los principales bancos argentinos, gestionás las finanzas de tu empresa —
             cuentas, flujo de caja, cobranzas, sueldos, impuestos— emitís tus facturas con CAE, y ponés a
-            trabajar la plata que te sobra. Cada persona de tu equipo entra con su usuario y ve solo lo
-            suyo. Todo en un solo lugar y con explicaciones simples de cada indicador.
+            trabajar la plata que te sobra. Mirás tu estado de resultados y cómo venís mes a mes contra
+            el anterior. Cada persona de tu equipo entra con su usuario y ve solo lo suyo. Todo en un
+            solo lugar y con explicaciones simples de cada indicador.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <PillButton to="/empresas" variante="primario">
@@ -402,9 +415,10 @@ export function HomePage() {
           </h2>
           <p className="mt-3 text-sm" style={{ color: C.stone, lineHeight: 1.6 }}>
             Un dashboard financiero para tu negocio: cuentas bancarias, deudas, indicadores clave, flujo de
-            caja proyectado y un organizador semanal de cobranzas y pagos. En el plan Full, además, liquidás
-            sueldos, manejás el stock y emitís tus facturas con CAE sin salir de acá. Con un usuario para
-            cada persona de tu equipo.
+            caja proyectado y un organizador semanal de cobranzas y pagos, con la variación de cada
+            indicador contra el mes anterior. En el plan Full, además, liquidás sueldos, manejás el stock,
+            emitís tus facturas con CAE y armás tu estado de resultados sin salir de acá. Con un usuario
+            para cada persona de tu equipo.
           </p>
           <p className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: C.cobalt }}>
             <Check size={14} aria-hidden="true" /> 15 días gratis y después elegís tu plan
