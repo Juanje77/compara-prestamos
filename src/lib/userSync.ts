@@ -240,6 +240,14 @@ export async function migrarABloques(
  * llama a `onDatos` con el primer valor apenas se conecta. Devuelve una función para dejar de
  * escuchar (llamarla al desmontar).
  */
+/**
+ * Que el SDK avise también cuando lo único que cambió es de dónde salió el dato. Es lo que hace
+ * que llegue el snapshot "ya lo confirmó el servidor" aunque el contenido sea idéntico al de la
+ * caché — ver el comentario de cada listener. Sin esto, abrir la app con un documento que no
+ * existe deja la pantalla cargando para siempre.
+ */
+const OPCIONES_SNAPSHOT = { includeMetadataChanges: true } as const
+
 export function suscribirseADatosUsuario(
   uid: string,
   onDatos: (datos: DatosUsuario | null) => void,
@@ -290,6 +298,12 @@ export function suscribirseADatosUsuario(
       bajas.push(
         api.onSnapshot(
           refBloque(api, uid, bloque),
+          // Sin includeMetadataChanges el SDK avisa solo cuando cambia el CONTENIDO, y el paso de
+          // "esto es de la caché" a "esto lo confirmó el servidor" es un cambio de metadata. Para
+          // un documento que no existe en el servidor las dos respuestas dicen lo mismo —vacío—,
+          // así que la segunda nunca llegaba: el bloque se quedaba sin contestar para siempre y la
+          // pantalla, cargando. Le pasa a toda cuenta nueva, que no tiene ningún bloque todavía.
+          OPCIONES_SNAPSHOT,
           (snap) => {
             if (snap.metadata.fromCache) return
             if (snap.exists()) porBloque[bloque] = snap.data() as ContenidoBloque
@@ -309,6 +323,7 @@ export function suscribirseADatosUsuario(
 
     bajas.push(api.onSnapshot(
       api.doc(api.db, 'users', uid),
+      OPCIONES_SNAPSHOT,
       (snap) => {
         // Un snapshot "fromCache" es la respuesta que da el SDK cuando todavía no hubo ida y
         // vuelta al servidor (por ejemplo, sin red en el instante de conectar) — no es un "no
