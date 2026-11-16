@@ -1765,6 +1765,62 @@ export function calcularAgingCuentas(
   }
 }
 
+export interface LadoCuentasPendientes {
+  /** Saldo total todavía pendiente. */
+  total: number
+  /** La parte de ese total cuya fecha estimada de cobro/pago ya pasó. */
+  vencido: number
+  /** Cuántos comprobantes componen ese vencido — "son 300 mil en una factura" no es lo mismo
+   * que "son 300 mil repartidos en catorce". */
+  cantidadVencida: number
+}
+
+export interface ResumenCuentasPendientes {
+  cobrar: LadoCuentasPendientes
+  pagar: LadoCuentasPendientes
+  /** Lo que te deben menos lo que debés. Positivo es a tu favor, pero no es plata en la mano:
+   * depende de que tus clientes paguen. */
+  neto: number
+  hayDatos: boolean
+}
+
+function ladoPendiente(facturas: Factura[], pagos: Pago[], tipo: TipoFactura, hoy: number): LadoCuentasPendientes {
+  let total = 0
+  let vencido = 0
+  let cantidadVencida = 0
+  for (const f of facturas) {
+    if (f.tipo !== tipo || f.cumplido) continue
+    const saldo = saldoPendienteConSigno(f, pagos)
+    // Saldo cero: se terminó de pagar de a partes aunque nadie haya tildado "cumplido".
+    if (saldo === 0) continue
+    total += saldo
+    const vence = new Date(`${f.fechaEstimadaCobroPago ?? f.fecha}T00:00:00`).getTime()
+    if (vence < hoy) {
+      vencido += saldo
+      cantidadVencida += 1
+    }
+  }
+  return { total, vencido, cantidadVencida }
+}
+
+/**
+ * Lo que te deben y lo que debés, hoy, según los comprobantes cargados.
+ *
+ * Usa el saldo pendiente y no el monto completo: una factura con un pago parcial imputado desde
+ * Cuentas corrientes debe solo lo que falta. Vencido es con la fecha estimada de cobro/pago, que
+ * es la que el usuario ajusta — no la de emisión.
+ */
+export function resumenCuentasPendientes(
+  facturas: Factura[],
+  pagos: Pago[] = [],
+  hoyISO = new Date().toISOString().slice(0, 10),
+): ResumenCuentasPendientes {
+  const hoy = new Date(`${hoyISO}T00:00:00`).getTime()
+  const cobrar = ladoPendiente(facturas, pagos, 'emitida', hoy)
+  const pagar = ladoPendiente(facturas, pagos, 'recibida', hoy)
+  return { cobrar, pagar, neto: cobrar.total - pagar.total, hayDatos: cobrar.total !== 0 || pagar.total !== 0 }
+}
+
 // ---------------------------------------------------------------------------
 // Cuentas corrientes (Premium): saldo por cliente/proveedor e imputación de pagos parciales
 // ---------------------------------------------------------------------------

@@ -12,6 +12,7 @@ import { calcularEstadoResultados, type CriterioResultados } from '../lib/estado
 import { AppShell } from '../components/AppShell'
 import { SesionUsuario } from '../components/Layout'
 import type { ReactNode } from 'react'
+import { CuentasPendientes } from '../components/CuentasPendientes'
 import { ResumenMesActual } from '../components/ResumenMesActual'
 import { armarMovimientos } from '../lib/movimientosDelNegocio'
 import { calcularPosicionFinanciera, type OrigenMovimiento } from '../lib/posicionFinanciera'
@@ -77,6 +78,7 @@ import {
   calcularMontoPagado,
   calcularAgingCuentas,
   calcularDSOyDPO,
+  resumenCuentasPendientes,
   calcularPosicionIngresosBrutosPorMes,
   calcularPosicionIvaPorMes,
   calcularPromediosMensualesReales,
@@ -1577,6 +1579,8 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
     [margenOperativo, runwayMeses, proyeccion, deudas, facturas, cheques, productos],
   )
   const indicadoresCobroPago = useMemo(() => calcularDSOyDPO(facturas, pagos), [facturas, pagos])
+  /** Lo que te deben y lo que debés hoy, para el Dashboard — ver CuentasPendientes. */
+  const cuentasPendientes = useMemo(() => resumenCuentasPendientes(facturas, pagos), [facturas, pagos])
   const recomendaciones = useMemo(
     () =>
       esPremium
@@ -2146,6 +2150,8 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
             variaciones={variacionesMes}
             onVerComprobantes={() => setSeccion('facturas')}
           />
+
+          <CuentasPendientes resumen={cuentasPendientes} onVerComprobantes={() => setSeccion('facturas')} />
 
           <section className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
             {esFull ? (
