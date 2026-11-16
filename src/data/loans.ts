@@ -1,5 +1,5 @@
 // Datos de referencia de líneas de préstamos de bancos argentinos.
-// Actualizado: septiembre 2026. Fuentes citadas en `fuente`: se prioriza el sitio
+// Actualizado: noviembre 2026. Fuentes citadas en `fuente`: se prioriza el sitio
 // oficial de cada banco cuando publica sus tasas vigentes; si no se encontró un
 // dato oficial claro, se cita prensa especializada o se deja como estimación
 // orientativa (marcado `verificado: false`).
@@ -275,16 +275,16 @@ export const PRESTAMOS_PRENDARIOS: LoanOffer[] = [
     id: 'nacion-prendario',
     banco: 'Banco Nación',
     tipo: 'prendario',
-    tna: 50,
-    cft: 80.44,
+    tna: 25,
+    cft: 39,
     montoMin: 500000,
-    montoMax: 100000000,
+    montoMax: 50000000,
     plazoMinMeses: 12,
     plazoMaxMeses: 72,
-    requisitos: 'Línea "+Autos": financia 0km y usados de hasta 10 años, a sola firma (sin garantía prendaria ni pagaré). TEA 63,21%. Existe otra opción con TNA fija 38% (CFT cercano a 57%) según antigüedad del vehículo y perfil.',
+    requisitos: 'Línea "+Autos con BNA": financia hasta el 100% del valor de 0km y usados de hasta 10 años, a sola firma (sin garantía prendaria ni pagaré). Tasa preferencial del 25% TNA fija para quienes cobran sueldo o jubilación en el BNA, tienen tarjeta de crédito del banco y contratan el seguro del vehículo por el banco; sin cumplir esos 3 requisitos, la tasa general es del 46% TNA fija. No incluye patentamiento ni otros gastos.',
     sitioWeb: 'https://www.bna.com.ar',
     verificado: true,
-    fuente: 'Río Negro / El Orden de Pringles / El Diario 24, oct-nov 2025 y actualizaciones 2026',
+    fuente: 'Infobae / La Nación / iProfesional / MDZ, 5 nov 2026 (TNA 25% preferencial / 46% general, oficial); CFT estimado',
   },
   {
     id: 'santander-prendario',
