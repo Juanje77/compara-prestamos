@@ -2042,6 +2042,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
             onCambiarComision={handleCambiarComisionCheque}
             onEditar={handleEditarCheque}
             onEliminar={handleEliminarCheque}
+            saldoCaja={saldoInicial}
           />
         </PremiumLock>
       )}

@@ -5,6 +5,7 @@ import { calcularTotalesCheques, estadosChequeDisponibles, etiquetaEstadoCheque,
 import { formatoMoneda } from '../lib/finance'
 import { InputMoneda } from './InputMoneda'
 import { IconButton } from './IconButton'
+import { LineaDeTiempoCheques } from './LineaDeTiempoCheques'
 import { Card } from './Card'
 import { Button } from './Button'
 import { importarChequesDesdeExcel } from '../lib/excelImport'
@@ -23,6 +24,8 @@ interface Props {
   /** Corregir los datos del cheque: número, banco, a nombre de quién, importe y fechas. */
   onEditar: (id: string, cambios: Partial<Pick<Cheque, 'numero' | 'banco' | 'contraparte' | 'monto' | 'fechaEmision' | 'fechaCobro'>>) => void
   onEliminar: (id: string) => void
+  /** La caja de hoy, para arrastrar el saldo en la línea de tiempo. */
+  saldoCaja: number
 }
 
 const campoEdicion = {
@@ -35,7 +38,7 @@ function hoyISO(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
-export function Cheques({ cheques, facturas, cuentas, onAgregar, onCambiarEstado, onCambiarCuenta, onCambiarComision, onEditar, onEliminar }: Props) {
+export function Cheques({ cheques, facturas, cuentas, onAgregar, onCambiarEstado, onCambiarCuenta, onCambiarComision, onEditar, onEliminar, saldoCaja }: Props) {
   const [tipo, setTipo] = useState<TipoCheque>('recibido')
   const [importando, setImportando] = useState(false)
   /** Qué cheque se está corrigiendo, con sus valores provisorios. */
@@ -175,6 +178,10 @@ export function Cheques({ cheques, facturas, cuentas, onAgregar, onCambiarEstado
 
   return (
     <div className="space-y-6">
+      {/* Primero cuándo caen, después la lista. La lista es para cargar y corregir; la línea de
+          tiempo es para decidir, y es la pregunta con la que uno entra a esta pantalla. */}
+      <LineaDeTiempoCheques cheques={cheques} saldoInicial={saldoCaja} />
+
       <Card as="section">
         <h2 className="mb-1 text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
           Cheques
