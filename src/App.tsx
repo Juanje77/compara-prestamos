@@ -5,6 +5,7 @@ import { Layout } from './components/Layout'
 import { LayoutApp } from './components/LayoutApp'
 import { HomePage } from './pages/HomePage'
 import { AuthProvider } from './lib/AuthContext'
+import { AvisoVersionNueva } from './components/AvisoVersionNueva'
 
 // La home se importa directo porque es la primera que se ve: cargarla en diferido agregaría una
 // ida y vuelta justo en la pantalla que define la primera impresión.
@@ -53,6 +54,8 @@ function App() {
           en un 404 que ensucia la consola cada vez que se recarga, escondiendo los errores que
           sí importan. No se pierde nada, porque las visitas que interesan son las de verdad. */}
       {import.meta.env.PROD && <Analytics />}
+      {/* Fuera del Router a propósito: el aviso no depende de en qué pantalla esté la persona. */}
+      <AvisoVersionNueva />
     </AuthProvider>
   )
 }

@@ -9,7 +9,11 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // 'prompt' y no 'autoUpdate': la versión nueva espera a que la persona apriete
+      // "Actualizar" — ver AvisoVersionNueva.tsx. Con autoUpdate se instalaba sola pero recién
+      // tomaba el control en la carga SIGUIENTE, así que el refresh que uno hace justo después de
+      // publicar un arreglo seguía mostrando la versión vieja.
+      registerType: 'prompt',
       includeAssets: ['favicon-32.png', 'favicon-16.png', 'apple-touch-icon.png'],
       manifest: {
         name: 'FinCorp — Comparador de préstamos',
@@ -31,12 +35,11 @@ export default defineConfig({
         // service worker precachearía solo el PNG de respaldo — el peor de los dos mundos,
         // porque se descarga el pesado y igual no queda disponible sin conexión.
         globPatterns: ['**/*.{js,css,html,svg,png,webp,ico}'],
-        // Sin esto, una pestaña abierta durante un deploy nuevo puede quedar con el service
-        // worker viejo controlándola y terminar pidiendo chunks JS de una build anterior que
-        // ya no existen (404 → el servidor devuelve el index.html, y el navegador lo rechaza
-        // por MIME type). skipWaiting + clientsClaim hacen que la versión nueva tome el control
-        // apenas se instala, y cleanupOutdatedCaches saca del caché las entradas de la build vieja.
-        skipWaiting: true,
+        // skipWaiting ya no va acá: lo dispara el botón "Actualizar" (updateServiceWorker(true)).
+        // Ponerlo fijo cambiaría el código abajo de los pies de una pantalla abierta. El riesgo que
+        // cubría —una pestaña vieja pidiendo un chunk JS que ya no existe, 404 que devuelve el
+        // index.html y el navegador rechaza por MIME type— sigue cubierto porque globPatterns
+        // precachea TODOS los .js: la pestaña vieja se sirve de su propio caché y no sale a la red.
         clientsClaim: true,
         cleanupOutdatedCaches: true,
       },
