@@ -1,4 +1,5 @@
 import { app, firebaseHabilitado } from './firebase'
+import { escucharDelServidor } from './escucharDelServidor'
 import { sinUndefined } from './sinUndefined'
 import type { Anticipo, Bien, Cheque, ClasificacionesProveedores, CuentaBancaria, DatosEmisorFiscal, Deuda, Empleado, Factura, IngresosBrutosManualMes, IvaManualMes, MovimientoBancario, MovimientoDiario, MovimientoStock, MovimientoTesoreria, Pago, Producto, RemitoPresupuesto, Sector } from './cfo'
 import type { Movimiento } from './movimientosSemana'
@@ -240,14 +241,6 @@ export async function migrarABloques(
  * llama a `onDatos` con el primer valor apenas se conecta. Devuelve una función para dejar de
  * escuchar (llamarla al desmontar).
  */
-/**
- * Que el SDK avise también cuando lo único que cambió es de dónde salió el dato. Es lo que hace
- * que llegue el snapshot "ya lo confirmó el servidor" aunque el contenido sea idéntico al de la
- * caché — ver el comentario de cada listener. Sin esto, abrir la app con un documento que no
- * existe deja la pantalla cargando para siempre.
- */
-const OPCIONES_SNAPSHOT = { includeMetadataChanges: true } as const
-
 export function suscribirseADatosUsuario(
   uid: string,
   onDatos: (datos: DatosUsuario | null) => void,
@@ -296,16 +289,10 @@ export function suscribirseADatosUsuario(
 
     for (const bloque of bloques) {
       bajas.push(
-        api.onSnapshot(
+        escucharDelServidor(
+          api.onSnapshot,
           refBloque(api, uid, bloque),
-          // Sin includeMetadataChanges el SDK avisa solo cuando cambia el CONTENIDO, y el paso de
-          // "esto es de la caché" a "esto lo confirmó el servidor" es un cambio de metadata. Para
-          // un documento que no existe en el servidor las dos respuestas dicen lo mismo —vacío—,
-          // así que la segunda nunca llegaba: el bloque se quedaba sin contestar para siempre y la
-          // pantalla, cargando. Le pasa a toda cuenta nueva, que no tiene ningún bloque todavía.
-          OPCIONES_SNAPSHOT,
           (snap) => {
-            if (snap.metadata.fromCache) return
             if (snap.exists()) porBloque[bloque] = snap.data() as ContenidoBloque
             else delete porBloque[bloque]
             bloquesLlegados.add(bloque)
@@ -321,19 +308,13 @@ export function suscribirseADatosUsuario(
       )
     }
 
-    bajas.push(api.onSnapshot(
+    // Solo el snapshot confirmado por el servidor: el de la caché puede llegar vacío sin que eso
+    // signifique que no hay nada, y EmpresasPage habilitaría el guardado con ese vacío encima de
+    // datos reales. Ver escucharDelServidor.ts.
+    bajas.push(escucharDelServidor(
+      api.onSnapshot,
       api.doc(api.db, 'users', uid),
-      OPCIONES_SNAPSHOT,
       (snap) => {
-        // Un snapshot "fromCache" es la respuesta que da el SDK cuando todavía no hubo ida y
-        // vuelta al servidor (por ejemplo, sin red en el instante de conectar) — no es un "no
-        // existe" confirmado. En un dispositivo sin nada guardado en caché local, eso llega vacío,
-        // y si lo tratáramos como definitivo, EmpresasPage lo toma como "no hay nada" y —peor—
-        // habilita el guardado hacia la nube con ese vacío, pudiendo pisar datos reales que sí
-        // están en el servidor. Por eso se espera al primer snapshot confirmado por el servidor:
-        // si no hay red, no se llama a onDatos, y este mismo listener se vuelve a disparar solo
-        // en cuanto la conexión se restablezca.
-        if (snap.metadata.fromCache) return
         principal = snap.exists() ? (snap.data() as DatosUsuario) : null
         principalLlego = true
         avisar()

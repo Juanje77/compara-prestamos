@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { app, firebaseHabilitado } from './firebase'
+import { escucharDelServidor } from './escucharDelServidor'
 
 /** "premium" internamente sigue siendo el valor guardado para el nivel medio (mostrado al
  * usuario como "Medio") — no se renombra para no romper el acceso de quienes ya están
@@ -84,15 +85,17 @@ function suscribirsePlanUsuario(uid: string, callback: (plan: PlanUsuario) => vo
         callback(PLAN_VACIO)
         return
       }
-      unsubscribe = api.onSnapshot(
+      // Se espera al snapshot confirmado por el servidor y no al de la caché, que puede llegar
+      // vacío aunque el usuario sí tenga un plan real: mostraría "sin plan" por un instante y
+      // podría disparar la prueba gratis de más. Ver escucharDelServidor.ts — y en particular por
+      // qué hace falta pedir los cambios de metadata: sin eso, una cuenta sin documento de plan
+      // todavía no recibía nunca la confirmación, y la pantalla se quedaba en "Cargando…" para
+      // siempre. Como la prueba gratis se activa recién cuando el plan terminó de cargar, esa
+      // cuenta tampoco llegaba a crear su plan: quedaba trabada sola.
+      unsubscribe = escucharDelServidor(
+        api.onSnapshot,
         api.doc(api.db, 'users', uid, 'meta', 'plan'),
         (snap) => {
-          // Un snapshot "fromCache" (sin red en el instante de conectar, típico de un dispositivo
-          // que recién arranca) puede llegar vacío aunque el usuario sí tenga un plan real en el
-          // servidor. Tratarlo como definitivo mostraría "sin plan" por un instante y podría
-          // disparar la activación de la prueba gratis de más — se espera al snapshot confirmado
-          // por el servidor, que llega solo apenas hay conexión.
-          if (snap.metadata.fromCache) return
           const data = snap.data() as Partial<PlanUsuario> | undefined
           callback({
             plan: data?.plan ?? null,

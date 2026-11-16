@@ -74,17 +74,24 @@ export function AccesoEmpresas() {
       return
     }
     let cancelado = false
+    /** Seguir sin el segundo factor. No deja a nadie afuera: las reglas de Firestore siguen
+     * exigiendo la marca del token, así que el que no lo pasó no ve datos igual. */
+    function seguirSinEl() {
+      if (!cancelado) setPideCodigo(false)
+    }
+    // Mientras esto no conteste, la pantalla muestra "Cargando…". Un fetch sin límite de tiempo no
+    // falla nunca: si el servidor queda colgado, la promesa no se resuelve ni se rechaza y la
+    // persona se queda mirando el cartel para siempre. Pasados ocho segundos se sigue de largo.
+    const reloj = setTimeout(seguirSinEl, 8000)
     estadoMfa()
       .then((estado) => {
         if (!cancelado) setPideCodigo(estado.configurado && estado.haceFaltaCodigo)
       })
-      .catch(() => {
-        // Si la consulta falla (sin red, servidor caído), no se deja a nadie afuera: las reglas de
-        // Firestore siguen exigiendo la marca, así que el que no pasó el factor no ve datos igual.
-        if (!cancelado) setPideCodigo(false)
-      })
+      .catch(seguirSinEl)
+      .finally(() => clearTimeout(reloj))
     return () => {
       cancelado = true
+      clearTimeout(reloj)
     }
   }, [user])
 
