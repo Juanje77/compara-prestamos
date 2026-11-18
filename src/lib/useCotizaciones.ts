@@ -40,9 +40,10 @@ interface Opciones {
 const hoy = () => new Date().toISOString().slice(0, 10)
 
 export function useCotizaciones({ casa, manual }: Opciones): EstadoCotizaciones {
-  const guardado = leerCache()
-  const [cotizaciones, setCotizaciones] = useState<Cotizaciones>(guardado?.cotizaciones ?? {})
-  const [dia, setDia] = useState<string | null>(guardado?.dia ?? null)
+  // Las dos lecturas van adentro de la función de inicialización: afuera, leerCache() correría
+  // en CADA render de la página entera, leyendo y parseando JSON de localStorage cada vez.
+  const [cotizaciones, setCotizaciones] = useState<Cotizaciones>(() => leerCache()?.cotizaciones ?? {})
+  const [dia, setDia] = useState<string | null>(() => leerCache()?.dia ?? null)
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pedido, setPedido] = useState(0)
