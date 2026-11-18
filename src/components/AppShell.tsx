@@ -48,6 +48,10 @@ interface Props<T extends string> {
    * creyendo que se guardaba. Perder una tarde de trabajo sin que nada avise es lo peor que
    * puede hacer un sistema como este. */
   errorGuardado?: string | null
+  /** La cotización del dólar con la que el sistema está convirtiendo. Va en el encabezado y no
+   * en una configuración escondida: es el número que afecta todos los totales, así que si está
+   * mal o viejo la persona tiene que poder notarlo sin ir a buscarlo. */
+  cotizacion?: ReactNode
   /** Acciones de la cuenta (cerrar sesión), que antes vivían en la barra del sitio. */
   sesion?: ReactNode
   children: ReactNode
@@ -67,6 +71,7 @@ export function AppShell<T extends string>({
   contexto,
   guardado,
   errorGuardado,
+  cotizacion,
   sesion,
   children,
 }: Props<T>) {
@@ -216,6 +221,7 @@ export function AppShell<T extends string>({
             </span>
             )
           )}
+          {cotizacion}
           {sesion}
           <ThemeToggle />
         </header>

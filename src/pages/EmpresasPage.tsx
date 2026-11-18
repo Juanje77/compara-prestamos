@@ -12,7 +12,10 @@ import { calcularEstadoResultados, type CriterioResultados } from '../lib/estado
 import { AppShell } from '../components/AppShell'
 import { SesionUsuario } from '../components/Layout'
 import type { ReactNode } from 'react'
+import { ConfigDolar, type ConfigDolarValor } from '../components/ConfigDolar'
 import { CuentasPendientes } from '../components/CuentasPendientes'
+import { IndicadorDolar } from '../components/IndicadorDolar'
+import { useCotizaciones } from '../lib/useCotizaciones'
 import { ResumenMesActual } from '../components/ResumenMesActual'
 import { armarMovimientos } from '../lib/movimientosDelNegocio'
 import { calcularPosicionFinanciera, type OrigenMovimiento } from '../lib/posicionFinanciera'
@@ -329,6 +332,13 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
   const [historialMensual, setHistorialMensual] = useState<FotoMensual[]>(
     () => cargarNegocioData()?.historialMensual ?? [],
   )
+  // Qué dólar usa el sistema para convertir. MEP por defecto: es al que una empresa realmente
+  // puede comprar o vender dólares de manera legal.
+  const [cotizacionConfig, setCotizacionConfig] = useState<ConfigDolarValor>(
+    () => cargarNegocioData()?.cotizacionConfig ?? { casa: 'bolsa' },
+  )
+  const [configDolarAbierta, setConfigDolarAbierta] = useState(false)
+  const estadoDolar = useCotizaciones({ casa: cotizacionConfig.casa, manual: cotizacionConfig.manual })
 
   // Instante de la última EDICIÓN — el mismo valor va tanto al guardado local (inmediato) como al
   // de Firestore (debounceado 800ms). Sirve para que la carga desde la nube no pise con datos
@@ -384,7 +394,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
       datosEmisorFiscal, anticipos, productos, movimientosStock,
       movimientosTesoreria, movimientosBancarios, ivaManualPorMes, ingresosBrutosManualPorMes,
       movimientosDiarios, monotributo, tasaCrecimiento, nombreNegocio, actualizadoEn,
-      historialMensual,
+      historialMensual, cotizacionConfig,
     }),
     [
       ingresos, meses, montos, cuentas, deudas, bienes, realManualPorMes, ventasManualPorMes,
@@ -392,7 +402,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
       datosEmisorFiscal, anticipos, productos, movimientosStock,
       movimientosTesoreria, movimientosBancarios, ivaManualPorMes, ingresosBrutosManualPorMes,
       movimientosDiarios, monotributo, tasaCrecimiento, nombreNegocio, actualizadoEn,
-      historialMensual,
+      historialMensual, cotizacionConfig,
     ],
   )
 
@@ -479,6 +489,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
           setTasaCrecimiento(d.tasaCrecimiento ?? 0)
           setNombreNegocio(d.nombreNegocio ?? '')
           setHistorialMensual(d.historialMensual ?? [])
+          setCotizacionConfig(d.cotizacionConfig ?? { casa: 'bolsa' })
         }
         setBackupsAutomaticos(datos.backupsIndex ?? [])
         // Se dispara con el dato recién leído de la nube (coherente entre sí, no hace falta
@@ -607,6 +618,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
     setTasaCrecimiento(d.tasaCrecimiento ?? 0)
     setNombreNegocio(d.nombreNegocio ?? '')
     setHistorialMensual(d.historialMensual ?? [])
+    setCotizacionConfig(d.cotizacionConfig ?? { casa: 'bolsa' })
   }
 
   function handleObtenerBackupAutomatico(id: string) {
@@ -1776,6 +1788,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
       contexto={nombreNegocio || undefined}
       guardado={user ? (nubeLista ? 'guardado' : 'sincronizando') : null}
       errorGuardado={errorGuardado}
+      cotizacion={<IndicadorDolar estado={estadoDolar} onConfigurar={() => setConfigDolarAbierta(true)} />}
       sesion={<SesionUsuario />}
     >
       {aviso}
@@ -2419,6 +2432,14 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
       )}
 
       {mostrarPlanes && <PremiumUpgradeModal onCerrar={() => setMostrarPlanes(false)} />}
+      {configDolarAbierta && (
+        <ConfigDolar
+          valor={cotizacionConfig}
+          onCambiar={setCotizacionConfig}
+          estado={estadoDolar}
+          onCerrar={() => setConfigDolarAbierta(false)}
+        />
+      )}
     </AppShell>
   )
 }

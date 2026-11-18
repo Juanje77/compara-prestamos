@@ -1,3 +1,4 @@
+import type { CasaDolar } from './cotizaciones'
 import { app, firebaseHabilitado } from './firebase'
 import { escucharDelServidor } from './escucharDelServidor'
 import { sinUndefined } from './sinUndefined'
@@ -45,6 +46,9 @@ export interface NegocioDataUsuario {
   tasaCrecimiento?: number
   nombreNegocio?: string
   historialMensual?: FotoMensual[]
+  /** Qué dólar usa el sistema para convertir a pesos lo que esté en dólares, y el tipo de cambio
+   * fijado a mano si lo hay — ver cotizaciones.ts. Sin valor: MEP y el del día. */
+  cotizacionConfig?: { casa: CasaDolar; manual?: { compra: number; venta: number } | null }
   /** Ver NegocioData.actualizadoEn en negocioData.ts — mismo propósito, del lado de la nube. */
   actualizadoEn?: number
 }

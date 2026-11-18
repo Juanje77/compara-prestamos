@@ -22,7 +22,7 @@ const CAMPOS_DEL_NEGOCIO = [
   'remitos', 'sectores', 'empleados', 'datosEmisorFiscal', 'anticipos', 'productos',
   'movimientosStock', 'movimientosTesoreria', 'movimientosBancarios', 'ivaManualPorMes',
   'ingresosBrutosManualPorMes', 'movimientosDiarios', 'monotributo', 'tasaCrecimiento',
-  'nombreNegocio', 'actualizadoEn', 'historialMensual',
+  'nombreNegocio', 'actualizadoEn', 'historialMensual', 'cotizacionConfig',
   // No es un campo de negocioData, pero se guarda con el mismo mecanismo y en su propio bloque.
   'movimientosSemana',
 ]
