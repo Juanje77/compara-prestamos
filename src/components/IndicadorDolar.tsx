@@ -7,6 +7,10 @@ import type { EstadoCotizaciones } from '../lib/useCotizaciones'
 // Está a la vista y no escondida en una configuración porque es el número con el que el sistema
 // está convirtiendo TODO lo que esté en dólares. Si está desactualizado o mal, la persona tiene
 // que poder darse cuenta sin ir a buscarlo.
+//
+// Va con borde y no como texto suelto: al lado de "Guardado" —que es un estado, no un control—
+// un texto gris más se lee como parte del mismo grupo y no como algo que se puede tocar. El
+// borde es lo que dice "esto es un botón".
 
 function soloFecha(iso: string | null): string {
   if (!iso) return ''
@@ -22,9 +26,9 @@ export function IndicadorDolar({ estado, onConfigurar }: { estado: EstadoCotizac
       <button
         type="button"
         onClick={onConfigurar}
-        className="hidden items-center gap-1 text-xs sm:inline-flex"
-        style={{ color: 'var(--text-muted)' }}
-        title={error ?? 'Todavía no se pudo traer la cotización del dólar.'}
+        className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium sm:inline-flex"
+        style={{ borderColor: 'var(--status-warning)', color: 'var(--text-secondary)' }}
+        title={error ?? 'Todavía no se pudo traer la cotización del dólar. Tocá para fijarla a mano.'}
       >
         {cargando ? <RefreshCw size={12} className="animate-spin" aria-hidden="true" /> : <AlertTriangle size={12} aria-hidden="true" />}
         {cargando ? 'Dólar…' : 'Sin cotización'}
@@ -38,8 +42,12 @@ export function IndicadorDolar({ estado, onConfigurar }: { estado: EstadoCotizac
     <button
       type="button"
       onClick={onConfigurar}
-      className="hidden items-center gap-1 text-xs tabular sm:inline-flex"
-      style={{ color: desactualizada ? 'var(--status-warning)' : 'var(--text-secondary)' }}
+      className="tabular hidden items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium sm:inline-flex"
+      style={{
+        borderColor: desactualizada ? 'var(--status-warning)' : 'var(--border)',
+        background: 'var(--surface-2)',
+        color: desactualizada ? 'var(--status-warning)' : 'var(--text-secondary)',
+      }}
       title={
         manual
           ? `Tipo de cambio fijado a mano: compra ${actual.compra}, venta ${actual.venta}. Tocá para cambiarlo.`
