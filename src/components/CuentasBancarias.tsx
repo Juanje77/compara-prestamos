@@ -6,19 +6,25 @@ import { InputMoneda } from './InputMoneda'
 import { IconButton } from './IconButton'
 import { Card } from './Card'
 import { Button } from './Button'
+import { cuentasEnPesos } from '../lib/convertirMonedas'
+import type { Cotizacion } from '../lib/cotizaciones'
 
 interface Props {
   cuentas: CuentaBancaria[]
   onAgregar: (nombre: string, saldo: number) => void
+  /** Para no sumar dólares con pesos en el total. Las cuentas en dólares se crean desde
+   * Tesorería (plan Full), pero una cuenta puede sobrevivir a una baja de plan y entonces esta
+   * pantalla la muestra igual. */
+  cotizacion?: Cotizacion | null
   onCambiarSaldo: (id: string, saldo: number) => void
   onEliminar: (id: string) => void
 }
 
-export function CuentasBancarias({ cuentas, onAgregar, onCambiarSaldo, onEliminar }: Props) {
+export function CuentasBancarias({ cuentas, onAgregar, onCambiarSaldo, onEliminar, cotizacion }: Props) {
   const [nombre, setNombre] = useState('')
   const [saldo, setSaldo] = useState(0)
 
-  const total = cuentas.reduce((s, c) => s + c.saldo, 0)
+  const total = cuentasEnPesos(cuentas, cotizacion ?? null).reduce((s, c) => s + c.saldo, 0)
   const hayDescubierto = cuentas.some((c) => c.saldo < 0)
 
   function handleSubmit(e: React.FormEvent) {

@@ -5,6 +5,8 @@ import { MARGEN_DIAS_CONCILIACION, calcularResumenConciliacion, calcularSaldoTot
 import { importarExtractoBancario } from '../lib/excelImport'
 import { descargarPlantillaExtracto } from '../lib/plantillasImportacion'
 import { formatoMoneda } from '../lib/finance'
+import { cuentasEnPesos, faltaCotizacion } from '../lib/convertirMonedas'
+import { aPesos, type Cotizacion, type Moneda } from '../lib/cotizaciones'
 import { InputMoneda } from './InputMoneda'
 import { IconButton } from './IconButton'
 import { Card } from './Card'
@@ -14,7 +16,9 @@ interface Props {
   cuentas: CuentaBancaria[]
   movimientos: MovimientoTesoreria[]
   movimientosBancarios: MovimientoBancario[]
-  onAgregarCuenta: (nombre: string, saldoInicial: number) => void
+  onAgregarCuenta: (nombre: string, saldoInicial: number, moneda: Moneda) => void
+  /** La cotización con la que se muestra el equivalente en pesos de una cuenta en dólares. */
+  cotizacion?: Cotizacion | null
   onAjustarSaldo: (cuentaId: string, monto: number, fecha: string, concepto: string | undefined) => void
   onEliminarMovimiento: (id: string) => void
   onEliminarCuenta: (id: string) => void
@@ -45,13 +49,15 @@ function hoyISO(): string {
 function FormularioAltaCuenta({ onAgregarCuenta }: { onAgregarCuenta: Props['onAgregarCuenta'] }) {
   const [nombre, setNombre] = useState('')
   const [saldoInicial, setSaldoInicial] = useState(0)
+  const [moneda, setMoneda] = useState<Moneda>('ARS')
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!nombre.trim()) return
-    onAgregarCuenta(nombre.trim(), saldoInicial)
+    onAgregarCuenta(nombre.trim(), saldoInicial, moneda)
     setNombre('')
     setSaldoInicial(0)
+    setMoneda('ARS')
   }
 
   return (
@@ -64,10 +70,24 @@ function FormularioAltaCuenta({ onAgregarCuenta }: { onAgregarCuenta: Props['onA
         className="min-w-[180px] flex-1 rounded-lg border px-3 py-1.5 text-sm"
         style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
       />
+      {/* La moneda se elige al crear y no se cambia después: cambiarla no convertiría el saldo
+          ni los movimientos ya cargados, solo reinterpretaría los números, que es cómo un saldo
+          correcto se vuelve mil veces más grande sin que nadie toque un importe. */}
+      <select
+        value={moneda}
+        onChange={(e) => setMoneda(e.target.value as Moneda)}
+        aria-label="Moneda de la cuenta"
+        className="shrink-0 rounded-lg border px-2 py-1.5 text-sm"
+        style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+      >
+        <option value="ARS">Pesos</option>
+        <option value="USD">Dólares</option>
+      </select>
       <InputMoneda
         placeholder="Saldo inicial"
         value={saldoInicial}
         onChange={setSaldoInicial}
+        aria-label={moneda === 'USD' ? 'Saldo inicial en dólares' : 'Saldo inicial en pesos'}
         className="tabular w-32 shrink-0 rounded-lg border px-3 py-1.5 text-sm"
         style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
       />
@@ -80,6 +100,7 @@ function FormularioAltaCuenta({ onAgregarCuenta }: { onAgregarCuenta: Props['onA
 
 function FilaCuenta({
   cuenta,
+  cotizacion,
   movimientos,
   movimientosBancarios,
   onAjustarSaldo,
@@ -92,6 +113,7 @@ function FilaCuenta({
   onEliminarMovimientoBancario,
 }: {
   cuenta: CuentaBancaria
+  cotizacion: Cotizacion | null
   movimientos: MovimientoTesoreria[]
   movimientosBancarios: MovimientoBancario[]
   onAjustarSaldo: Props['onAjustarSaldo']
@@ -122,11 +144,31 @@ function FilaCuenta({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="font-semibold" style={{ color: 'var(--text-primary)' }}>
           {cuenta.nombre}
+          {cuenta.moneda === 'USD' && (
+            <span
+              className="ml-2 rounded-full border px-1.5 py-0.5 text-[10px] font-bold align-middle"
+              style={{ borderColor: 'var(--series-3)', color: 'var(--series-3)' }}
+            >
+              USD
+            </span>
+          )}
         </p>
         <div className="flex shrink-0 items-center gap-2">
-          <p className="tabular text-lg font-semibold" style={{ color: cuenta.saldo < 0 ? 'var(--status-critical)' : 'var(--text-primary)' }}>
-            {formatoMoneda(cuenta.saldo)}
-          </p>
+          <div className="text-right">
+            <p className="tabular text-lg font-semibold" style={{ color: cuenta.saldo < 0 ? 'var(--status-critical)' : 'var(--text-primary)' }}>
+              {cuenta.moneda === 'USD' ? `US$ ${cuenta.saldo.toLocaleString('es-AR')}` : formatoMoneda(cuenta.saldo)}
+            </p>
+            {/* El equivalente en pesos va debajo y en chico: el saldo de la cuenta es el de
+                arriba, en su moneda. El de abajo es cuánto vale hoy, que cambia todos los días
+                sin que nadie toque la cuenta. */}
+            {cuenta.moneda === 'USD' && (
+              <p className="tabular text-xs" style={{ color: 'var(--text-muted)' }}>
+                {cotizacion
+                  ? `≈ ${formatoMoneda(aPesos(cuenta.saldo, 'USD', cotizacion, 'activo').monto)}`
+                  : 'sin cotización'}
+              </p>
+            )}
+          </div>
           <button
             onClick={() => setExpandido((v) => !v)}
             className="shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold"
@@ -540,9 +582,14 @@ export function Tesoreria({
   onDesconciliar,
   onCrearAjusteDesdeBancario,
   onEliminarMovimientoBancario,
+  cotizacion,
 }: Props) {
   const resumen = resumenPorCuenta(cuentas, movimientos)
-  const saldoTotal = calcularSaldoTotalBancos(cuentas)
+  // El total sumaría peras con manzanas si hay cuentas en dólares, así que se pasa todo a pesos
+  // primero. Cada cuenta sigue mostrando su saldo en su moneda; el total es uno solo y tiene que
+  // estar en una sola.
+  const saldoTotal = calcularSaldoTotalBancos(cuentasEnPesos(cuentas, cotizacion ?? null))
+  const hayDolaresSinConvertir = faltaCotizacion(cuentas, cotizacion ?? null)
 
   return (
     <div className="space-y-6">
@@ -574,6 +621,12 @@ export function Tesoreria({
             <p className="tabular text-lg font-semibold" style={{ color: saldoTotal < 0 ? 'var(--status-critical)' : 'var(--text-primary)' }}>
               {formatoMoneda(saldoTotal)}
             </p>
+            {hayDolaresSinConvertir && (
+              <p className="mt-1 text-xs" style={{ color: 'var(--status-warning)' }}>
+                Hay cuentas en dólares y todavía no se pudo traer la cotización, así que este total no las
+                convirtió. Podés fijar el tipo de cambio a mano desde el encabezado.
+              </p>
+            )}
           </div>
         </div>
 
@@ -587,6 +640,7 @@ export function Tesoreria({
               <FilaCuenta
                 key={r.cuenta.id}
                 cuenta={r.cuenta}
+                cotizacion={cotizacion ?? null}
                 movimientos={r.movimientos}
                 movimientosBancarios={movimientosBancarios}
                 onAjustarSaldo={onAjustarSaldo}

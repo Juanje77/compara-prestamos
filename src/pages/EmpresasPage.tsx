@@ -13,6 +13,8 @@ import { AppShell } from '../components/AppShell'
 import { SesionUsuario } from '../components/Layout'
 import type { ReactNode } from 'react'
 import { ConfigDolar, type ConfigDolarValor } from '../components/ConfigDolar'
+import { cuentasEnPesos } from '../lib/convertirMonedas'
+import type { Moneda } from '../lib/cotizaciones'
 import { CuentasPendientes } from '../components/CuentasPendientes'
 import { IndicadorDolar } from '../components/IndicadorDolar'
 import { useCotizaciones } from '../lib/useCotizaciones'
@@ -648,8 +650,10 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
     setVentasManualPorMes((prev) => ({ ...prev, [mesPresupuesto]: monto }))
   }
 
-  function handleAgregarCuenta(nombre: string, saldo: number) {
-    setCuentas((prev) => [...prev, { id: generarId(), nombre, saldo }])
+  function handleAgregarCuenta(nombre: string, saldo: number, moneda: Moneda = 'ARS') {
+    // La moneda solo se guarda si es dólares: una cuenta en pesos queda exactamente como las que
+    // ya existen, sin un campo de más que después haya que explicar.
+    setCuentas((prev) => [...prev, { id: generarId(), nombre, saldo, ...(moneda === 'USD' ? { moneda } : {}) }])
   }
 
   function handleCambiarSaldoCuenta(id: string, saldo: number) {
@@ -1401,7 +1405,15 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
       esReal: hayDatoReal,
     }
   }, [categorias, facturas, clasificaciones, realManualPorMes, nominaTotal])
-  const saldoInicial = calcularSaldoTotalBancos(cuentas)
+  // TODOS los cálculos de acá para abajo usan las cuentas ya pasadas a pesos. Es la única capa
+  // que sabe que existen los dólares: así ninguno de los cincuenta cálculos del sistema tuvo que
+  // aprender a manejar dos monedas, que es donde se mezclan sin que nadie se dé cuenta. Las
+  // pantallas donde se carga y se corrige siguen recibiendo `cuentas`, en su moneda.
+  const cuentasConvertidas = useMemo(
+    () => cuentasEnPesos(cuentas, estadoDolar.actual),
+    [cuentas, estadoDolar.actual],
+  )
+  const saldoInicial = calcularSaldoTotalBancos(cuentasConvertidas)
   const deudaTotal = calcularDeudaTotal(deudas)
   const cuotaDeudaTotal = calcularCuotaDeudaTotal(deudas)
 
@@ -2008,6 +2020,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
             movimientos={movimientosTesoreria}
             movimientosBancarios={movimientosBancarios}
             onAgregarCuenta={handleAgregarCuenta}
+            cotizacion={estadoDolar.actual}
             onAjustarSaldo={handleAjustarSaldoCuenta}
             onEliminarMovimiento={handleEliminarMovimientoTesoreria}
             onEliminarCuenta={handleEliminarCuenta}
@@ -2178,7 +2191,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
                   Comprobantes, Cuentas corrientes, Cheques y Remitos — gestionalo desde Tesorería.
                 </p>
                 <p className="tabular text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-                  {formatoMoneda(calcularSaldoTotalBancos(cuentas))}
+                  {formatoMoneda(saldoInicial)}
                 </p>
                 <button
                   onClick={() => setSeccion('tesoreria')}
@@ -2191,6 +2204,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
             ) : (
               <CuentasBancarias
                 cuentas={cuentas}
+                cotizacion={estadoDolar.actual}
                 onAgregar={handleAgregarCuenta}
                 onCambiarSaldo={handleCambiarSaldoCuenta}
                 onEliminar={handleEliminarCuenta}

@@ -1,9 +1,16 @@
+import type { Moneda } from './cotizaciones'
 import { formatoMoneda } from './finance'
 
 export interface CuentaBancaria {
   id: string
   nombre: string
+  /** El saldo EN SU MONEDA. Una cuenta en dólares guarda dólares: guardar el equivalente en
+   * pesos congelaría el tipo de cambio del día que se cargó. La conversión pasa al mostrar y al
+   * sumar — ver convertirMonedas.ts. */
   saldo: number
+  /** Sin valor significa pesos: es lo que había antes de que existieran los dólares acá, y todo
+   * lo ya cargado tiene que seguir valiendo exactamente lo mismo. */
+  moneda?: Moneda
 }
 
 export function calcularSaldoTotalBancos(cuentas: CuentaBancaria[]): number {
