@@ -133,3 +133,16 @@ describe('armarLineaDeTiempoCheques', () => {
     expect(l.tramos[0].recibidos.cheques.map((c) => c.id)).toEqual(['temprano', 'tarde'])
   })
 })
+
+describe('cheques endosados', () => {
+  it('un cheque entregado sale de la línea de tiempo: ya no es tuyo', () => {
+    const l = armarLineaDeTiempoCheques(
+      [cheque({ id: 'a', tipo: 'recibido', monto: 500, fechaCobro: '2026-11-18', estado: 'entregado' })],
+      0,
+      13,
+      LUNES,
+    )
+    expect(l.tramos[0].recibidos.total).toBe(0)
+    expect(l.hayCheques).toBe(false)
+  })
+})

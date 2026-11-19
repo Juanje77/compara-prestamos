@@ -1245,11 +1245,17 @@ export type TipoCheque = 'recibido' | 'emitido'
 /** "vendido" (descontado en un banco antes de la fecha de cobro) solo aplica a los recibidos: un
  * cheque que emitiste vos no lo "vendés", el que lo tiene lo cobra o lo descuenta en su propio
  * banco, y eso no te afecta a vos más que en la fecha en que se debita de tu cuenta. */
-export type EstadoCheque = 'cartera' | 'cobrado' | 'vendido' | 'rechazado'
+export type EstadoCheque = 'cartera' | 'cobrado' | 'vendido' | 'entregado' | 'rechazado'
 
-/** Estados válidos según el tipo de cheque — "vendido" solo tiene sentido para los recibidos. */
+/**
+ * Estados válidos según el tipo de cheque. "Vendido" y "entregado" solo tienen sentido para los
+ * recibidos: son las dos maneras de sacarse de encima un cheque de un tercero antes de cobrarlo.
+ * Un cheque propio no se endosa — ya salió de tus manos cuando lo emitiste.
+ */
 export function estadosChequeDisponibles(tipo: TipoCheque): EstadoCheque[] {
-  return tipo === 'recibido' ? ['cartera', 'cobrado', 'vendido', 'rechazado'] : ['cartera', 'cobrado', 'rechazado']
+  return tipo === 'recibido'
+    ? ['cartera', 'cobrado', 'vendido', 'entregado', 'rechazado']
+    : ['cartera', 'cobrado', 'rechazado']
 }
 
 /** Misma idea de "se hizo efectivo" tiene nombres distintos según el lado: a un cheque que
@@ -1263,6 +1269,8 @@ export function etiquetaEstadoCheque(estado: EstadoCheque, tipo: TipoCheque): st
       return tipo === 'emitido' ? 'Pagado' : 'Cobrado'
     case 'vendido':
       return 'Vendido (descontado)'
+    case 'entregado':
+      return 'Entregado (endosado)'
     case 'rechazado':
       return 'Rechazado'
   }
@@ -1294,6 +1302,10 @@ export interface Cheque {
    * "cobrado" o "vendido") — ver MovimientoTesoreria. Se puede elegir antes o después del cambio
    * de estado. */
   cuentaId?: string
+  /** A quién se le endosó, con estado "entregado". Un cheque endosado deja de ser tuyo: sale de
+   * la posición financiera y de la línea de tiempo, y no mueve ninguna cuenta —la plata nunca
+   * entró— pero el dato de a quién se lo diste es justo el que después nadie recuerda. */
+  endosadoA?: string
 }
 
 /** Cuánto entró realmente a la cuenta por este cheque: si se vendió (descontó), el monto menos la
@@ -1311,7 +1323,8 @@ export interface TotalesCheques {
 
 /** Totales de cheques todavía "vivos" (en cartera): los recibidos suman a favor (son un activo que
  * todavía no se hizo caja), los emitidos restan (una obligación pendiente de que se cobre). Los
- * vendidos ya salieron de cartera (se convirtieron en caja, menos la comisión del banco). */
+ * vendidos ya salieron de cartera (se convirtieron en caja, menos la comisión del banco), y los
+ * entregados también: se endosaron a un tercero y dejaron de ser un activo tuyo. */
 export function calcularTotalesCheques(cheques: Cheque[]): TotalesCheques {
   const recibidosEnCartera = cheques
     .filter((c) => c.tipo === 'recibido' && c.estado === 'cartera')

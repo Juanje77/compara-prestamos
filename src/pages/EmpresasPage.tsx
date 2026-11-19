@@ -1058,7 +1058,11 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
   }
 
   function handleCambiarEstadoCheque(id: string, estado: EstadoCheque) {
-    setChequesCargados((prev) => prev.map((c) => (c.id === id ? { ...c, estado } : c)))
+    setChequesCargados((prev) =>
+      // Si deja de estar entregado, se borra a quién se le había endosado: un cheque que volvió a
+      // cartera y sigue diciendo "entregado a Fulano" es peor que uno sin el dato.
+      prev.map((c) => (c.id === id ? { ...c, estado, ...(estado !== 'entregado' ? { endosadoA: undefined } : {}) } : c)),
+    )
     const cheque = chequesCargados.find((c) => c.id === id)
     if (estado === 'rechazado') {
       // Un cheque rebotado no saldó nada: revertimos las facturas que había cubierto.
@@ -1089,7 +1093,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
    */
   function handleEditarCheque(
     id: string,
-    cambios: Partial<Pick<Cheque, 'numero' | 'banco' | 'contraparte' | 'monto' | 'fechaEmision' | 'fechaCobro'>>,
+    cambios: Partial<Pick<Cheque, 'numero' | 'banco' | 'contraparte' | 'monto' | 'fechaEmision' | 'fechaCobro' | 'endosadoA'>>,
   ) {
     setChequesCargados((prev) => prev.map((c) => (c.id === id ? { ...c, ...cambios } : c)))
     const cheque = chequesCargados.find((c) => c.id === id)

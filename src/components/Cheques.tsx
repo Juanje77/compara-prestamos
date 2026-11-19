@@ -23,7 +23,7 @@ interface Props {
   onCambiarCuenta: (id: string, cuentaId: string | undefined) => void
   onCambiarComision: (id: string, comisionDescuento: number) => void
   /** Corregir los datos del cheque: número, banco, a nombre de quién, importe y fechas. */
-  onEditar: (id: string, cambios: Partial<Pick<Cheque, 'numero' | 'banco' | 'contraparte' | 'monto' | 'fechaEmision' | 'fechaCobro'>>) => void
+  onEditar: (id: string, cambios: Partial<Pick<Cheque, 'numero' | 'banco' | 'contraparte' | 'monto' | 'fechaEmision' | 'fechaCobro' | 'endosadoA'>>) => void
   onEliminar: (id: string) => void
   /** La caja de hoy, para arrastrar el saldo en la línea de tiempo. */
   saldoCaja: number
@@ -540,6 +540,27 @@ export function Cheques({ cheques, facturas, cuentas, onAgregar, onCambiarEstado
                       </option>
                     ))}
                   </select>
+                  {/* Endoso: a quién se le entregó. Va acá, pegado al estado, y no escondido en la
+                      edición: el nombre se sabe en el momento de entregarlo y es justo el dato que
+                      después nadie recuerda. */}
+                  {c.estado === 'entregado' && (
+                    <input
+                      type="text"
+                      defaultValue={c.endosadoA ?? ''}
+                      onBlur={(e) => {
+                        const valor = e.target.value.trim()
+                        if (valor !== (c.endosadoA ?? '')) onEditar(c.id, { endosadoA: valor || undefined })
+                      }}
+                      placeholder="¿A quién se lo diste?"
+                      aria-label={`A quién se endosó el cheque de ${c.contraparte}`}
+                      className="w-44 shrink-0 rounded-lg border px-2 py-1 text-xs"
+                      style={{
+                        borderColor: c.endosadoA ? 'var(--border)' : 'var(--status-warning)',
+                        background: 'var(--surface-1)',
+                        color: 'var(--text-primary)',
+                      }}
+                    />
+                  )}
                   {(c.estado === 'cobrado' || c.estado === 'vendido') && cuentas && cuentas.length > 0 && (
                     <select
                       value={c.cuentaId ?? ''}
