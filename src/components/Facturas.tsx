@@ -34,7 +34,8 @@ import {
   type MedioPago,
 } from '../lib/cfo'
 import { importarComprobantesArca, quitarDuplicados } from '../lib/arcaImport'
-import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
+import { formatoImporte, formatoMoneda, formatoPorcentaje } from '../lib/finance'
+import type { Moneda } from '../lib/cotizaciones'
 import { InputMoneda } from './InputMoneda'
 import { InfoTooltip } from './InfoTooltip'
 import { identificarComprobante } from '../lib/facturacionElectronica'
@@ -185,6 +186,7 @@ export function Facturas({ facturas, busquedaInicial, pagos = [], cuentas, cuent
   const [esInterna, setEsInterna] = useState(false)
   const [contraparte, setContraparte] = useState('')
   const [monto, setMonto] = useState(0)
+  const [moneda, setMoneda] = useState<Moneda>('ARS')
   const [iva, setIva] = useState(0)
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10))
   const [cuotas, setCuotas] = useState('1')
@@ -350,6 +352,8 @@ export function Facturas({ facturas, busquedaInicial, pagos = [], cuentas, cuent
       tipoComprobante,
       contraparte: contraparte.trim(),
       monto: montoFinal,
+      // Solo se guarda si es dólares: un comprobante en pesos queda igual a los que ya existen.
+      ...(moneda === 'USD' ? { moneda } : {}),
       fecha,
       fechaEstimadaCobroPago: sumarDias(fecha, plazoDias),
       cumplido: false,
@@ -361,6 +365,7 @@ export function Facturas({ facturas, busquedaInicial, pagos = [], cuentas, cuent
     })
     setContraparte('')
     setMonto(0)
+    setMoneda('ARS')
     setIva(0)
     setCuotas('1')
     setSectorId('')
@@ -543,10 +548,22 @@ export function Facturas({ facturas, busquedaInicial, pagos = [], cuentas, cuent
               placeholder="Monto"
               value={monto}
               onChange={setMonto}
+              aria-label={moneda === 'USD' ? 'Monto en dólares' : 'Monto en pesos'}
               className="tabular w-28 shrink-0 rounded-lg border px-3 py-1.5 text-sm"
               style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
             />
           )}
+          {/* La moneda vale para el monto Y para el IVA: son partes del mismo comprobante. */}
+          <select
+            value={moneda}
+            onChange={(e) => setMoneda(e.target.value as Moneda)}
+            aria-label="Moneda del comprobante"
+            className="shrink-0 rounded-lg border px-2 py-1.5 text-sm"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+          >
+            <option value="ARS">$</option>
+            <option value="USD">US$</option>
+          </select>
           <InputMoneda
             placeholder="IVA"
             title="Monto de IVA incluido en el total (opcional)"
@@ -1328,13 +1345,13 @@ export function Facturas({ facturas, busquedaInicial, pagos = [], cuentas, cuent
                         color: f.tipoComprobante === 'nota_credito' ? 'var(--status-critical)' : 'var(--text-primary)',
                         opacity: f.cumplido ? 0.5 : 1,
                       }}
-                      title={f.iva ? `Neto ${formatoMoneda(montoNetoConSigno(f))} + IVA ${formatoMoneda(ivaConSigno(f))}` : undefined}
+                      title={f.iva ? `Neto ${formatoImporte(montoNetoConSigno(f), f.moneda)} + IVA ${formatoImporte(ivaConSigno(f), f.moneda)}` : undefined}
                     >
-                      {formatoMoneda(montoConSigno(f))}
+                      {formatoImporte(montoConSigno(f), f.moneda)}
                     </span>
                     {f.iva !== undefined && f.iva > 0 && (
                       <span className="shrink-0 text-xs" style={{ color: 'var(--text-muted)' }}>
-                        (IVA {formatoMoneda(f.iva)})
+                        (IVA {formatoImporte(f.iva, f.moneda)})
                       </span>
                     )}
                     {(f.cuotas ?? 1) > 1 && (

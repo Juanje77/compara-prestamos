@@ -573,7 +573,12 @@ export interface Factura {
   tipo: TipoFactura
   tipoComprobante: TipoComprobante
   contraparte: string
+  /** El importe EN SU MONEDA — ver `moneda`. */
   monto: number
+  /** Sin valor significa pesos: es todo lo cargado antes de que existieran los dólares acá. Un
+   * comprobante en dólares guarda dólares, y sus pagos parciales se entienden en la misma moneda
+   * — ver convertirMonedas.ts. */
+  moneda?: Moneda
   fecha: string
   numero?: string
   /** Descripción de lo vendido, que va como detalle del ítem al emitir. Si falta, se emite con una
@@ -1269,7 +1274,11 @@ export interface Cheque {
   numero?: string
   banco: string
   contraparte: string
+  /** El importe EN SU MONEDA — ver `moneda`. */
   monto: number
+  /** Sin valor significa pesos. Un cheque en dólares guarda dólares; la comisión de descuento se
+   * entiende en la misma moneda que el cheque. */
+  moneda?: Moneda
   fechaEmision: string
   /** Fecha en la que se puede cobrar/se acredita — para cheques diferidos. */
   fechaCobro: string

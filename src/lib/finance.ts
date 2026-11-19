@@ -1,3 +1,4 @@
+import type { Moneda } from './cotizaciones'
 import type { LoanOffer } from '../data/loans'
 
 /** Cuota mensual fija por sistema francés de amortización. */
@@ -92,6 +93,20 @@ export function formatoMoneda(valor: number): string {
     currency: 'ARS',
     maximumFractionDigits: 0,
   }).format(valor)
+}
+
+/**
+ * Un importe con el símbolo de SU moneda. Sin moneda es pesos, como todo lo cargado hasta que
+ * existieron los dólares acá.
+ *
+ * Los dólares no se formatean con Intl en USD a propósito: pondría "US$ 10.000,00" con decimales
+ * y separadores distintos. Al lado de los pesos, que van sin decimales, se leería como si fueran
+ * escalas distintas.
+ */
+export function formatoImporte(valor: number, moneda: Moneda | undefined): string {
+  if (moneda !== 'USD') return formatoMoneda(valor)
+  const signo = valor < 0 ? '-' : ''
+  return `${signo}US$ ${Math.abs(Math.round(valor)).toLocaleString('es-AR')}`
 }
 
 export function formatoPorcentaje(valor: number): string {

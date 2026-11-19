@@ -13,7 +13,7 @@ import { AppShell } from '../components/AppShell'
 import { SesionUsuario } from '../components/Layout'
 import type { ReactNode } from 'react'
 import { ConfigDolar, type ConfigDolarValor } from '../components/ConfigDolar'
-import { cuentasEnPesos } from '../lib/convertirMonedas'
+import { chequesEnPesos, cuentasEnPesos, facturasEnPesos, montoEnMonedaDe, pagosEnPesos } from '../lib/convertirMonedas'
 import type { Moneda } from '../lib/cotizaciones'
 import { CuentasPendientes } from '../components/CuentasPendientes'
 import { IndicadorDolar } from '../components/IndicadorDolar'
@@ -293,13 +293,13 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
   const [mesPresupuesto, setMesPresupuesto] = useState(() => mesActualISO())
   const [mesMargenes, setMesMargenes] = useState(() => mesActualISO())
   const [periodoMargenes, setPeriodoMargenes] = useState<PeriodoMargenes>('mes')
-  const [facturas, setFacturas] = useState<Factura[]>(() => cargarNegocioData()?.facturas ?? [])
+  const [facturasCargadas, setFacturasCargadas] = useState<Factura[]>(() => cargarNegocioData()?.facturas ?? [])
   const [clasificaciones, setClasificaciones] = useState<ClasificacionesProveedores>(
     () => cargarNegocioData()?.clasificaciones ?? {},
   )
   const [clientesManual, setClientesManual] = useState<string[]>(() => cargarNegocioData()?.clientesManual ?? [])
-  const [cheques, setCheques] = useState<Cheque[]>(() => cargarNegocioData()?.cheques ?? [])
-  const [pagos, setPagos] = useState<Pago[]>(() => cargarNegocioData()?.pagos ?? [])
+  const [chequesCargados, setChequesCargados] = useState<Cheque[]>(() => cargarNegocioData()?.cheques ?? [])
+  const [pagosCargados, setPagosCargados] = useState<Pago[]>(() => cargarNegocioData()?.pagos ?? [])
   const [remitos, setRemitos] = useState<RemitoPresupuesto[]>(() => cargarNegocioData()?.remitos ?? [])
   const [sectores, setSectores] = useState<Sector[]>(() => cargarNegocioData()?.sectores ?? [])
   const [empleados, setEmpleados] = useState<Empleado[]>(() => cargarNegocioData()?.empleados ?? [])
@@ -342,6 +342,30 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
   const [configDolarAbierta, setConfigDolarAbierta] = useState(false)
   const estadoDolar = useCotizaciones({ casa: cotizacionConfig.casa, manual: cotizacionConfig.manual })
 
+  // De acá para abajo, `facturas`, `cheques` y `pagos` son los importes YA PASADOS A PESOS. Los
+  // originales, en la moneda en que se cargaron, viven en `facturasCargadas`, `chequesCargados` y
+  // `pagosCargados`, y son los que se guardan y los que ven las pantallas donde se carga y se
+  // corrige.
+  //
+  // Está hecho así —renombrando lo crudo en vez de convertir en cada cálculo— porque hay más de
+  // veinte cálculos que usan estos datos. Convirtiendo uno por uno alcanzaba con olvidarse de
+  // uno para dejar un número mal sumado y en silencio. Con el nombre de siempre apuntando a lo
+  // convertido, olvidarse ya no es posible: habría que escribir el nombre largo a propósito.
+  const facturas = useMemo(
+    () => facturasEnPesos(facturasCargadas, estadoDolar.actual),
+    [facturasCargadas, estadoDolar.actual],
+  )
+  const cheques = useMemo(
+    () => chequesEnPesos(chequesCargados, estadoDolar.actual),
+    [chequesCargados, estadoDolar.actual],
+  )
+  // Los pagos heredan la moneda de SU factura, así que necesitan las facturas sin convertir para
+  // saber cuál estaba en dólares.
+  const pagos = useMemo(
+    () => pagosEnPesos(pagosCargados, facturasCargadas, estadoDolar.actual),
+    [pagosCargados, facturasCargadas, estadoDolar.actual],
+  )
+
   // Instante de la última EDICIÓN — el mismo valor va tanto al guardado local (inmediato) como al
   // de Firestore (debounceado 800ms). Sirve para que la carga desde la nube no pise con datos
   // viejos una edición local que todavía no llegó a viajar (ver el efecto de carga más abajo).
@@ -358,7 +382,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
   useEffect(() => {
     const actuales = [
       ingresos, meses, montos, cuentas, deudas, bienes, realManualPorMes, ventasManualPorMes,
-      facturas, clasificaciones, clientesManual, cheques, pagos, remitos, sectores, empleados,
+      facturasCargadas, clasificaciones, clientesManual, chequesCargados, pagosCargados, remitos, sectores, empleados,
       datosEmisorFiscal, anticipos, productos, movimientosStock,
       movimientosTesoreria, movimientosBancarios, ivaManualPorMes, ingresosBrutosManualPorMes,
       movimientosDiarios, monotributo, tasaCrecimiento, nombreNegocio,
@@ -372,7 +396,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     ingresos, meses, montos, cuentas, deudas, bienes, realManualPorMes, ventasManualPorMes,
-    facturas, clasificaciones, clientesManual, cheques, pagos, remitos, sectores, empleados,
+    facturasCargadas, clasificaciones, clientesManual, chequesCargados, pagosCargados, remitos, sectores, empleados,
     datosEmisorFiscal, anticipos, productos, movimientosStock,
     movimientosTesoreria, movimientosBancarios, ivaManualPorMes, ingresosBrutosManualPorMes,
     movimientosDiarios, monotributo, tasaCrecimiento, nombreNegocio,
@@ -392,7 +416,11 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
   const negocioDataActual: NegocioData = useMemo(
     () => ({
       ingresos, meses, montos, cuentas, deudas, bienes, realManualPorMes, ventasManualPorMes,
-      facturas, clasificaciones, clientesManual, cheques, pagos, remitos, sectores, empleados,
+      // Lo que se guarda es lo CRUDO, en la moneda en que se cargó. Guardar lo convertido
+      // escribiría pesos adentro de un campo que dice dólares: el dato quedaría destruido y
+      // encima distinto según la cotización del día en que a alguien le tocó guardar.
+      facturas: facturasCargadas, clasificaciones, clientesManual, cheques: chequesCargados,
+      pagos: pagosCargados, remitos, sectores, empleados,
       datosEmisorFiscal, anticipos, productos, movimientosStock,
       movimientosTesoreria, movimientosBancarios, ivaManualPorMes, ingresosBrutosManualPorMes,
       movimientosDiarios, monotributo, tasaCrecimiento, nombreNegocio, actualizadoEn,
@@ -400,7 +428,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
     }),
     [
       ingresos, meses, montos, cuentas, deudas, bienes, realManualPorMes, ventasManualPorMes,
-      facturas, clasificaciones, clientesManual, cheques, pagos, remitos, sectores, empleados,
+      facturasCargadas, clasificaciones, clientesManual, chequesCargados, pagosCargados, remitos, sectores, empleados,
       datosEmisorFiscal, anticipos, productos, movimientosStock,
       movimientosTesoreria, movimientosBancarios, ivaManualPorMes, ingresosBrutosManualPorMes,
       movimientosDiarios, monotributo, tasaCrecimiento, nombreNegocio, actualizadoEn,
@@ -470,11 +498,11 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
           setBienes(d.bienes ?? [])
           setRealManualPorMes(d.realManualPorMes ?? {})
           setVentasManualPorMes(d.ventasManualPorMes ?? {})
-          setFacturas(d.facturas ?? [])
+          setFacturasCargadas(d.facturas ?? [])
           setClasificaciones(d.clasificaciones ?? {})
           setClientesManual(d.clientesManual ?? [])
-          setCheques(d.cheques ?? [])
-          setPagos(d.pagos ?? [])
+          setChequesCargados(d.cheques ?? [])
+          setPagosCargados(d.pagos ?? [])
           setRemitos(d.remitos ?? [])
           setSectores(d.sectores ?? [])
           setEmpleados(d.empleados ?? [])
@@ -577,7 +605,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
   useEffect(() => {
     if (!nubeLista && user) return
     if (movimientosDiarios.length === 0) return
-    setFacturas((prev) => {
+    setFacturasCargadas((prev) => {
       const yaConvertidos = new Set(prev.map((f) => f.id))
       const nuevas = movimientosDiarios
         .filter((m) => !yaConvertidos.has(m.id))
@@ -599,11 +627,11 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
     setBienes(d.bienes ?? [])
     setRealManualPorMes(d.realManualPorMes ?? {})
     setVentasManualPorMes(d.ventasManualPorMes ?? {})
-    setFacturas(d.facturas ?? [])
+    setFacturasCargadas(d.facturas ?? [])
     setClasificaciones(d.clasificaciones ?? {})
     setClientesManual(d.clientesManual ?? [])
-    setCheques(d.cheques ?? [])
-    setPagos(d.pagos ?? [])
+    setChequesCargados(d.cheques ?? [])
+    setPagosCargados(d.pagos ?? [])
     setRemitos(d.remitos ?? [])
     setSectores(d.sectores ?? [])
     setEmpleados(d.empleados ?? [])
@@ -770,7 +798,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
 
   function handleAgregarFactura(factura: Omit<Factura, 'id'>) {
     const nuevaFactura: Factura = { ...factura, id: generarId() }
-    setFacturas((prev) => [...prev, nuevaFactura])
+    setFacturasCargadas((prev) => [...prev, nuevaFactura])
     const nuevosMovimientos = generarMovimientosDeFactura(nuevaFactura, productos, generarId)
     if (nuevosMovimientos.length > 0) {
       setMovimientosStock((prev) => [...prev, ...nuevosMovimientos])
@@ -779,7 +807,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
   }
 
   function handleImportarFacturas(nuevas: Omit<Factura, 'id'>[]) {
-    setFacturas((prev) => [...prev, ...nuevas.map((f) => ({ ...f, id: generarId() }))])
+    setFacturasCargadas((prev) => [...prev, ...nuevas.map((f) => ({ ...f, id: generarId() }))])
   }
 
   /** Revierte y quita el movimiento de tesorería que se haya generado directo desde el tilde de
@@ -810,8 +838,8 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
     > & { cuentaId?: string },
   ) {
     const { cuentaId, ...cambiosFactura } = cambios
-    setFacturas((prev) => prev.map((f) => (f.id === id ? { ...f, ...cambiosFactura } : f)))
-    const factura = facturas.find((f) => f.id === id)
+    setFacturasCargadas((prev) => prev.map((f) => (f.id === id ? { ...f, ...cambiosFactura } : f)))
+    const factura = facturasCargadas.find((f) => f.id === id)
     if (cambiosFactura.medioPago === 'cheque') {
       const quedaCumplida = cambiosFactura.cumplido ?? factura?.cumplido
       if (factura && quedaCumplida) crearChequeAutomatico({ ...factura, ...cambiosFactura })
@@ -854,11 +882,11 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
       setProductos((prev) => movimientosDeLaFactura.reduce((acc, mov) => revertirMovimientoStock(acc, mov), prev))
       setMovimientosStock((prev) => prev.filter((m) => m.facturaId !== id))
     }
-    setFacturas((prev) => prev.filter((f) => f.id !== id))
+    setFacturasCargadas((prev) => prev.filter((f) => f.id !== id))
   }
 
   function handleVaciarFacturas() {
-    setFacturas([])
+    setFacturasCargadas([])
   }
 
   /**
@@ -880,7 +908,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
       lineas: venta.lineas,
       esInterna: venta.esInterna || undefined,
     }
-    setFacturas((prev) => [...prev, factura])
+    setFacturasCargadas((prev) => [...prev, factura])
 
     const movimientos = generarMovimientosDeFactura(factura, productos, generarId)
     if (movimientos.length > 0) {
@@ -939,9 +967,9 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
    * número quedan vacíos para completar a mano. */
   function crearChequeAutomatico(factura: Factura) {
     if (!esFull) return
-    const yaTieneCheque = cheques.some((c) => c.facturasIds?.includes(factura.id))
+    const yaTieneCheque = chequesCargados.some((c) => c.facturasIds?.includes(factura.id))
     if (yaTieneCheque) return
-    setCheques((prev) => [
+    setChequesCargados((prev) => [
       ...prev,
       {
         id: generarId(),
@@ -949,6 +977,9 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
         banco: '',
         contraparte: factura.contraparte,
         monto: factura.monto,
+        // Hereda la moneda de la factura que cubre: un cheque por una factura en dólares es un
+        // cheque en dólares, no uno en pesos por el mismo número.
+        ...(factura.moneda === 'USD' ? { moneda: factura.moneda } : {}),
         fechaEmision: factura.fecha,
         fechaCobro: factura.fechaEstimadaCobroPago ?? factura.fecha,
         estado: 'cartera',
@@ -959,21 +990,23 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
 
   function handleAgregarCheque(cheque: Omit<Cheque, 'id'>) {
     const id = generarId()
-    setCheques((prev) => [...prev, { ...cheque, id }])
+    setChequesCargados((prev) => [...prev, { ...cheque, id }])
     if (cheque.facturasIds && cheque.facturasIds.length > 0) {
       const idsFactura = new Set(cheque.facturasIds)
-      const nuevosPagos: Pago[] = facturas
+      // Sin convertir a propósito: un pago se guarda en la moneda de su factura, así que el
+      // saldo tiene que salir de la factura cruda y de los pagos crudos.
+      const nuevosPagos: Pago[] = facturasCargadas
         .filter((f) => idsFactura.has(f.id))
         .map((f) => ({
           id: generarId(),
           facturaId: f.id,
-          monto: calcularSaldoFactura(f, pagos),
+          monto: calcularSaldoFactura(f, pagosCargados),
           fecha: cheque.fechaCobro,
           medioPago: 'cheque',
           chequeId: id,
         }))
-      setPagos((prev) => [...prev, ...nuevosPagos])
-      setFacturas((prev) =>
+      setPagosCargados((prev) => [...prev, ...nuevosPagos])
+      setFacturasCargadas((prev) =>
         prev.map((f) => (idsFactura.has(f.id) ? { ...f, cumplido: true, medioPago: 'cheque' } : f)),
       )
     }
@@ -994,7 +1027,17 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
     }
     const corresponde = (cheque.estado === 'cobrado' || cheque.estado === 'vendido') && cheque.cuentaId
     if (corresponde) {
-      const monto = cheque.monto - (cheque.estado === 'vendido' ? (cheque.comisionDescuento ?? 0) : 0)
+      // El cheque y la cuenta pueden estar en monedas distintas. El movimiento se registra en la
+      // moneda de LA CUENTA: su saldo es una suma, y una suma de dólares con pesos no es nada.
+      const cuentaDestino = cuentas.find((c) => c.id === cheque.cuentaId)
+      const enSuMoneda = cheque.monto - (cheque.estado === 'vendido' ? (cheque.comisionDescuento ?? 0) : 0)
+      const monto = montoEnMonedaDe(
+        enSuMoneda,
+        cheque.moneda,
+        cuentaDestino?.moneda,
+        estadoDolar.actual,
+        cheque.tipo === 'recibido' ? 'activo' : 'pasivo',
+      )
       if (monto > 0) {
         const nuevo: MovimientoTesoreria = {
           id: generarId(),
@@ -1015,14 +1058,14 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
   }
 
   function handleCambiarEstadoCheque(id: string, estado: EstadoCheque) {
-    setCheques((prev) => prev.map((c) => (c.id === id ? { ...c, estado } : c)))
-    const cheque = cheques.find((c) => c.id === id)
+    setChequesCargados((prev) => prev.map((c) => (c.id === id ? { ...c, estado } : c)))
+    const cheque = chequesCargados.find((c) => c.id === id)
     if (estado === 'rechazado') {
       // Un cheque rebotado no saldó nada: revertimos las facturas que había cubierto.
       if (cheque?.facturasIds && cheque.facturasIds.length > 0) {
         const idsFactura = new Set(cheque.facturasIds)
-        setPagos((prev) => prev.filter((p) => p.chequeId !== id))
-        setFacturas((prev) =>
+        setPagosCargados((prev) => prev.filter((p) => p.chequeId !== id))
+        setFacturasCargadas((prev) =>
           prev.map((f) => (idsFactura.has(f.id) ? { ...f, cumplido: false, medioPago: undefined } : f)),
         )
       }
@@ -1031,8 +1074,8 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
   }
 
   function handleCambiarCuentaCheque(id: string, cuentaId: string | undefined) {
-    setCheques((prev) => prev.map((c) => (c.id === id ? { ...c, cuentaId } : c)))
-    const cheque = cheques.find((c) => c.id === id)
+    setChequesCargados((prev) => prev.map((c) => (c.id === id ? { ...c, cuentaId } : c)))
+    const cheque = chequesCargados.find((c) => c.id === id)
     if (cheque) sincronizarTesoreriaCheque({ ...cheque, cuentaId })
   }
 
@@ -1048,23 +1091,23 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
     id: string,
     cambios: Partial<Pick<Cheque, 'numero' | 'banco' | 'contraparte' | 'monto' | 'fechaEmision' | 'fechaCobro'>>,
   ) {
-    setCheques((prev) => prev.map((c) => (c.id === id ? { ...c, ...cambios } : c)))
-    const cheque = cheques.find((c) => c.id === id)
+    setChequesCargados((prev) => prev.map((c) => (c.id === id ? { ...c, ...cambios } : c)))
+    const cheque = chequesCargados.find((c) => c.id === id)
     if (cheque) sincronizarTesoreriaCheque({ ...cheque, ...cambios })
   }
 
   function handleCambiarComisionCheque(id: string, comisionDescuento: number) {
-    setCheques((prev) => prev.map((c) => (c.id === id ? { ...c, comisionDescuento } : c)))
-    const cheque = cheques.find((c) => c.id === id)
+    setChequesCargados((prev) => prev.map((c) => (c.id === id ? { ...c, comisionDescuento } : c)))
+    const cheque = chequesCargados.find((c) => c.id === id)
     if (cheque) sincronizarTesoreriaCheque({ ...cheque, comisionDescuento })
   }
 
   function handleEliminarCheque(id: string) {
-    const cheque = cheques.find((c) => c.id === id)
+    const cheque = chequesCargados.find((c) => c.id === id)
     if (cheque?.facturasIds && cheque.facturasIds.length > 0) {
       const idsFactura = new Set(cheque.facturasIds)
-      setPagos((prev) => prev.filter((p) => p.chequeId !== id))
-      setFacturas((prev) =>
+      setPagosCargados((prev) => prev.filter((p) => p.chequeId !== id))
+      setFacturasCargadas((prev) =>
         prev.map((f) => (idsFactura.has(f.id) ? { ...f, cumplido: false, medioPago: undefined } : f)),
       )
     }
@@ -1073,7 +1116,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
       setCuentas((prev) => revertirMovimientoTesoreria(prev, movimiento))
       setMovimientosTesoreria((prev) => prev.filter((m) => m.id !== movimiento.id))
     }
-    setCheques((prev) => prev.filter((c) => c.id !== id))
+    setChequesCargados((prev) => prev.filter((c) => c.id !== id))
   }
 
   function handleAplicarPagoCuenta(
@@ -1097,15 +1140,26 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
       cuentaId,
     )
     if (nuevosPagos.length === 0) return
-    setPagos((prev) => [...prev, ...nuevosPagos])
+    // Cuentas corrientes muestra todo en pesos, así que el importe se tipeó en pesos. Pero un
+    // pago se guarda en la moneda de SU factura: si no, el saldo de una factura en dólares
+    // saldría de restarle un número en pesos y la factura se vería pagada mil veces de más.
+    const pagosEnSuMoneda = nuevosPagos.map((pago) => {
+      const factura = facturasCargadas.find((f) => f.id === pago.facturaId)
+      if (factura?.moneda !== 'USD') return pago
+      return {
+        ...pago,
+        monto: montoEnMonedaDe(pago.monto, 'ARS', 'USD', estadoDolar.actual, tipo === 'emitida' ? 'activo' : 'pasivo'),
+      }
+    })
+    setPagosCargados((prev) => [...prev, ...pagosEnSuMoneda])
     if (facturaIdsCubiertas.length > 0) {
       const cubiertas = new Set(facturaIdsCubiertas)
-      setFacturas((prev) =>
+      setFacturasCargadas((prev) =>
         prev.map((f) => (cubiertas.has(f.id) ? { ...f, cumplido: true, medioPago: medioPago ?? f.medioPago } : f)),
       )
       if (medioPago === 'cheque') {
         for (const facturaId of facturaIdsCubiertas) {
-          const factura = grupo.facturas.find((f) => f.id === facturaId)
+          const factura = facturasCargadas.find((f) => f.id === facturaId)
           if (factura) crearChequeAutomatico(factura)
         }
       }
@@ -1129,11 +1183,11 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
   }
 
   function handleEliminarPago(id: string) {
-    const pago = pagos.find((p) => p.id === id)
+    const pago = pagosCargados.find((p) => p.id === id)
     if (!pago) return
-    setPagos((prev) => prev.filter((p) => p.id !== id))
+    setPagosCargados((prev) => prev.filter((p) => p.id !== id))
     // Si la factura se había marcado cumplida gracias a este pago, la reabrimos.
-    setFacturas((prev) =>
+    setFacturasCargadas((prev) =>
       prev.map((f) => {
         if (f.id !== pago.facturaId || !f.cumplido) return f
         const totalRestante = pagos
@@ -1208,7 +1262,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
     // Autorizado el comprobante, el número lo pone ARCA: pisa cualquiera que se hubiera cargado a
     // mano, para que no queden dos numeraciones distintas sobre la misma factura.
     const numero = numeroComprobanteFormateado(emision, datosEmisorFiscal.puntoVenta)
-    setFacturas((prev) =>
+    setFacturasCargadas((prev) =>
       prev.map((f) => (f.id === id ? { ...f, receptor, emision, ...(numero ? { numero } : {}) } : f)),
     )
   }
@@ -1266,14 +1320,14 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
 
   function handleVincularRemitoAFactura(remitoId: string, facturaId: string) {
     const remito = remitos.find((r) => r.id === remitoId)
-    const factura = facturas.find((f) => f.id === facturaId)
+    const factura = facturasCargadas.find((f) => f.id === facturaId)
     if (!remito || !factura) return
     const anticiposDelRemito = anticipos.filter((a) => a.remitoId === remitoId)
     const { pagos: nuevosPagos, facturaCubierta } = vincularRemitoAFactura(anticiposDelRemito, factura, pagos, generarId)
-    setPagos((prev) => [...prev, ...nuevosPagos])
+    setPagosCargados((prev) => [...prev, ...nuevosPagos])
     setRemitos((prev) => prev.map((r) => (r.id === remitoId ? { ...r, estado: 'facturado', facturaId } : r)))
     if (facturaCubierta) {
-      setFacturas((prev) => prev.map((f) => (f.id === facturaId ? { ...f, cumplido: true } : f)))
+      setFacturasCargadas((prev) => prev.map((f) => (f.id === facturaId ? { ...f, cumplido: true } : f)))
     }
   }
 
@@ -1323,11 +1377,11 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
    * facturaDesdeMovimientoDiario. */
   function handleAgregarMovimientoDiario(movimiento: Omit<MovimientoDiario, 'id'>) {
     const id = generarId()
-    setFacturas((prev) => [...prev, facturaDesdeMovimientoDiario({ ...movimiento, id }, id)])
+    setFacturasCargadas((prev) => [...prev, facturaDesdeMovimientoDiario({ ...movimiento, id }, id)])
   }
 
   function handleEliminarMovimientoDiario(id: string) {
-    setFacturas((prev) => prev.filter((f) => f.id !== id))
+    setFacturasCargadas((prev) => prev.filter((f) => f.id !== id))
   }
 
   function handleCambiarIvaManual(mes: string, campo: keyof IvaManualMes, valor: number | undefined) {
@@ -1854,7 +1908,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
           onQuieroPremium={abrirPlanes}
         >
           <Facturas
-            facturas={facturas}
+            facturas={facturasCargadas}
             busquedaInicial={busquedaComprobantes}
             pagos={pagos}
             cuentas={esFull ? cuentas : undefined}
@@ -2059,7 +2113,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
           onQuieroPremium={abrirPlanes}
         >
           <Cheques
-            cheques={cheques}
+            cheques={chequesCargados}
             facturas={facturas}
             cuentas={cuentas}
             onAgregar={handleAgregarCheque}

@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { Download, FileUp, Pencil, Receipt, Trash2 } from 'lucide-react'
 import type { Cheque, CuentaBancaria, EstadoCheque, Factura, TipoCheque } from '../lib/cfo'
 import { calcularTotalesCheques, estadosChequeDisponibles, etiquetaEstadoCheque, montoNetoCheque } from '../lib/cfo'
-import { formatoMoneda } from '../lib/finance'
+import { formatoImporte, formatoMoneda } from '../lib/finance'
+import type { Moneda } from '../lib/cotizaciones'
 import { InputMoneda } from './InputMoneda'
 import { IconButton } from './IconButton'
 import { LineaDeTiempoCheques } from './LineaDeTiempoCheques'
@@ -82,6 +83,7 @@ export function Cheques({ cheques, facturas, cuentas, onAgregar, onCambiarEstado
   const [banco, setBanco] = useState('')
   const [contraparte, setContraparte] = useState('')
   const [monto, setMonto] = useState(0)
+  const [moneda, setMoneda] = useState<Moneda>('ARS')
   const [fechaEmision, setFechaEmision] = useState(hoyISO)
   const [fechaCobro, setFechaCobro] = useState(hoyISO)
   const [facturasSeleccionadas, setFacturasSeleccionadas] = useState<Set<string>>(new Set())
@@ -164,6 +166,8 @@ export function Cheques({ cheques, facturas, cuentas, onAgregar, onCambiarEstado
       banco: banco.trim(),
       contraparte: contraparte.trim(),
       monto,
+      // Solo se guarda si es dólares: un cheque en pesos queda igual a los que ya existen.
+      ...(moneda === 'USD' ? { moneda } : {}),
       fechaEmision,
       fechaCobro,
       estado: 'cartera',
@@ -173,6 +177,7 @@ export function Cheques({ cheques, facturas, cuentas, onAgregar, onCambiarEstado
     setBanco('')
     setContraparte('')
     setMonto(0)
+    setMoneda('ARS')
     setFacturasSeleccionadas(new Set())
   }
 
@@ -261,9 +266,20 @@ export function Cheques({ cheques, facturas, cuentas, onAgregar, onCambiarEstado
             placeholder="Monto"
             value={monto}
             onChange={setMonto}
+            aria-label={moneda === 'USD' ? 'Monto en dólares' : 'Monto en pesos'}
             className="tabular w-28 shrink-0 rounded-lg border px-3 py-1.5 text-sm"
             style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
           />
+          <select
+            value={moneda}
+            onChange={(e) => setMoneda(e.target.value as Moneda)}
+            aria-label="Moneda del cheque"
+            className="shrink-0 rounded-lg border px-2 py-1.5 text-sm"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+          >
+            <option value="ARS">$</option>
+            <option value="USD">US$</option>
+          </select>
           <label className="flex shrink-0 items-center gap-1 text-xs" style={{ color: 'var(--text-muted)' }}>
             Emisión
             <input
@@ -559,16 +575,16 @@ export function Cheques({ cheques, facturas, cuentas, onAgregar, onCambiarEstado
                     <span
                       className="tabular shrink-0 font-medium"
                       style={{ color: c.tipo === 'emitido' ? 'var(--status-critical)' : 'var(--text-primary)' }}
-                      title={`Bruto ${formatoMoneda(c.monto)} − comisión ${formatoMoneda(c.comisionDescuento ?? 0)}`}
+                      title={`Bruto ${formatoImporte(c.monto, c.moneda)} − comisión ${formatoImporte(c.comisionDescuento ?? 0, c.moneda)}`}
                     >
-                      {formatoMoneda(montoNetoCheque(c))} neto
+                      {formatoImporte(montoNetoCheque(c), c.moneda)} neto
                     </span>
                   ) : (
                     <span
                       className="tabular shrink-0 font-medium"
                       style={{ color: c.tipo === 'emitido' ? 'var(--status-critical)' : 'var(--text-primary)' }}
                     >
-                      {formatoMoneda(c.monto)}
+                      {formatoImporte(c.monto, c.moneda)}
                     </span>
                   )}
                   <IconButton icon={Pencil} onClick={() => abrirEdicion(c)} label="Editar cheque" className="shrink-0" />
