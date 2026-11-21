@@ -15,6 +15,7 @@ import type { ReactNode } from 'react'
 import { ConfigDolar, type ConfigDolarValor } from '../components/ConfigDolar'
 import { chequesEnPesos, cuentasEnPesos, facturasEnPesos, montoEnMonedaDe, pagosEnPesos } from '../lib/convertirMonedas'
 import { aplicarEndoso } from '../lib/endoso'
+import { vincularNotasDeCredito } from '../lib/vincularNotas'
 import type { Moneda } from '../lib/cotizaciones'
 import { CuentasPendientes } from '../components/CuentasPendientes'
 import { IndicadorDolar } from '../components/IndicadorDolar'
@@ -808,7 +809,29 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
   }
 
   function handleImportarFacturas(nuevas: Omit<Factura, 'id'>[]) {
-    setFacturasCargadas((prev) => [...prev, ...nuevas.map((f) => ({ ...f, id: generarId() }))])
+    setFacturasCargadas((prev) => {
+      const conIds = [...prev, ...nuevas.map((f) => ({ ...f, id: generarId() }))]
+      // El Excel de ARCA no dice a qué comprobante corrige cada nota de crédito, así que se
+      // infiere — ver vincularNotas.ts. Va acá y no en el importador porque hace falta tener los
+      // ids ya puestos, y porque hay que mirar TODO lo cargado: una nota de este archivo puede
+      // corregir una factura que se importó el mes pasado.
+      return vincularNotasDeCredito(conIds).facturas
+    })
+  }
+
+  /** Vincula de una vez las notas de crédito sueltas. Devuelve cuántas pudo vincular. */
+  function handleVincularNotasPendientes(): number {
+    const r = vincularNotasDeCredito(facturasCargadas)
+    if (r.vinculadas > 0) setFacturasCargadas(r.facturas)
+    return r.vinculadas
+  }
+
+  /** Corregir a mano a qué factura corrige una nota de crédito. La vinculación automática es una
+   * inferencia: tiene que poder arreglarse. */
+  function handleVincularNota(notaId: string, facturaId: string | undefined) {
+    setFacturasCargadas((prev) =>
+      prev.map((f) => (f.id === notaId ? { ...f, comprobanteAsociadoId: facturaId } : f)),
+    )
   }
 
   /** Revierte y quita el movimiento de tesorería que se haya generado directo desde el tilde de
@@ -1966,6 +1989,8 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
             productos={productos}
             onAgregar={handleAgregarFactura}
             onImportarVarias={handleImportarFacturas}
+            onVincularNota={handleVincularNota}
+            onVincularNotasPendientes={handleVincularNotasPendientes}
             onCambiar={handleCambiarFactura}
             onEliminar={handleEliminarFactura}
             emisorFiscal={esFull && datosEmisorFiscal.cuit.trim() ? datosEmisorFiscal : undefined}

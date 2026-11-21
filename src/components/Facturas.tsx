@@ -34,6 +34,7 @@ import {
   type MedioPago,
 } from '../lib/cfo'
 import { importarComprobantesArca, quitarDuplicados } from '../lib/arcaImport'
+import { candidatasParaNota } from '../lib/vincularNotas'
 import { formatoImporte, formatoMoneda, formatoPorcentaje } from '../lib/finance'
 import type { Moneda } from '../lib/cotizaciones'
 import { InputMoneda } from './InputMoneda'
@@ -64,6 +65,11 @@ interface Props {
   productos?: Producto[]
   onAgregar: (factura: Omit<Factura, 'id'>) => void
   onImportarVarias: (facturas: Omit<Factura, 'id'>[]) => void
+  /** Corregir a mano a qué factura corrige una nota de crédito. La vinculación automática es una
+   * inferencia sobre un dato que ARCA no exporta: tiene que poder arreglarse. */
+  onVincularNota?: (notaId: string, facturaId: string | undefined) => void
+  /** Vincular de una vez todas las notas de crédito que quedaron sueltas. */
+  onVincularNotasPendientes?: () => number
   onCambiar: (
     id: string,
     cambios: Partial<
@@ -178,7 +184,7 @@ function BotonExportarContador({ onExportar }: { onExportar: Props['onExportarCo
   )
 }
 
-export function Facturas({ facturas, busquedaInicial, pagos = [], cuentas, cuentaPorFactura = {}, sectores = [], productos = [], onAgregar, onImportarVarias, onCambiar, onEliminar, emisorFiscal, onEmitida, onVaciar, onExportarContador, onDescargarInforme }: Props) {
+export function Facturas({ facturas, busquedaInicial, pagos = [], cuentas, cuentaPorFactura = {}, sectores = [], productos = [], onAgregar, onImportarVarias, onVincularNota, onVincularNotasPendientes, onCambiar, onEliminar, emisorFiscal, onEmitida, onVaciar, onExportarContador, onDescargarInforme }: Props) {
   const [facturaAEmitir, setFacturaAEmitir] = useState<Factura | null>(null)
   const [facturaANotear, setFacturaANotear] = useState<Factura | null>(null)
   const [tipo, setTipo] = useState<TipoFactura>('emitida')
@@ -374,6 +380,9 @@ export function Facturas({ facturas, busquedaInicial, pagos = [], cuentas, cuent
     setAvisoEscaneo(null)
   }
 
+  /** Notas de crédito sin factura asociada. Son las que se pueden intentar vincular de una. */
+  const notasSueltas = facturas.filter((f) => f.tipoComprobante === 'nota_credito' && !f.comprobanteAsociadoId).length
+
   function handleVaciar() {
     if (facturas.length === 0) return
     if (!window.confirm('¿Borrar todos los comprobantes cargados? No se puede deshacer.')) return
@@ -423,6 +432,26 @@ export function Facturas({ facturas, busquedaInicial, pagos = [], cuentas, cuent
           </h2>
           {facturas.length > 0 && (
             <div className="flex shrink-0 flex-wrap gap-2">
+              {/* Las notas que ya estaban cargadas no se vinculan solas: al importar se vinculan
+                  las que haya, pero si uno no vuelve a importar quedarían sueltas para siempre. */}
+              {onVincularNotasPendientes && notasSueltas > 0 && (
+                <button
+                  onClick={() => {
+                    const n = onVincularNotasPendientes()
+                    setMensajeImport({
+                      tipo: 'ok',
+                      texto:
+                        n === 0
+                          ? 'No se pudo deducir la factura de ninguna de las notas sueltas. Elegila a mano en cada una.'
+                          : `Se vincularon ${n} nota(s) de crédito. Revisá que estén bien: la factura se deduce, ARCA no la informa.`,
+                    })
+                  }}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-4 py-1.5 text-xs font-medium"
+                  style={{ borderColor: 'var(--status-warning)', color: 'var(--status-warning)' }}
+                >
+                  Vincular {notasSueltas} nota(s) de crédito
+                </button>
+              )}
               <BotonExportarContador onExportar={onExportarContador} />
               <button
                 onClick={onDescargarInforme}
@@ -1354,6 +1383,9 @@ export function Facturas({ facturas, busquedaInicial, pagos = [], cuentas, cuent
                         (IVA {formatoImporte(f.iva, f.moneda)})
                       </span>
                     )}
+                    {f.tipoComprobante === 'nota_credito' && onVincularNota && (
+                      <VinculoNota nota={f} facturas={facturas} onVincular={onVincularNota} />
+                    )}
                     {(f.cuotas ?? 1) > 1 && (
                       <span
                         className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold"
@@ -1430,5 +1462,56 @@ export function Facturas({ facturas, busquedaInicial, pagos = [], cuentas, cuent
         />
       )}
     </div>
+  )
+}
+
+/**
+ * A qué factura corrige una nota de crédito.
+ *
+ * ARCA no exporta ese dato, así que al importar se infiere (ver vincularNotas.ts). Como es una
+ * inferencia, acá se muestra cuál eligió y se puede cambiar: el que sabe qué factura corrige cada
+ * nota es el que la hizo, no el sistema.
+ */
+function VinculoNota({
+  nota,
+  facturas,
+  onVincular,
+}: {
+  nota: Factura
+  facturas: Factura[]
+  onVincular: (notaId: string, facturaId: string | undefined) => void
+}) {
+  const candidatas = candidatasParaNota(nota, facturas).sort((a, b) => b.fecha.localeCompare(a.fecha))
+  const vinculada = facturas.find((f) => f.id === nota.comprobanteAsociadoId)
+
+  // Sin candidatas y sin vínculo no hay nada que elegir ni que mostrar: un selector vacío solo
+  // ocupa lugar en un renglón que ya está lleno.
+  if (candidatas.length === 0 && !vinculada) return null
+
+  function etiqueta(f: Factura): string {
+    const fecha = new Date(`${f.fecha}T00:00:00`).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })
+    return `${f.numero ? `${f.numero} · ` : ''}${fecha} · ${formatoImporte(f.monto, f.moneda)}`
+  }
+
+  return (
+    <select
+      value={nota.comprobanteAsociadoId ?? ''}
+      onChange={(e) => onVincular(nota.id, e.target.value || undefined)}
+      aria-label={`A qué factura corrige la nota de crédito de ${nota.contraparte}`}
+      title={vinculada ? `Corrige la factura ${etiqueta(vinculada)}` : 'Esta nota no está vinculada a ninguna factura'}
+      className="max-w-[210px] shrink-0 truncate rounded-lg border px-2 py-0.5 text-[11px]"
+      style={{
+        borderColor: vinculada ? 'var(--border)' : 'var(--status-warning)',
+        background: 'var(--surface-1)',
+        color: vinculada ? 'var(--text-secondary)' : 'var(--status-warning)',
+      }}
+    >
+      <option value="">Sin factura asociada</option>
+      {candidatas.map((f) => (
+        <option key={f.id} value={f.id}>
+          Corrige {etiqueta(f)}
+        </option>
+      ))}
+    </select>
   )
 }
