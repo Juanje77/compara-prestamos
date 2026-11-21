@@ -1310,6 +1310,10 @@ export interface Cheque {
    * que son las facturas de venta que el cheque cobró: un mismo cheque recibido puede haber
    * saldado una venta tuya y después pagar una compra. Ver endoso.ts. */
   facturasEndosadasIds?: string[]
+  /** El tipo de cambio PACTADO con el proveedor, cuando el cheque y la factura que cancela están
+   * en monedas distintas. No es el del día ni lo sabe el sistema: lo acuerdan las partes, y
+   * queda guardado con el cheque porque es parte de esa operación y de ninguna otra. */
+  tipoCambioEndoso?: number
 }
 
 /** Cuánto entró realmente a la cuenta por este cheque: si se vendió (descontó), el monto menos la

@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { Download, FileUp, Pencil, Receipt, Trash2 } from 'lucide-react'
+import { Download, FileUp, Pencil, Receipt, Search, Trash2 } from 'lucide-react'
 import type { Cheque, CuentaBancaria, EstadoCheque, Factura, Pago, TipoCheque } from '../lib/cfo'
 import { calcularSaldoFactura, calcularTotalesCheques, estadosChequeDisponibles, etiquetaEstadoCheque, montoNetoCheque } from '../lib/cfo'
 import { formatoImporte, formatoMoneda } from '../lib/finance'
-import { aplicarEndoso, facturasEndosables } from '../lib/endoso'
+import { aplicarEndoso, facturasEndosables, montoDelChequeEn } from '../lib/endoso'
+import { filtrarCheques, type FiltroTipoCheque } from '../lib/filtrarCheques'
 import type { Moneda } from '../lib/cotizaciones'
 import { InputMoneda } from './InputMoneda'
 import { IconButton } from './IconButton'
@@ -28,6 +29,8 @@ interface Props {
   onEliminar: (id: string) => void
   /** Qué facturas de proveedor cancela el cheque al entregarlo — ver endoso.ts. */
   onCambiarFacturasEndosadas: (id: string, facturasIds: string[]) => void
+  /** El tipo de cambio pactado con el proveedor, para endosar contra facturas de otra moneda. */
+  onCambiarTipoCambioEndoso: (id: string, tipoCambio: number | undefined) => void
   /** Los pagos ya imputados, para saber cuánto debe todavía cada factura. */
   pagos: Pago[]
   /** La caja de hoy, para arrastrar el saldo en la línea de tiempo. */
@@ -44,9 +47,13 @@ function hoyISO(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
-export function Cheques({ cheques, facturas, pagos, cuentas, onAgregar, onCambiarEstado, onCambiarCuenta, onCambiarComision, onEditar, onEliminar, onCambiarFacturasEndosadas, saldoCaja }: Props) {
+export function Cheques({ cheques, facturas, pagos, cuentas, onAgregar, onCambiarEstado, onCambiarCuenta, onCambiarComision, onEditar, onEliminar, onCambiarFacturasEndosadas, onCambiarTipoCambioEndoso, saldoCaja }: Props) {
   /** Qué cheque tiene abierto el panel para elegir facturas del endoso. */
   const [eligiendoEndoso, setEligiendoEndoso] = useState<string | null>(null)
+  /** Filtros de la lista. Son de la LISTA, no del formulario de arriba: el `tipo` de ahí decide
+   * qué se está por cargar, y mezclarlos haría que elegir qué mirar cambie qué se carga. */
+  const [verTipo, setVerTipo] = useState<FiltroTipoCheque>('todos')
+  const [busqueda, setBusqueda] = useState('')
   const [tipo, setTipo] = useState<TipoCheque>('recibido')
   const [importando, setImportando] = useState(false)
   /** Qué cheque se está corrigiendo, con sus valores provisorios. */
@@ -97,7 +104,7 @@ export function Cheques({ cheques, facturas, pagos, cuentas, onAgregar, onCambia
   const [busquedaFactura, setBusquedaFactura] = useState('')
 
   const totales = calcularTotalesCheques(cheques)
-  const listado = [...cheques].sort((a, b) => a.fechaCobro.localeCompare(b.fechaCobro))
+  const listado = filtrarCheques(cheques, { tipo: verTipo, busqueda })
 
   // No se exige que la factura esté sin cobrar/pagar: muchos cargan el comprobante ya marcado
   // como cumplido y recién después arman el cheque que lo cubre, para dejar el registro de con
@@ -409,9 +416,52 @@ export function Cheques({ cheques, facturas, pagos, cuentas, onAgregar, onCambia
           </section>
 
           <Card as="section">
-            <h3 className="mb-3 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-              Cheques cargados
-            </h3>
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <h3 className="mr-auto text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                Cheques cargados
+              </h3>
+              <div className="flex shrink-0 rounded-lg border p-0.5" style={{ borderColor: 'var(--border)' }} role="group" aria-label="Qué cheques ver">
+                {([
+                  ['todos', 'Todos'],
+                  ['recibido', 'Recibidos'],
+                  ['emitido', 'Emitidos'],
+                ] as const).map(([valor, etiqueta]) => (
+                  <button
+                    key={valor}
+                    type="button"
+                    onClick={() => setVerTipo(valor)}
+                    aria-pressed={verTipo === valor}
+                    className="rounded-md px-2.5 py-1 text-xs font-medium"
+                    style={
+                      verTipo === valor
+                        ? { background: 'var(--series-blue)', color: '#fff' }
+                        : { color: 'var(--text-secondary)' }
+                    }
+                  >
+                    {etiqueta}
+                  </button>
+                ))}
+              </div>
+              <div className="relative shrink-0">
+                <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} aria-hidden="true" />
+                <input
+                  type="search"
+                  value={busqueda}
+                  onChange={(e) => setBusqueda(e.target.value)}
+                  placeholder="Buscar por nombre, banco, número…"
+                  aria-label="Buscar cheques"
+                  className="w-56 rounded-lg border py-1 pl-7 pr-2 text-xs"
+                  style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+                />
+              </div>
+            </div>
+            {listado.length === 0 && (
+              <p className="py-3 text-sm" style={{ color: 'var(--text-muted)' }}>
+                {cheques.length === 0
+                  ? 'Todavía no cargaste ningún cheque.'
+                  : `Ningún cheque coincide con lo que buscaste${verTipo !== 'todos' ? ` entre los ${verTipo === 'emitido' ? 'emitidos' : 'recibidos'}` : ''}.`}
+              </p>
+            )}
             <ul className="max-h-96 space-y-1.5 overflow-y-auto">
               {listado.map((c) =>
                 editando?.id === c.id ? (
@@ -639,6 +689,7 @@ export function Cheques({ cheques, facturas, pagos, cuentas, onAgregar, onCambia
                       facturas={facturas}
                       pagos={pagos}
                       onCambiar={(ids) => onCambiarFacturasEndosadas(c.id, ids)}
+                      onCambiarTipoCambio={(tc) => onCambiarTipoCambioEndoso(c.id, tc)}
                     />
                   )}
                 </li>
@@ -665,11 +716,13 @@ function PanelEndoso({
   facturas,
   pagos,
   onCambiar,
+  onCambiarTipoCambio,
 }: {
   cheque: Cheque
   facturas: Factura[]
   pagos: Pago[]
   onCambiar: (ids: string[]) => void
+  onCambiarTipoCambio: (tipoCambio: number | undefined) => void
 }) {
   const elegibles = facturasEndosables(facturas, cheque, pagos)
   const seleccion = new Set(cheque.facturasEndosadasIds ?? [])
@@ -690,6 +743,29 @@ function PanelEndoso({
       <p className="mb-2 text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
         ¿Qué facturas de proveedor cancela este cheque?
       </p>
+      {/* El tipo de cambio pactado. Mientras no esté, solo se ofrecen facturas de la misma moneda
+          que el cheque: es lo correcto, porque el sistema no tiene cómo saber a cuánto se lo tomó
+          el proveedor. Cargarlo abre las de la otra moneda. */}
+      <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+        <label className="inline-flex items-center gap-1.5" style={{ color: 'var(--text-muted)' }}>
+          Tipo de cambio pactado
+          <InputMoneda
+            value={cheque.tipoCambioEndoso ?? 0}
+            onChange={(v) => onCambiarTipoCambio(v > 0 ? v : undefined)}
+            aria-label="Tipo de cambio pactado con el proveedor"
+            className="tabular w-24 rounded-lg border px-2 py-1 text-xs"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
+          />
+        </label>
+        <span style={{ color: 'var(--text-muted)' }}>
+          Solo si cancelás facturas en otra moneda. Es el que acordaste, no el del día.
+        </span>
+      </div>
+      {previa.faltaTipoCambio && (
+        <p className="mb-2 text-xs font-medium" style={{ color: 'var(--status-warning)' }}>
+          Elegiste facturas en otra moneda. Cargá el tipo de cambio pactado o no se imputa nada.
+        </p>
+      )}
       {elegibles.length === 0 ? (
         <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
           No hay facturas de proveedor pendientes en {cheque.moneda === 'USD' ? 'dólares' : 'pesos'}. Cargalas en
@@ -713,13 +789,17 @@ function PanelEndoso({
             ))}
           </ul>
           <p className="mt-2 text-xs" style={{ color: 'var(--text-muted)' }}>
-            Cheque de {formatoImporte(cheque.monto, cheque.moneda)} — se aplican{' '}
-            <strong style={{ color: 'var(--text-primary)' }}>{formatoImporte(previa.aplicado, cheque.moneda)}</strong>
+            Cheque de {formatoImporte(cheque.monto, cheque.moneda)}
+            {previa.moneda !== (cheque.moneda ?? 'ARS') && (cheque.tipoCambioEndoso ?? 0) > 0 && (
+              <> (= {formatoImporte(montoDelChequeEn(cheque, previa.moneda), previa.moneda)} al cambio pactado)</>
+            )}{' '}
+            — se aplican{' '}
+            <strong style={{ color: 'var(--text-primary)' }}>{formatoImporte(previa.aplicado, previa.moneda)}</strong>
             {previa.sobrante > 0 && (
               <>
                 {' '}y sobran{' '}
                 <strong style={{ color: 'var(--status-warning)' }}>
-                  {formatoImporte(previa.sobrante, cheque.moneda)}
+                  {formatoImporte(previa.sobrante, previa.moneda)}
                 </strong>
                 , que quedan a tu favor con el proveedor
               </>

@@ -1071,7 +1071,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
     setChequesCargados((prev) =>
       prev.map((c) =>
         c.id === id
-          ? { ...c, estado, ...(estado !== 'entregado' ? { endosadoA: undefined, facturasEndosadasIds: undefined } : {}) }
+          ? { ...c, estado, ...(estado !== 'entregado' ? { endosadoA: undefined, facturasEndosadasIds: undefined, tipoCambioEndoso: undefined } : {}) }
           : c,
       ),
     )
@@ -1100,6 +1100,24 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
     setChequesCargados((prev) =>
       prev.map((c) => (c.id === id ? { ...c, facturasEndosadasIds: facturasIds.length > 0 ? facturasIds : undefined } : c)),
     )
+    setPagosCargados(r.pagos)
+    setFacturasCargadas(r.facturas)
+  }
+
+  /** El tipo de cambio pactado con el proveedor. Al cambiarlo hay que rehacer el endoso: con otro
+   * tipo de cambio el mismo cheque cancela un importe distinto. */
+  function handleCambiarTipoCambioEndoso(id: string, tipoCambio: number | undefined) {
+    const cheque = chequesCargados.find((c) => c.id === id)
+    if (!cheque) return
+    const actualizado = { ...cheque, tipoCambioEndoso: tipoCambio }
+    const r = aplicarEndoso({
+      cheque: actualizado,
+      facturasIds: cheque.facturasEndosadasIds ?? [],
+      facturas: facturasCargadas,
+      pagos: pagosCargados,
+      generarId,
+    })
+    setChequesCargados((prev) => prev.map((c) => (c.id === id ? actualizado : c)))
     setPagosCargados(r.pagos)
     setFacturasCargadas(r.facturas)
   }
@@ -2150,6 +2168,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
             facturas={facturasCargadas}
             pagos={pagosCargados}
             onCambiarFacturasEndosadas={handleCambiarFacturasEndosadas}
+            onCambiarTipoCambioEndoso={handleCambiarTipoCambioEndoso}
             cuentas={cuentas}
             onAgregar={handleAgregarCheque}
             onCambiarEstado={handleCambiarEstadoCheque}

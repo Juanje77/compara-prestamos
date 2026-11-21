@@ -9,6 +9,7 @@
 // que se reabre sola al tocar otra cosa.
 
 import { calcularSaldoFactura, imputarPagoAFIFO, type Cheque, type Factura, type Pago } from './cfo'
+import type { Moneda } from './cotizaciones'
 
 export interface ResultadoEndoso {
   /** TODOS los pagos que deben quedar guardados, no solo los nuevos. */
@@ -20,22 +21,48 @@ export interface ResultadoEndoso {
   /** Lo que sobró del cheque después de cubrir lo elegido. No se pierde: queda a la vista para
    * que la persona sepa que entregó un cheque por más de lo que debía. */
   sobrante: number
+  /** En qué moneda están `aplicado` y `sobrante`: la de las facturas, que puede no ser la del
+   * cheque. */
+  moneda: Moneda
+  /** Se eligieron facturas en otra moneda y falta el tipo de cambio pactado. Nada se imputó. */
+  faltaTipoCambio: boolean
 }
 
 /**
- * Las facturas de proveedor que un cheque puede llegar a cancelar: pendientes, con saldo, y en la
- * MISMA moneda que el cheque.
+ * Las facturas de proveedor que un cheque puede llegar a cancelar: pendientes y con saldo.
  *
- * Lo de la moneda no es una limitación técnica sino contable: endosar un cheque en pesos contra
- * una factura en dólares exige un tipo de cambio pactado entre las partes, que no es el del día
- * ni lo sabe el sistema. Antes que adivinarlo, no se ofrece.
+ * Por defecto, solo las de la MISMA moneda que el cheque. Endosar un cheque en pesos contra una
+ * factura en dólares exige un tipo de cambio pactado entre las partes, que no es el del día ni lo
+ * sabe el sistema: antes que adivinarlo, no se ofrece. Pero en cuanto el cheque tiene uno
+ * cargado, pasan a ofrecerse las de la otra moneda — porque ya hay con qué convertir, y es el
+ * número que acordaron.
  */
 export function facturasEndosables(facturas: Factura[], cheque: Cheque, pagos: Pago[]): Factura[] {
-  const moneda = cheque.moneda ?? 'ARS'
+  const moneda = monedaDelCheque(cheque)
+  const hayTipoCambio = (cheque.tipoCambioEndoso ?? 0) > 0
   return facturas
-    .filter((f) => f.tipo === 'recibida' && (f.moneda ?? 'ARS') === moneda)
+    .filter((f) => f.tipo === 'recibida' && (hayTipoCambio || monedaDe(f) === moneda))
     .filter((f) => calcularSaldoFactura(f, pagos) > 0 || (f.cumplido === true && esPagadaPor(f, cheque, pagos)))
     .sort((a, b) => a.fecha.localeCompare(b.fecha))
+}
+
+const monedaDe = (f: Factura): Moneda => f.moneda ?? 'ARS'
+const monedaDelCheque = (c: Cheque): Moneda => c.moneda ?? 'ARS'
+
+/**
+ * Cuánto vale el cheque expresado en la moneda de las facturas que va a cancelar.
+ *
+ * Con la misma moneda es su importe. Con monedas distintas se usa el tipo de cambio PACTADO, no
+ * el del día: lo que importa en un endoso es a cuánto se lo tomó el proveedor. Sin tipo de cambio
+ * cargado devuelve 0 —no se imputa nada— en vez de usar el importe como si fueran la misma
+ * moneda, que convertiría mil dólares en mil pesos sin avisar.
+ */
+export function montoDelChequeEn(cheque: Cheque, moneda: Moneda): number {
+  const propia = monedaDelCheque(cheque)
+  if (propia === moneda) return cheque.monto
+  const tc = cheque.tipoCambioEndoso ?? 0
+  if (tc <= 0) return 0
+  return propia === 'USD' ? cheque.monto * tc : cheque.monto / tc
 }
 
 /** Si esta factura figura saldada justamente por el endoso de este cheque. */
@@ -76,16 +103,25 @@ export function aplicarEndoso({
   const idsPrevias = new Set(pagosPrevios.map((p) => p.facturaId))
   const pagosBase = pagos.filter((p) => !(p.chequeId === cheque.id && recibidas.has(p.facturaId)))
 
-  const elegidas = facturasIds
+  const seleccionadas = facturasIds
     .map((id) => recibidas.get(id))
     .filter((f): f is Factura => f !== undefined)
     .sort((a, b) => a.fecha.localeCompare(b.fecha))
+
+  // Todas las facturas de un mismo endoso tienen que estar en una sola moneda: el cheque vale un
+  // número en cada una, y repartirlo entre dos sería repartir dos importes distintos. Manda la
+  // moneda de la primera elegida, y las de otra moneda se ignoran.
+  const monedaDestino = seleccionadas.length > 0 ? monedaDe(seleccionadas[0]) : monedaDelCheque(cheque)
+  const disponible = montoDelChequeEn(cheque, monedaDestino)
+
+  const elegidas = seleccionadas
+    .filter((f) => monedaDe(f) === monedaDestino)
     .map((f) => ({ ...f, montoPagado: 0, saldo: calcularSaldoFactura(f, pagosBase) }))
     .filter((f) => f.saldo > 0)
 
   const { pagos: nuevos, facturaIdsCubiertas } = imputarPagoAFIFO(
     elegidas,
-    cheque.monto,
+    disponible,
     cheque.fechaCobro,
     'cheque',
     generarId,
@@ -109,6 +145,8 @@ export function aplicarEndoso({
     pagos: [...pagosBase, ...pagosDelEndoso],
     facturas: facturasActualizadas,
     aplicado,
-    sobrante: Math.max(0, cheque.monto - aplicado),
+    sobrante: Math.max(0, disponible - aplicado),
+    moneda: monedaDestino,
+    faltaTipoCambio: monedaDestino !== monedaDelCheque(cheque) && (cheque.tipoCambioEndoso ?? 0) <= 0,
   }
 }

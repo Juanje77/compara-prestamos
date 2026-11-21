@@ -27,15 +27,22 @@ describe('facturasEndosables', () => {
     expect(r.map((f) => f.id)).toEqual(['compra'])
   })
 
-  it('solo las de la misma moneda que el cheque', () => {
-    // Endosar un cheque en pesos contra una factura en dólares exige un tipo de cambio pactado
-    // entre las partes, que no es el del día ni lo sabe el sistema.
+  it('sin tipo de cambio pactado, solo las de la misma moneda que el cheque', () => {
     const fs = [
       factura({ id: 'ars', tipo: 'recibida', monto: 100 }),
       factura({ id: 'usd', tipo: 'recibida', monto: 100, moneda: 'USD' }),
     ]
     expect(facturasEndosables(fs, cheque({ monto: 1000 }), []).map((f) => f.id)).toEqual(['ars'])
     expect(facturasEndosables(fs, cheque({ monto: 1000, moneda: 'USD' }), []).map((f) => f.id)).toEqual(['usd'])
+  })
+
+  it('con tipo de cambio pactado se ofrecen también las de la otra moneda', () => {
+    const fs = [
+      factura({ id: 'ars', tipo: 'recibida', monto: 100 }),
+      factura({ id: 'usd', tipo: 'recibida', monto: 100, moneda: 'USD' }),
+    ]
+    const r = facturasEndosables(fs, cheque({ monto: 1000, tipoCambioEndoso: 1400 }), [])
+    expect(r.map((f) => f.id).sort()).toEqual(['ars', 'usd'])
   })
 
   it('ordena de la más vieja a la más nueva', () => {
@@ -139,5 +146,57 @@ describe('aplicarEndoso', () => {
     const r = aplicarEndoso({ cheque: cheque({ monto: 100_000 }), facturasIds: ['a'], facturas: fs, pagos: [yaPaga], generarId })
     expect(r.aplicado).toBe(0)
     expect(r.sobrante).toBe(100_000)
+  })
+})
+
+describe('endoso con monedas distintas', () => {
+  it('sin tipo de cambio pactado no imputa nada y lo avisa', () => {
+    // Usar el importe como si fueran la misma moneda convertiría mil dólares en mil pesos sin
+    // que nadie se entere. Preferimos no imputar y decirlo.
+    const f = factura({ id: 'a', tipo: 'recibida', monto: 1_000_000 })
+    const r = aplicarEndoso({ cheque: cheque({ monto: 1_000, moneda: 'USD' }), facturasIds: ['a'], facturas: [f], pagos: [], generarId })
+    expect(r.aplicado).toBe(0)
+    expect(r.faltaTipoCambio).toBe(true)
+    expect(r.facturas[0].cumplido).toBeFalsy()
+  })
+
+  it('con el tipo de cambio pactado cancela la factura en la otra moneda', () => {
+    const f = factura({ id: 'a', tipo: 'recibida', monto: 1_400_000 })
+    const ch = cheque({ monto: 1_000, moneda: 'USD', tipoCambioEndoso: 1_400 })
+    const r = aplicarEndoso({ cheque: ch, facturasIds: ['a'], facturas: [f], pagos: [], generarId })
+    expect(r.aplicado).toBe(1_400_000)
+    expect(r.moneda).toBe('ARS')
+    expect(r.faltaTipoCambio).toBe(false)
+    expect(r.facturas[0].cumplido).toBe(true)
+  })
+
+  it('un cheque en pesos contra una factura en dólares divide por el tipo de cambio', () => {
+    const f = factura({ id: 'a', tipo: 'recibida', monto: 1_000, moneda: 'USD' })
+    const ch = cheque({ monto: 1_400_000, tipoCambioEndoso: 1_400 })
+    const r = aplicarEndoso({ cheque: ch, facturasIds: ['a'], facturas: [f], pagos: [], generarId })
+    expect(r.aplicado).toBe(1_000)
+    expect(r.moneda).toBe('USD')
+    expect(r.pagos[0].monto).toBe(1_000)
+  })
+
+  it('el sobrante se informa en la moneda de las facturas', () => {
+    const f = factura({ id: 'a', tipo: 'recibida', monto: 1_000_000 })
+    const ch = cheque({ monto: 1_000, moneda: 'USD', tipoCambioEndoso: 1_400 })
+    const r = aplicarEndoso({ cheque: ch, facturasIds: ['a'], facturas: [f], pagos: [], generarId })
+    expect(r.aplicado).toBe(1_000_000)
+    expect(r.sobrante).toBe(400_000)
+    expect(r.moneda).toBe('ARS')
+  })
+
+  it('si se eligen facturas de dos monedas, manda la de la primera y la otra se ignora', () => {
+    // Repartir el cheque entre dos monedas sería repartir dos importes distintos.
+    const fs = [
+      factura({ id: 'ars', tipo: 'recibida', monto: 500_000, fecha: '2026-10-01' }),
+      factura({ id: 'usd', tipo: 'recibida', monto: 500, moneda: 'USD', fecha: '2026-11-01' }),
+    ]
+    const ch = cheque({ monto: 1_000, moneda: 'USD', tipoCambioEndoso: 1_400 })
+    const r = aplicarEndoso({ cheque: ch, facturasIds: ['ars', 'usd'], facturas: fs, pagos: [], generarId })
+    expect(r.moneda).toBe('ARS')
+    expect(r.pagos.map((p) => p.facturaId)).toEqual(['ars'])
   })
 })
