@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { Download, FileUp, Pencil, Receipt, Trash2 } from 'lucide-react'
-import type { Cheque, CuentaBancaria, EstadoCheque, Factura, TipoCheque } from '../lib/cfo'
-import { calcularTotalesCheques, estadosChequeDisponibles, etiquetaEstadoCheque, montoNetoCheque } from '../lib/cfo'
+import type { Cheque, CuentaBancaria, EstadoCheque, Factura, Pago, TipoCheque } from '../lib/cfo'
+import { calcularSaldoFactura, calcularTotalesCheques, estadosChequeDisponibles, etiquetaEstadoCheque, montoNetoCheque } from '../lib/cfo'
 import { formatoImporte, formatoMoneda } from '../lib/finance'
+import { aplicarEndoso, facturasEndosables } from '../lib/endoso'
 import type { Moneda } from '../lib/cotizaciones'
 import { InputMoneda } from './InputMoneda'
 import { IconButton } from './IconButton'
@@ -25,6 +26,10 @@ interface Props {
   /** Corregir los datos del cheque: número, banco, a nombre de quién, importe y fechas. */
   onEditar: (id: string, cambios: Partial<Pick<Cheque, 'numero' | 'banco' | 'contraparte' | 'monto' | 'fechaEmision' | 'fechaCobro' | 'endosadoA'>>) => void
   onEliminar: (id: string) => void
+  /** Qué facturas de proveedor cancela el cheque al entregarlo — ver endoso.ts. */
+  onCambiarFacturasEndosadas: (id: string, facturasIds: string[]) => void
+  /** Los pagos ya imputados, para saber cuánto debe todavía cada factura. */
+  pagos: Pago[]
   /** La caja de hoy, para arrastrar el saldo en la línea de tiempo. */
   saldoCaja: number
 }
@@ -39,7 +44,9 @@ function hoyISO(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
-export function Cheques({ cheques, facturas, cuentas, onAgregar, onCambiarEstado, onCambiarCuenta, onCambiarComision, onEditar, onEliminar, saldoCaja }: Props) {
+export function Cheques({ cheques, facturas, pagos, cuentas, onAgregar, onCambiarEstado, onCambiarCuenta, onCambiarComision, onEditar, onEliminar, onCambiarFacturasEndosadas, saldoCaja }: Props) {
+  /** Qué cheque tiene abierto el panel para elegir facturas del endoso. */
+  const [eligiendoEndoso, setEligiendoEndoso] = useState<string | null>(null)
   const [tipo, setTipo] = useState<TipoCheque>('recibido')
   const [importando, setImportando] = useState(false)
   /** Qué cheque se está corrigiendo, con sus valores provisorios. */
@@ -561,6 +568,22 @@ export function Cheques({ cheques, facturas, cuentas, onAgregar, onCambiarEstado
                       }}
                     />
                   )}
+                  {c.estado === 'entregado' && (
+                    <button
+                      type="button"
+                      onClick={() => setEligiendoEndoso(eligiendoEndoso === c.id ? null : c.id)}
+                      aria-expanded={eligiendoEndoso === c.id}
+                      className="shrink-0 rounded-lg border px-2 py-1 text-xs font-semibold"
+                      style={{
+                        borderColor: 'var(--series-blue)',
+                        color: 'var(--series-blue)',
+                      }}
+                    >
+                      {c.facturasEndosadasIds?.length
+                        ? `Cancela ${c.facturasEndosadasIds.length} ${c.facturasEndosadasIds.length === 1 ? 'factura' : 'facturas'}`
+                        : 'Cancelar facturas…'}
+                    </button>
+                  )}
                   {(c.estado === 'cobrado' || c.estado === 'vendido') && cuentas && cuentas.length > 0 && (
                     <select
                       value={c.cuentaId ?? ''}
@@ -610,11 +633,99 @@ export function Cheques({ cheques, facturas, cuentas, onAgregar, onCambiarEstado
                   )}
                   <IconButton icon={Pencil} onClick={() => abrirEdicion(c)} label="Editar cheque" className="shrink-0" />
                   <IconButton icon={Trash2} onClick={() => onEliminar(c.id)} label="Eliminar cheque" className="shrink-0" />
+                  {eligiendoEndoso === c.id && (
+                    <PanelEndoso
+                      cheque={c}
+                      facturas={facturas}
+                      pagos={pagos}
+                      onCambiar={(ids) => onCambiarFacturasEndosadas(c.id, ids)}
+                    />
+                  )}
                 </li>
                 ),
               )}
             </ul>
           </Card>
+        </>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Elegir qué facturas de proveedor cancela un cheque entregado.
+ *
+ * Muestra el saldo pendiente real de cada una y, abajo, cuánto del cheque se está usando. Ese
+ * total es la parte que importa: entregar un cheque por más de lo que se debe es común, y hasta
+ * que uno no ve el sobrante escrito no se da cuenta de que le queda saldo a favor con el
+ * proveedor.
+ */
+function PanelEndoso({
+  cheque,
+  facturas,
+  pagos,
+  onCambiar,
+}: {
+  cheque: Cheque
+  facturas: Factura[]
+  pagos: Pago[]
+  onCambiar: (ids: string[]) => void
+}) {
+  const elegibles = facturasEndosables(facturas, cheque, pagos)
+  const seleccion = new Set(cheque.facturasEndosadasIds ?? [])
+  const previa = aplicarEndoso({ cheque, facturasIds: [...seleccion], facturas, pagos, generarId: () => 'previa' })
+
+  function alternar(id: string) {
+    const nueva = new Set(seleccion)
+    if (nueva.has(id)) nueva.delete(id)
+    else nueva.add(id)
+    onCambiar([...nueva])
+  }
+
+  return (
+    <div
+      className="mt-2 w-full rounded-lg border p-3"
+      style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
+    >
+      <p className="mb-2 text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
+        ¿Qué facturas de proveedor cancela este cheque?
+      </p>
+      {elegibles.length === 0 ? (
+        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+          No hay facturas de proveedor pendientes en {cheque.moneda === 'USD' ? 'dólares' : 'pesos'}. Cargalas en
+          Comprobantes y volvé acá.
+        </p>
+      ) : (
+        <>
+          <ul className="space-y-1">
+            {elegibles.map((f) => (
+              <li key={f.id}>
+                <label className="flex cursor-pointer items-center gap-2 text-xs">
+                  <input type="checkbox" checked={seleccion.has(f.id)} onChange={() => alternar(f.id)} />
+                  <span className="flex-1 truncate" style={{ color: 'var(--text-primary)' }}>
+                    {new Date(`${f.fecha}T00:00:00`).toLocaleDateString('es-AR')} · {f.contraparte}
+                  </span>
+                  <span className="tabular shrink-0" style={{ color: 'var(--text-secondary)' }}>
+                    {formatoImporte(calcularSaldoFactura(f, pagos), f.moneda)}
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+            Cheque de {formatoImporte(cheque.monto, cheque.moneda)} — se aplican{' '}
+            <strong style={{ color: 'var(--text-primary)' }}>{formatoImporte(previa.aplicado, cheque.moneda)}</strong>
+            {previa.sobrante > 0 && (
+              <>
+                {' '}y sobran{' '}
+                <strong style={{ color: 'var(--status-warning)' }}>
+                  {formatoImporte(previa.sobrante, cheque.moneda)}
+                </strong>
+                , que quedan a tu favor con el proveedor
+              </>
+            )}
+            .
+          </p>
         </>
       )}
     </div>

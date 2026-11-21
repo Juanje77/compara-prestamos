@@ -14,6 +14,7 @@ import { SesionUsuario } from '../components/Layout'
 import type { ReactNode } from 'react'
 import { ConfigDolar, type ConfigDolarValor } from '../components/ConfigDolar'
 import { chequesEnPesos, cuentasEnPesos, facturasEnPesos, montoEnMonedaDe, pagosEnPesos } from '../lib/convertirMonedas'
+import { aplicarEndoso } from '../lib/endoso'
 import type { Moneda } from '../lib/cotizaciones'
 import { CuentasPendientes } from '../components/CuentasPendientes'
 import { IndicadorDolar } from '../components/IndicadorDolar'
@@ -1058,10 +1059,21 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
   }
 
   function handleCambiarEstadoCheque(id: string, estado: EstadoCheque) {
+    const anterior = chequesCargados.find((c) => c.id === id)
+    // Si deja de estar entregado se deshace el endoso entero: el nombre de a quién se lo diste y,
+    // sobre todo, las facturas de proveedor que había cancelado. Un cheque que volvió a cartera y
+    // sigue pagando facturas sería plata contada dos veces.
+    if (anterior?.estado === 'entregado' && estado !== 'entregado') {
+      const r = aplicarEndoso({ cheque: anterior, facturasIds: [], facturas: facturasCargadas, pagos: pagosCargados, generarId })
+      setPagosCargados(r.pagos)
+      setFacturasCargadas(r.facturas)
+    }
     setChequesCargados((prev) =>
-      // Si deja de estar entregado, se borra a quién se le había endosado: un cheque que volvió a
-      // cartera y sigue diciendo "entregado a Fulano" es peor que uno sin el dato.
-      prev.map((c) => (c.id === id ? { ...c, estado, ...(estado !== 'entregado' ? { endosadoA: undefined } : {}) } : c)),
+      prev.map((c) =>
+        c.id === id
+          ? { ...c, estado, ...(estado !== 'entregado' ? { endosadoA: undefined, facturasEndosadasIds: undefined } : {}) }
+          : c,
+      ),
     )
     const cheque = chequesCargados.find((c) => c.id === id)
     if (estado === 'rechazado') {
@@ -1075,6 +1087,21 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
       }
     }
     if (cheque) sincronizarTesoreriaCheque({ ...cheque, estado })
+  }
+
+  /**
+   * Qué facturas de proveedor cancela este cheque al entregarlo. Ver endoso.ts: el cálculo vive
+   * ahí, acá solo se guarda el resultado.
+   */
+  function handleCambiarFacturasEndosadas(id: string, facturasIds: string[]) {
+    const cheque = chequesCargados.find((c) => c.id === id)
+    if (!cheque) return
+    const r = aplicarEndoso({ cheque, facturasIds, facturas: facturasCargadas, pagos: pagosCargados, generarId })
+    setChequesCargados((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, facturasEndosadasIds: facturasIds.length > 0 ? facturasIds : undefined } : c)),
+    )
+    setPagosCargados(r.pagos)
+    setFacturasCargadas(r.facturas)
   }
 
   function handleCambiarCuentaCheque(id: string, cuentaId: string | undefined) {
@@ -2116,9 +2143,13 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
           descripcion="Gestioná los cheques de terceros que recibís y los propios que emitís, para ir armando junto con tus cuentas bancarias un balance contable a fin de año."
           onQuieroPremium={abrirPlanes}
         >
+          {/* Todo crudo, en su moneda: esta pantalla es donde se carga y se corrige, y el endoso
+              compara importes contra el cheque, que también está en su moneda. */}
           <Cheques
             cheques={chequesCargados}
-            facturas={facturas}
+            facturas={facturasCargadas}
+            pagos={pagosCargados}
+            onCambiarFacturasEndosadas={handleCambiarFacturasEndosadas}
             cuentas={cuentas}
             onAgregar={handleAgregarCheque}
             onCambiarEstado={handleCambiarEstadoCheque}

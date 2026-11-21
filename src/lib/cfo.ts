@@ -1306,6 +1306,10 @@ export interface Cheque {
    * la posición financiera y de la línea de tiempo, y no mueve ninguna cuenta —la plata nunca
    * entró— pero el dato de a quién se lo diste es justo el que después nadie recuerda. */
   endosadoA?: string
+  /** Las facturas DE PROVEEDOR que este cheque cancela al entregarlo. Distinto de `facturasIds`,
+   * que son las facturas de venta que el cheque cobró: un mismo cheque recibido puede haber
+   * saldado una venta tuya y después pagar una compra. Ver endoso.ts. */
+  facturasEndosadasIds?: string[]
 }
 
 /** Cuánto entró realmente a la cuenta por este cheque: si se vendió (descontó), el monto menos la
