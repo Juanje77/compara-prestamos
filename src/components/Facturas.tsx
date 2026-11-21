@@ -35,6 +35,7 @@ import {
 } from '../lib/cfo'
 import { importarComprobantesArca, quitarDuplicados } from '../lib/arcaImport'
 import { candidatasParaNota } from '../lib/vincularNotas'
+import { asignarSectorHabitual, sectorHabitualDe } from '../lib/sectorHabitual'
 import { formatoImporte, formatoMoneda, formatoPorcentaje } from '../lib/finance'
 import type { Moneda } from '../lib/cotizaciones'
 import { InputMoneda } from './InputMoneda'
@@ -197,6 +198,9 @@ export function Facturas({ facturas, busquedaInicial, pagos = [], cuentas, cuent
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10))
   const [cuotas, setCuotas] = useState('1')
   const [sectorId, setSectorId] = useState('')
+  /** Si la persona eligió el sector a mano en esta carga. Mientras no lo haga, el sector sigue a
+   * la contraparte; apenas lo toca, manda ella y no se le vuelve a cambiar abajo de la mano. */
+  const [sectorElegidoAMano, setSectorElegidoAMano] = useState(false)
   const [lineas, setLineas] = useState<LineaProducto[]>([])
   const [codigoEscaneado, setCodigoEscaneado] = useState('')
   const [avisoEscaneo, setAvisoEscaneo] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
@@ -375,6 +379,7 @@ export function Facturas({ facturas, busquedaInicial, pagos = [], cuentas, cuent
     setIva(0)
     setCuotas('1')
     setSectorId('')
+    setSectorElegidoAMano(false)
     setLineas([])
     setEsInterna(false)
     setAvisoEscaneo(null)
@@ -400,6 +405,9 @@ export function Facturas({ facturas, busquedaInicial, pagos = [], cuentas, cuent
       // Lo que ya está cargado no se vuelve a agregar: subir dos veces el mismo archivo de ARCA
       // es fácil de hacer y, sin este filtro, deja todo al doble sin que nada falle.
       const { nuevos, duplicados } = quitarDuplicados(importadas, facturas)
+      // Al mismo proveedor casi siempre le corresponde el mismo sector. Clasificar doscientos
+      // comprobantes a mano no lo hace nadie, y sin sector Márgenes por sector no dice nada.
+      const { comprobantes, clasificados } = asignarSectorHabitual(nuevos, facturas)
 
       if (importadas.length === 0) {
         setMensajeImport({ tipo: 'error', texto: 'No se encontraron comprobantes válidos para importar en el archivo.' })
@@ -409,8 +417,9 @@ export function Facturas({ facturas, busquedaInicial, pagos = [], cuentas, cuent
           texto: `Los ${duplicados} comprobante(s) del archivo ya estaban cargados: no se agregó ninguno.`,
         })
       } else {
-        onImportarVarias(nuevos)
+        onImportarVarias(comprobantes)
         const partes = [`Se importaron ${nuevos.length} comprobante(s)`]
+        if (clasificados > 0) partes.push(`${clasificados} quedaron asignados al sector de siempre de esa contraparte`)
         if (duplicados > 0) partes.push(`${duplicados} ya estaban cargados y se saltearon`)
         if (omitidas > 0) partes.push(`${omitidas} fila(s) se omitieron por datos inválidos o tipo no reconocido`)
         setMensajeImport({ tipo: 'ok', texto: `${partes.join('. ')}.` })
@@ -544,15 +553,28 @@ export function Facturas({ facturas, busquedaInicial, pagos = [], cuentas, cuent
             type="text"
             placeholder="Cliente / proveedor"
             value={contraparte}
-            onChange={(e) => setContraparte(e.target.value)}
+            onChange={(e) => {
+              setContraparte(e.target.value)
+              // Repetir el sector con el que ya se cargó a esta contraparte. No inventa una
+              // clasificación: repite la que la persona ya hizo, que es justo el trabajo que
+              // nadie quiere volver a hacer comprobante por comprobante.
+              if (!sectorElegidoAMano) setSectorId(sectorHabitualDe(e.target.value, tipo, facturas) ?? '')
+            }}
             className="min-w-[140px] flex-1 rounded-lg border px-3 py-1.5 text-sm"
             style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
           />
           {sectores.length > 0 && (
             <select
               value={sectorId}
-              onChange={(e) => setSectorId(e.target.value)}
-              title="Sector al que asignar este comprobante (si no viene de un remito ya asignado)"
+              onChange={(e) => {
+                setSectorId(e.target.value)
+                setSectorElegidoAMano(true)
+              }}
+              title={
+                sectorId && !sectorElegidoAMano
+                  ? 'Sector repetido del último comprobante de esta contraparte. Cambialo si no corresponde.'
+                  : 'Sector al que asignar este comprobante (si no viene de un remito ya asignado)'
+              }
               className="shrink-0 rounded-lg border px-3 py-1.5 text-sm"
               style={{ borderColor: 'var(--border)', background: 'var(--surface-1)', color: 'var(--text-primary)' }}
             >
