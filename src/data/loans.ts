@@ -1,5 +1,5 @@
 // Datos de referencia de líneas de préstamos de bancos argentinos.
-// Actualizado: septiembre 2026. Fuentes citadas en `fuente`: se prioriza el sitio
+// Actualizado: 19 de octubre de 2026. Fuentes citadas en `fuente`: se prioriza el sitio
 // oficial de cada banco cuando publica sus tasas vigentes; si no se encontró un
 // dato oficial claro, se cita prensa especializada o se deja como estimación
 // orientativa (marcado `verificado: false`).
@@ -546,7 +546,7 @@ export const PRESTAMOS_JUBILADOS: LoanOffer[] = [
     banco: 'Banco Nación (Jubilados)',
     tipo: 'jubilados',
     tna: 56,
-    cft: 92,
+    cft: 93.3,
     montoMin: 100000,
     montoMax: 50000000,
     plazoMinMeses: 6,
@@ -554,7 +554,7 @@ export const PRESTAMOS_JUBILADOS: LoanOffer[] = [
     requisitos: 'Para jubilados y pensionados de ANSES que cobran por Banco Nación. Descuento directo del haber.',
     sitioWeb: 'https://www.bna.com.ar',
     verificado: true,
-    fuente: 'LMNeuquén / Plan Gobierno, jun 2026',
+    fuente: 'iProfesional, 28/8/2026 (TNA desde 56%, CFT TEA desde 93,3%, jubilados con descuento obligatorio o débito en cuenta)',
   },
   {
     id: 'provincia-jubilados',
