@@ -15,6 +15,7 @@ import type { ReactNode } from 'react'
 import { ConfigDolar, type ConfigDolarValor } from '../components/ConfigDolar'
 import { chequesEnPesos, cuentasEnPesos, facturasEnPesos, montoEnMonedaDe, pagosEnPesos } from '../lib/convertirMonedas'
 import { aplicarEndoso } from '../lib/endoso'
+import { armarTransferencia, patasDeLaTransferencia, type DatosTransferencia } from '../lib/transferencias'
 import { vincularNotasDeCredito } from '../lib/vincularNotas'
 import type { Moneda } from '../lib/cotizaciones'
 import { CuentasPendientes } from '../components/CuentasPendientes'
@@ -721,10 +722,25 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
   /** Solo se puede borrar un movimiento "manual" — los que vienen de una factura, un anticipo o un
    * cheque se manejan (y revierten) desde su propia solapa. */
   function handleEliminarMovimientoTesoreria(id: string) {
-    const movimiento = movimientosTesoreria.find((m) => m.id === id && m.origen === 'manual')
+    const movimiento = movimientosTesoreria.find(
+      (m) => m.id === id && (m.origen === 'manual' || m.origen === 'transferencia'),
+    )
     if (!movimiento) return
-    setCuentas((prev) => revertirMovimientoTesoreria(prev, movimiento))
-    setMovimientosTesoreria((prev) => prev.filter((m) => m.id !== id))
+    // Una transferencia son dos movimientos que describen un mismo hecho: se borran los dos.
+    // Borrar solo la salida dejaría la entrada viva, y eso es plata creada de la nada.
+    const aBorrar = patasDeLaTransferencia(movimiento, movimientosTesoreria)
+    const ids = new Set(aBorrar.map((m) => m.id))
+    setCuentas((prev) => aBorrar.reduce(revertirMovimientoTesoreria, prev))
+    setMovimientosTesoreria((prev) => prev.filter((m) => !ids.has(m.id)))
+  }
+
+  /** Mover plata de una cuenta a otra. No es ingreso ni egreso del negocio: cambia de lugar. */
+  function handleTransferir(datos: DatosTransferencia) {
+    if (!esFull) return
+    const armada = armarTransferencia(datos, cuentas, generarId)
+    if (!armada) return
+    setCuentas((prev) => armada.movimientos.reduce(aplicarMovimientoTesoreria, prev))
+    setMovimientosTesoreria((prev) => [...prev, ...armada.movimientos])
   }
 
   /** Carga las filas de un extracto bancario como pendientes de conciliar, y de una vuelve intenta
@@ -2149,6 +2165,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
             movimientosBancarios={movimientosBancarios}
             onAgregarCuenta={handleAgregarCuenta}
             cotizacion={estadoDolar.actual}
+            onTransferir={handleTransferir}
             onAjustarSaldo={handleAjustarSaldoCuenta}
             onEliminarMovimiento={handleEliminarMovimientoTesoreria}
             onEliminarCuenta={handleEliminarCuenta}

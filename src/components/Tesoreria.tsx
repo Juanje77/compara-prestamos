@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { Check, Download, FileUp, Landmark, Trash2 } from 'lucide-react'
+import { ArrowLeftRight, Check, Download, FileUp, Landmark, Trash2 } from 'lucide-react'
 import type { CuentaBancaria, MovimientoBancario, MovimientoTesoreria } from '../lib/cfo'
 import { MARGEN_DIAS_CONCILIACION, calcularResumenConciliacion, calcularSaldoTotalBancos, deltaDeMovimientoTesoreria, resumenPorCuenta } from '../lib/cfo'
 import { importarExtractoBancario } from '../lib/excelImport'
 import { descargarPlantillaExtracto } from '../lib/plantillasImportacion'
-import { formatoMoneda } from '../lib/finance'
+import { formatoImporte, formatoMoneda } from '../lib/finance'
 import { cuentasEnPesos, faltaCotizacion } from '../lib/convertirMonedas'
+import { MENSAJE_ERROR_TRANSFERENCIA, validarTransferencia, type DatosTransferencia } from '../lib/transferencias'
 import { aPesos, type Cotizacion, type Moneda } from '../lib/cotizaciones'
 import { InputMoneda } from './InputMoneda'
 import { IconButton } from './IconButton'
@@ -21,6 +22,8 @@ interface Props {
   cotizacion?: Cotizacion | null
   onAjustarSaldo: (cuentaId: string, monto: number, fecha: string, concepto: string | undefined) => void
   onEliminarMovimiento: (id: string) => void
+  /** Mover plata de una cuenta a otra — ver transferencias.ts. */
+  onTransferir: (datos: DatosTransferencia) => void
   onEliminarCuenta: (id: string) => void
   onImportarExtracto: (cuentaId: string, filas: Omit<MovimientoBancario, 'id' | 'cuentaId' | 'conciliado'>[]) => void
   onConciliarManual: (bancarioId: string, movimientoId: string) => void
@@ -32,6 +35,13 @@ interface Props {
 
 /** Los gastos bancarios más comunes que un extracto trae y el sistema nunca cargó — un atajo para
  * no tener que escribir el concepto a mano cada vez que aparecen. */
+/** El estilo compartido de los campos de esta pantalla, para que los formularios se vean igual. */
+const campoEdicion = {
+  borderColor: 'var(--border)',
+  background: 'var(--surface-1)',
+  color: 'var(--text-primary)',
+}
+
 const GASTOS_BANCARIOS_COMUNES = ['Impuesto al débito y crédito', 'Comisiones bancarias', 'IVA sobre comisiones']
 
 const ORIGEN_LABEL: Record<MovimientoTesoreria['origen'], string> = {
@@ -40,6 +50,7 @@ const ORIGEN_LABEL: Record<MovimientoTesoreria['origen'], string> = {
   cheque: 'Cheque',
   sueldo: 'Sueldos',
   manual: 'Ajuste',
+  transferencia: 'Transferencia',
 }
 
 function hoyISO(): string {
@@ -251,14 +262,14 @@ function FilaCuenta({
                     style={{ color: m.tipo === 'egreso' || (m.tipo === 'ajuste' && m.monto < 0) ? 'var(--status-critical)' : 'var(--status-good-text)' }}
                   >
                     {m.tipo === 'egreso' ? '-' : m.tipo === 'ingreso' ? '+' : m.monto >= 0 ? '+' : ''}
-                    {formatoMoneda(Math.abs(m.monto))}
+                    {formatoImporte(Math.abs(m.monto), cuenta.moneda)}
                   </span>
                   {m.concepto && (
                     <span className="flex-1 truncate" style={{ color: 'var(--text-secondary)' }}>
                       {m.concepto}
                     </span>
                   )}
-                  {m.origen === 'manual' && (
+                  {(m.origen === 'manual' || m.origen === 'transferencia') && (
                     <IconButton icon={Trash2} onClick={() => onEliminarMovimiento(m.id)} label="Eliminar movimiento" className="ml-auto shrink-0" />
                   )}
                 </li>
@@ -582,6 +593,7 @@ export function Tesoreria({
   onDesconciliar,
   onCrearAjusteDesdeBancario,
   onEliminarMovimientoBancario,
+  onTransferir,
   cotizacion,
 }: Props) {
   const resumen = resumenPorCuenta(cuentas, movimientos)
@@ -604,6 +616,7 @@ export function Tesoreria({
         </p>
 
         <FormularioAltaCuenta onAgregarCuenta={onAgregarCuenta} />
+        {cuentas.length > 1 && <FormularioTransferencia cuentas={cuentas} onTransferir={onTransferir} />}
 
         <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="rounded-lg border p-3" style={{ borderColor: 'var(--border)' }}>
@@ -657,5 +670,187 @@ export function Tesoreria({
         )}
       </Card>
     </div>
+  )
+}
+
+/**
+ * Mover plata de una cuenta a otra.
+ *
+ * Va plegado: no es algo que se haga todos los días, y abierto permanentemente competiría con el
+ * alta de cuentas, que es lo primero que uno busca acá.
+ *
+ * Entre cuentas de distinta moneda aparece un segundo importe. Es a propósito que lo ponga la
+ * persona y no el sistema: el tipo de cambio de una compra de dólares es el de esa operación —el
+ * que le dio el banco ese día, con su comisión adentro—, no el de la cotización.
+ */
+function FormularioTransferencia({
+  cuentas,
+  onTransferir,
+}: {
+  cuentas: CuentaBancaria[]
+  onTransferir: (datos: DatosTransferencia) => void
+}) {
+  const [abierto, setAbierto] = useState(false)
+  const [desdeId, setDesdeId] = useState(cuentas[0]?.id ?? '')
+  const [haciaId, setHaciaId] = useState(cuentas[1]?.id ?? '')
+  const [monto, setMonto] = useState(0)
+  const [montoDestino, setMontoDestino] = useState(0)
+  const [fecha, setFecha] = useState(hoyISO)
+  const [concepto, setConcepto] = useState('')
+
+  const desde = cuentas.find((c) => c.id === desdeId)
+  const hacia = cuentas.find((c) => c.id === haciaId)
+  const distintaMoneda = Boolean(desde && hacia && (desde.moneda ?? 'ARS') !== (hacia.moneda ?? 'ARS'))
+  const datos: DatosTransferencia = {
+    desdeId,
+    haciaId,
+    monto,
+    montoDestino: distintaMoneda ? montoDestino : undefined,
+    fecha,
+    concepto,
+  }
+  const error = validarTransferencia(datos, cuentas)
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (error) return
+    onTransferir(datos)
+    setMonto(0)
+    setMontoDestino(0)
+    setConcepto('')
+    setAbierto(false)
+  }
+
+  if (!abierto) {
+    return (
+      <button
+        type="button"
+        onClick={() => setAbierto(true)}
+        className="mb-4 inline-flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-xs font-medium"
+        style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
+      >
+        <ArrowLeftRight size={14} aria-hidden="true" /> Transferir entre cuentas
+      </button>
+    )
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="mb-4 rounded-lg border p-3"
+      style={{ borderColor: 'var(--series-blue)', background: 'var(--surface-2)' }}
+    >
+      <p className="mb-2 text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
+        Transferir entre cuentas
+      </p>
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+          Desde
+          <select
+            value={desdeId}
+            onChange={(e) => setDesdeId(e.target.value)}
+            aria-label="Cuenta de origen"
+            className="mt-0.5 block rounded-lg border px-2 py-1.5 text-sm"
+            style={campoEdicion}
+          >
+            {cuentas.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nombre}
+                {c.moneda === 'USD' ? ' (USD)' : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+          Hacia
+          <select
+            value={haciaId}
+            onChange={(e) => setHaciaId(e.target.value)}
+            aria-label="Cuenta de destino"
+            className="mt-0.5 block rounded-lg border px-2 py-1.5 text-sm"
+            style={campoEdicion}
+          >
+            {cuentas.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nombre}
+                {c.moneda === 'USD' ? ' (USD)' : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+          {distintaMoneda ? `Sale (${desde?.moneda === 'USD' ? 'USD' : '$'})` : 'Importe'}
+          <InputMoneda
+            value={monto}
+            onChange={setMonto}
+            aria-label="Importe que sale"
+            className="tabular mt-0.5 block w-32 rounded-lg border px-3 py-1.5 text-sm"
+            style={campoEdicion}
+          />
+        </label>
+        {distintaMoneda && (
+          <label className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+            Entra ({hacia?.moneda === 'USD' ? 'USD' : '$'})
+            <InputMoneda
+              value={montoDestino}
+              onChange={setMontoDestino}
+              aria-label="Importe que entra"
+              className="tabular mt-0.5 block w-32 rounded-lg border px-3 py-1.5 text-sm"
+              style={campoEdicion}
+            />
+          </label>
+        )}
+        <label className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+          Fecha
+          <input
+            type="date"
+            value={fecha}
+            onChange={(e) => setFecha(e.target.value)}
+            aria-label="Fecha de la transferencia"
+            className="mt-0.5 block rounded-lg border px-2 py-1.5 text-sm"
+            style={campoEdicion}
+          />
+        </label>
+        <label className="min-w-[140px] flex-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+          Detalle (opcional)
+          <input
+            type="text"
+            value={concepto}
+            onChange={(e) => setConcepto(e.target.value)}
+            placeholder="Ej: compra de dólares"
+            aria-label="Detalle de la transferencia"
+            className="mt-0.5 block w-full rounded-lg border px-3 py-1.5 text-sm"
+            style={campoEdicion}
+          />
+        </label>
+        <Button type="submit" variante="primario">
+          Transferir
+        </Button>
+        <button
+          type="button"
+          onClick={() => setAbierto(false)}
+          className="px-2 py-1.5 text-xs"
+          style={{ color: 'var(--text-muted)' }}
+        >
+          Cancelar
+        </button>
+      </div>
+      {/* El aviso aparece recién cuando ya hay un importe cargado: decirle "poné un importe" a
+          alguien que todavía no terminó de escribirlo es ruido, no ayuda. */}
+      {error && (monto > 0 || error === 'misma-cuenta') && (
+        <p className="mt-2 text-xs" style={{ color: 'var(--status-warning)' }}>
+          {MENSAJE_ERROR_TRANSFERENCIA[error]}
+        </p>
+      )}
+      {distintaMoneda && monto > 0 && montoDestino > 0 && (
+        <p className="mt-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+          Tipo de cambio de esta operación:{' '}
+          {formatoMoneda(
+            desde?.moneda === 'USD' ? montoDestino / monto : monto / montoDestino,
+          )}{' '}
+          por dólar.
+        </p>
+      )}
+    </form>
   )
 }

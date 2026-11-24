@@ -39,8 +39,12 @@ export interface MovimientoTesoreria {
   /** De dónde vino este movimiento, para poder revertirlo si se modifica o borra el origen. Los
    * movimientos "manual" (ajustes a mano) son los únicos que se pueden borrar directamente desde
    * Tesorería. */
-  origen: 'factura' | 'anticipo' | 'cheque' | 'sueldo' | 'manual'
+  origen: 'factura' | 'anticipo' | 'cheque' | 'sueldo' | 'manual' | 'transferencia'
   origenId?: string
+  /** Las dos patas de una transferencia entre cuentas comparten este id: el egreso de una cuenta
+   * y el ingreso en la otra son el mismo hecho, y tienen que borrarse juntas. Sin esto se podría
+   * borrar la salida y dejar la entrada, creando plata de la nada. */
+  transferenciaId?: string
 }
 
 /** Un ajuste guarda el monto ya con signo (positivo suma, negativo resta); ingreso/egreso son

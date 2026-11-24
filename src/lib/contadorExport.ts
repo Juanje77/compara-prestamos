@@ -130,6 +130,7 @@ const ORIGEN_LABEL: Record<MovimientoTesoreria['origen'], string> = {
   cheque: 'Cheque',
   sueldo: 'Sueldos',
   manual: 'Ajuste manual',
+  transferencia: 'Transferencia',
 }
 
 function hojaTesoreria(cuentas: CuentaBancaria[], movimientos: MovimientoTesoreria[]) {
