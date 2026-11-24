@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Check, Trash2 } from 'lucide-react'
+import { Check, FileDown, Trash2 } from 'lucide-react'
 import type { CuentaBancaria, CuentaCorrienteContraparte, MedioPago, Pago, TipoDocumentoAnticipo, TipoFactura } from '../lib/cfo'
 import { MEDIOS_PAGO_LABEL } from '../lib/cfo'
 import { Card } from './Card'
@@ -28,6 +28,8 @@ interface Props {
     cuentaId?: string,
   ) => void
   onEliminarPago: (id: string) => void
+  /** Abre el extracto imprimible de un lado de la cuenta corriente. */
+  onImprimir?: (lado: 'cobrar' | 'pagar') => void
 }
 
 function hoyISO(): string {
@@ -243,6 +245,7 @@ function Columna({
   cuentasBancarias,
   onAplicarPago,
   onEliminarPago,
+  onImprimir,
 }: {
   titulo: string
   grupos: CuentaCorrienteContraparte[]
@@ -251,6 +254,7 @@ function Columna({
   cuentasBancarias?: CuentaBancaria[]
   onAplicarPago: Props['onAplicarPago']
   onEliminarPago: Props['onEliminarPago']
+  onImprimir?: () => void
 }) {
   const [busqueda, setBusqueda] = useState('')
   const texto = busqueda.trim().toLowerCase()
@@ -263,9 +267,22 @@ function Columna({
         <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
           {titulo}
         </h3>
-        <span className="tabular text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-          {formatoMoneda(totalSaldo)}
-        </span>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="tabular text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+            {formatoMoneda(totalSaldo)}
+          </span>
+          {onImprimir && (
+            <button
+              type="button"
+              onClick={onImprimir}
+              title="Abre el extracto en una pestaña nueva para imprimirlo o guardarlo como PDF"
+              className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold"
+              style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
+            >
+              <FileDown size={12} aria-hidden="true" /> PDF
+            </button>
+          )}
+        </div>
       </div>
       {grupos.length === 0 ? (
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
@@ -308,7 +325,7 @@ function Columna({
   )
 }
 
-export function CuentasCorrientes({ cuentasCobrar, cuentasPagar, pagos, cuentasBancarias, onAplicarPago, onEliminarPago }: Props) {
+export function CuentasCorrientes({ cuentasCobrar, cuentasPagar, pagos, cuentasBancarias, onAplicarPago, onEliminarPago, onImprimir }: Props) {
   return (
     <div className="space-y-6">
       <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
@@ -323,6 +340,7 @@ export function CuentasCorrientes({ cuentasCobrar, cuentasPagar, pagos, cuentasB
           titulo="Cuentas por cobrar"
           grupos={cuentasCobrar}
           tipo="emitida"
+          onImprimir={onImprimir && cuentasCobrar.length > 0 ? () => onImprimir('cobrar') : undefined}
           pagos={pagos}
           cuentasBancarias={cuentasBancarias}
           onAplicarPago={onAplicarPago}
@@ -332,6 +350,7 @@ export function CuentasCorrientes({ cuentasCobrar, cuentasPagar, pagos, cuentasB
           titulo="Cuentas por pagar"
           grupos={cuentasPagar}
           tipo="recibida"
+          onImprimir={onImprimir && cuentasPagar.length > 0 ? () => onImprimir('pagar') : undefined}
           pagos={pagos}
           cuentasBancarias={cuentasBancarias}
           onAplicarPago={onAplicarPago}

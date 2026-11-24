@@ -3,6 +3,7 @@
 // se arma un documento con CSS de verdad y gráficos en SVG — mucho más flexible y prolijo que
 // dibujar rectángulos a mano, sin agregar ninguna dependencia nueva.
 import { formatoMoneda, formatoPorcentaje } from './finance'
+import type { Extracto } from './extractoCuentaCorriente'
 import type {
   AgingCuentas,
   CategoriaGasto,
@@ -317,6 +318,9 @@ const ESTILO = `
   @media print {
     body { background: white; }
     .barra-imprimir { display: none; }
+    /* Cada cuenta en su hoja: así se le manda a un cliente la suya sin el saldo de los demás. */
+    section.cuenta { break-before: page; }
+    section.cuenta:first-of-type { break-before: auto; }
     .hoja { box-shadow: none; margin: 0; max-width: none; padding: 0; }
     @page { margin: 16mm; }
   }
@@ -665,4 +669,136 @@ export function abrirInformeSaludFinanciera(datos: InformeSaludFinancieraData) {
   `
 
   abrirDocumentoHtml(documentoBase('Informe de Salud Financiera', tituloNegocio, cuerpo))
+}
+
+// ---------------------------------------------------------------------------
+// Extracto de cuentas corrientes (Full)
+// ---------------------------------------------------------------------------
+//
+// Lo que uno manda cuando reclama un saldo, o cuando el cliente lo discute. No alcanza con "me
+// debés tanto": hay que poder mostrar de dónde sale, factura por factura y pago por pago.
+
+export interface InformeCuentasCorrientesData {
+  nombreNegocio: string
+  /** 'cobrar' son los clientes; 'pagar', los proveedores. */
+  lado: 'cobrar' | 'pagar'
+  extractos: Extracto[]
+}
+
+/**
+ * Este informe NO lleva el pie de "estimación orientativa" de los demás. No es una proyección ni
+ * un análisis: es el detalle de los comprobantes cargados. Y como se le manda al cliente para
+ * reclamarle un saldo, un texto que diga "estimación" lo debilita justo donde tiene que ser
+ * firme. La reserva que sí corresponde es otra: que se reclame si ya se pagó.
+ */
+const PIE_EXTRACTO =
+  'Detalle de los comprobantes registrados a la fecha. Si registraste un pago que no figura, avisanos para conciliarlo. Elaborado con FinCorp · Juan Costantini, Contador Público (MP: T20F94).'
+
+export function abrirInformeCuentasCorrientes({ nombreNegocio, lado, extractos }: InformeCuentasCorrientesData) {
+  const tituloNegocio = nombreNegocio.trim() || 'Tu negocio'
+  const esCobrar = lado === 'cobrar'
+  const titulo = esCobrar ? 'Cuentas corrientes a cobrar' : 'Cuentas corrientes a pagar'
+  const subtitulo = esCobrar
+    ? 'Movimiento de cada cliente y cómo se llegó a su saldo'
+    : 'Movimiento de cada proveedor y cómo se llegó a su saldo'
+
+  if (extractos.length === 0) {
+    abrirDocumentoHtml(
+      documentoBase(
+        titulo,
+        tituloNegocio,
+        `${encabezadoDocumento(`${titulo} — ${tituloNegocio}`, subtitulo)}
+         <p style="color:${COLOR.textoSecundario}">No hay saldos pendientes.</p>`,
+        PIE_EXTRACTO,
+      ),
+    )
+    return
+  }
+
+  const total = extractos.reduce((s, e) => s + e.saldo, 0)
+
+  const resumen = `
+    <section class="bloque">
+      <h2>Resumen</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>${esCobrar ? 'Cliente' : 'Proveedor'}</th>
+            <th class="num">Movimientos</th>
+            <th class="num">Saldo</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${extractos
+            .map(
+              (e) => `<tr>
+                <td>${escapeHtml(e.contraparte)}</td>
+                <td class="num">${e.filas.length}</td>
+                <td class="num">${formatoMoneda(e.saldo)}</td>
+              </tr>`,
+            )
+            .join('')}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td>Total</td>
+            <td class="num"></td>
+            <td class="num">${formatoMoneda(total)}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </section>
+  `
+
+  // Cada cuenta arranca en página nueva: así se le manda a un cliente la suya sola, sin el saldo
+  // de los demás, que es la primera razón por la que uno imprime esto.
+  const detalle = extractos
+    .map(
+      (e) => `
+    <section class="bloque cuenta">
+      <h2>${escapeHtml(e.contraparte)}</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Detalle</th>
+            <th class="num">Debe</th>
+            <th class="num">Haber</th>
+            <th class="num">Saldo</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${e.filas
+            .map(
+              (f) => `<tr>
+                <td>${escapeHtml(new Date(`${f.fecha}T00:00:00`).toLocaleDateString('es-AR'))}</td>
+                <td>${escapeHtml(f.detalle)}</td>
+                <td class="num">${f.debe > 0 ? formatoMoneda(f.debe) : ''}</td>
+                <td class="num">${f.haber > 0 ? formatoMoneda(f.haber) : ''}</td>
+                <td class="num">${formatoMoneda(f.saldo)}</td>
+              </tr>`,
+            )
+            .join('')}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="2">Saldo ${esCobrar ? 'a cobrar' : 'a pagar'}</td>
+            <td class="num">${formatoMoneda(e.totalDebe)}</td>
+            <td class="num">${formatoMoneda(e.totalHaber)}</td>
+            <td class="num">${formatoMoneda(e.saldo)}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </section>`,
+    )
+    .join('')
+
+  abrirDocumentoHtml(
+    documentoBase(
+      titulo,
+      tituloNegocio,
+      `${encabezadoDocumento(`${titulo} — ${tituloNegocio}`, subtitulo)}${resumen}${detalle}`,
+      PIE_EXTRACTO,
+    ),
+  )
 }

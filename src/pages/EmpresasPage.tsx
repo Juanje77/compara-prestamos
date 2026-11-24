@@ -16,6 +16,7 @@ import { ConfigDolar, type ConfigDolarValor } from '../components/ConfigDolar'
 import { chequesEnPesos, cuentasEnPesos, facturasEnPesos, montoEnMonedaDe, pagosEnPesos } from '../lib/convertirMonedas'
 import { aplicarEndoso } from '../lib/endoso'
 import { armarTransferencia, patasDeLaTransferencia, type DatosTransferencia } from '../lib/transferencias'
+import { armarExtractos } from '../lib/extractoCuentaCorriente'
 import { vincularNotasDeCredito } from '../lib/vincularNotas'
 import type { Moneda } from '../lib/cotizaciones'
 import { CuentasPendientes } from '../components/CuentasPendientes'
@@ -149,7 +150,7 @@ import { Card } from '../components/Card'
 import { Button } from '../components/Button'
 import { formatoMoneda, formatoPorcentaje } from '../lib/finance'
 import { exportarParaContador } from '../lib/contadorExport'
-import { abrirInformeFinanciero, abrirInformeSaludFinanciera } from '../lib/htmlReport'
+import { abrirInformeCuentasCorrientes, abrirInformeFinanciero, abrirInformeSaludFinanciera } from '../lib/htmlReport'
 import { cargarNegocioData, guardarNegocioData, negocioDataTieneCarga, type NegocioData } from '../lib/negocioData'
 import { DATOS_MONOTRIBUTO_VACIOS, type DatosMonotributo } from '../lib/monotributo'
 import { guardarBackupDiarioEnDrive } from '../lib/googleDrive'
@@ -836,6 +837,16 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
   }
 
   /** Vincula de una vez las notas de crédito sueltas. Devuelve cuántas pudo vincular. */
+  /** El extracto imprimible de las cuentas corrientes. Se arma con lo mismo que muestra la
+   * pantalla, para que el total del papel coincida con el de la pantalla. */
+  function handleImprimirCuentasCorrientes(lado: 'cobrar' | 'pagar') {
+    abrirInformeCuentasCorrientes({
+      nombreNegocio,
+      lado,
+      extractos: armarExtractos(lado === 'cobrar' ? cuentaCorrienteCobrar : cuentaCorrientePagar, pagos, anticipos),
+    })
+  }
+
   function handleVincularNotasPendientes(): number {
     const r = vincularNotasDeCredito(facturasCargadas)
     if (r.vinculadas > 0) setFacturasCargadas(r.facturas)
@@ -2031,6 +2042,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
             cuentasPagar={cuentaCorrientePagar}
             pagos={pagos}
             cuentasBancarias={cuentas}
+            onImprimir={handleImprimirCuentasCorrientes}
             onAplicarPago={handleAplicarPagoCuenta}
             onEliminarPago={handleEliminarPago}
           />
