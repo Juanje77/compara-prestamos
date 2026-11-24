@@ -947,25 +947,41 @@ export function CobranzasPagosSemanal({
           <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
             Posición financiera
           </h2>
-          <button
-            type="button"
-            onClick={() =>
-              abrirInformeCobranzasPagos({
-                nombreNegocio,
-                posicion,
-                agrupacion,
-                // Solo lo vencido que sigue sin cumplirse: lo cumplido ya entró o salió y está
-                // dentro del saldo de las cuentas. Es el mismo criterio con el que se arma el
-                // acumulado de las semanas, y por eso el papel cierra igual que la pantalla.
-                vencidosPendientes: agrupacion.vencidos.filter((m) => !m.cumplido),
-              })
-            }
-            title="Abre el informe en una pestaña nueva para imprimirlo o guardarlo como PDF"
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold"
-            style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
-          >
-            <FileDown size={13} aria-hidden="true" /> PDF
-          </button>
+          {/* Tres documentos distintos, no uno con columnas tapadas. El completo lleva la caja y
+              la posición neta del negocio; las listas de un solo lado se le dan a quien sale a
+              cobrar o a quien paga, y esa información no tiene por qué irse con ellos. */}
+          <div className="flex shrink-0 items-center gap-1.5">
+            <FileDown size={13} aria-hidden="true" style={{ color: 'var(--text-muted)' }} />
+            {(
+              [
+                ['todo', 'Completo', 'Posición, semanas y detalle — para vos'],
+                ['cobros', 'A cobrar', 'Solo la cobranza, sin la caja ni los pagos — para quien cobra'],
+                ['pagos', 'A pagar', 'Solo los pagos a realizar — para quien paga'],
+              ] as const
+            ).map(([valor, etiqueta, ayuda]) => (
+              <button
+                key={valor}
+                type="button"
+                onClick={() =>
+                  abrirInformeCobranzasPagos({
+                    nombreNegocio,
+                    posicion,
+                    agrupacion,
+                    // Solo lo vencido que sigue sin cumplirse: lo cumplido ya entró o salió y
+                    // está dentro del saldo de las cuentas. Es el mismo criterio con el que se
+                    // arma el acumulado, y por eso el papel cierra igual que la pantalla.
+                    vencidosPendientes: agrupacion.vencidos.filter((m) => !m.cumplido),
+                    lado: valor,
+                  })
+                }
+                title={`${ayuda}. Se abre en una pestaña nueva para imprimir o guardar como PDF.`}
+                className="rounded-full border px-2.5 py-1 text-[11px] font-semibold"
+                style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
+              >
+                {etiqueta}
+              </button>
+            ))}
+          </div>
         </div>
         <p className="mb-4 text-xs" style={{ color: 'var(--text-muted)' }}>
           Lo que tenés hoy más lo que falta cobrar, menos lo que falta pagar. Solo entra lo

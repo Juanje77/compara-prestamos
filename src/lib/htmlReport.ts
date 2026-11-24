@@ -813,38 +813,69 @@ export function abrirInformeCuentasCorrientes({ nombreNegocio, lado, extractos }
 // La planilla de la semana, en papel. Es la que se lleva a la reunión con el socio o al banco:
 // con cuánta caja se arranca, qué entra y qué sale cada semana, y con cuánto se termina.
 
+export type LadoInformeSemanal = 'todo' | 'cobros' | 'pagos'
+
 export interface InformeCobranzasPagosData {
   nombreNegocio: string
   posicion: PosicionFinanciera
   agrupacion: AgrupacionSemanal
   /** Lo vencido que sigue sin cumplirse, que es lo que arrastra el acumulado. */
   vencidosPendientes: Movimiento[]
+  /** Qué incluir. 'cobros' y 'pagos' son listas de trabajo para darle a alguien; 'todo' es la
+   * proyección de caja completa. */
+  lado?: LadoInformeSemanal
 }
 
-function filasMovimientos(movimientos: Movimiento[]): string {
-  return movimientos
-    .map(
-      (m) => `<tr>
-        <td>${escapeHtml(new Date(`${m.fecha}T00:00:00`).toLocaleDateString('es-AR'))}</td>
-        <td>${escapeHtml(m.concepto)}${m.cumplido ? ' <span style="color:' + COLOR.textoMuted + '">(cumplido)</span>' : ''}</td>
-        <td class="num">${m.tipo === 'cobro' ? formatoMoneda(m.monto) : ''}</td>
-        <td class="num">${m.tipo === 'pago' ? formatoMoneda(m.monto) : ''}</td>
-      </tr>`,
-    )
-    .join('')
+const TITULO_LADO: Record<LadoInformeSemanal, string> = {
+  todo: 'Cobranzas y pagos',
+  cobros: 'Cobranzas a realizar',
+  pagos: 'Pagos a realizar',
+}
+
+function filaMovimiento(m: Movimiento, columnas: 'ambas' | 'una'): string {
+  const cumplido = m.cumplido ? ` <span style="color:${COLOR.textoMuted}">(cumplido)</span>` : ''
+  const celdas =
+    columnas === 'ambas'
+      ? `<td class="num">${m.tipo === 'cobro' ? formatoMoneda(m.monto) : ''}</td>
+         <td class="num">${m.tipo === 'pago' ? formatoMoneda(m.monto) : ''}</td>`
+      : `<td class="num">${formatoMoneda(m.monto)}</td>`
+  return `<tr>
+    <td>${escapeHtml(new Date(`${m.fecha}T00:00:00`).toLocaleDateString('es-AR'))}</td>
+    <td>${escapeHtml(m.concepto)}${cumplido}</td>
+    ${celdas}
+  </tr>`
 }
 
 const PIE_SEMANAL =
   'Proyección armada con los comprobantes, cheques y movimientos cargados a la fecha. Las fechas de cobro y pago son las estimadas: un cambio en cualquiera de ellas mueve el saldo de las semanas siguientes. Elaborado con FinCorp · Juan Costantini, Contador Público (MP: T20F94).'
 
+const PIE_COBRANZA =
+  'Fechas estimadas según los comprobantes cargados. Antes de reclamar, verificá que el pago no haya entrado ya. Elaborado con FinCorp · Juan Costantini, Contador Público (MP: T20F94).'
+
+const PIE_PAGOS =
+  'Fechas estimadas según los comprobantes cargados. Confirmá el importe con el comprobante antes de pagar. Elaborado con FinCorp · Juan Costantini, Contador Público (MP: T20F94).'
+
+/**
+ * El informe semanal, entero o de un solo lado.
+ *
+ * La versión de un solo lado no es el informe completo con una columna tapada: es otro documento,
+ * y por dos razones. Una, de uso: quien sale a cobrar necesita a quién, cuánto y desde cuándo, no
+ * la proyección de caja. La otra, más importante: ese papel se le da a un empleado o a un gestor,
+ * y el informe completo muestra el saldo de las cuentas bancarias y la posición neta del negocio.
+ * Eso no tiene por qué salir de la empresa adentro de una lista de cobranza.
+ */
 export function abrirInformeCobranzasPagos({
   nombreNegocio,
   posicion,
   agrupacion,
   vencidosPendientes,
+  lado = 'todo',
 }: InformeCobranzasPagosData) {
   const tituloNegocio = nombreNegocio.trim() || 'Tu negocio'
-  const { semanas, totalesPorSemana } = agrupacion
+  const esTodo = lado === 'todo'
+  const tipoBuscado = lado === 'pagos' ? 'pago' : 'cobro'
+  const titulo = TITULO_LADO[lado]
+  const { semanas, totalesPorSemana, movimientosPorSemana } = agrupacion
   const desde = semanas[0]?.inicio
   const hasta = semanas[semanas.length - 1]?.fin
   const periodo =
@@ -852,97 +883,125 @@ export function abrirInformeCobranzasPagos({
       ? `Del ${desde.toLocaleDateString('es-AR')} al ${hasta.toLocaleDateString('es-AR')}`
       : 'Próximas semanas'
 
-  const posicionHtml = `
-    <section class="bloque">
-      <h2>Posición financiera de hoy</h2>
-      <div class="kpis">
-        ${tarjetaKpi('Caja y bancos', formatoMoneda(posicion.caja), COLOR.texto)}
-        ${tarjetaKpi('Falta cobrar', formatoMoneda(posicion.aCobrar.total), COLOR.texto)}
-        ${tarjetaKpi('Falta pagar', formatoMoneda(posicion.aPagar.total), COLOR.texto)}
-        ${tarjetaKpi(
-          'Posición neta',
-          formatoMoneda(posicion.posicionNeta),
-          posicion.posicionNeta >= 0 ? COLOR.bueno : COLOR.critico,
-          'Si entra y sale todo lo pendiente',
-        )}
-      </div>
-    </section>
-  `
+  /** Los movimientos de una semana que corresponden a este informe. */
+  const deLaSemana = (i: number) =>
+    esTodo ? movimientosPorSemana[i] : movimientosPorSemana[i].filter((m) => m.tipo === tipoBuscado)
+  const vencidos = esTodo ? vencidosPendientes : vencidosPendientes.filter((m) => m.tipo === tipoBuscado)
+  const totalVencido = vencidos.reduce((s, m) => s + m.monto, 0)
+  const totalPeriodo = semanas.reduce((s, _, i) => s + deLaSemana(i).reduce((t, m) => t + m.monto, 0), 0)
 
-  const resumenSemanas = `
-    <section class="bloque">
-      <h2>Semana a semana</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Semana</th>
-            <th class="num">Cobros</th>
-            <th class="num">Pagos</th>
-            <th class="num">Resultado</th>
-            <th class="num">Saldo al cierre</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${semanas
-            .map((s, i) => {
-              const t = totalesPorSemana[i]
-              return `<tr>
-                <td>${escapeHtml(`${s.inicio.toLocaleDateString('es-AR')} al ${s.fin.toLocaleDateString('es-AR')}`)}</td>
-                <td class="num">${t.cobros > 0 ? formatoMoneda(t.cobros) : ''}</td>
-                <td class="num">${t.pagos > 0 ? formatoMoneda(t.pagos) : ''}</td>
-                <td class="num">${formatoMoneda(t.saldo)}</td>
-                <td class="num" style="color:${t.saldoAcumulado < 0 ? COLOR.critico : COLOR.texto};font-weight:700">${formatoMoneda(t.saldoAcumulado)}</td>
-              </tr>`
-            })
-            .join('')}
-        </tbody>
-      </table>
-      <p style="margin:10px 0 0;font-size:11px;color:${COLOR.textoMuted}">
-        El saldo al cierre arrastra el de la semana anterior y arranca de ${escapeHtml(formatoMoneda(agrupacion.saldoInicial))}:
-        la caja de hoy más lo vencido que todavía está pendiente.
-      </p>
-    </section>
-  `
+  const cabecera = esTodo
+    ? `<section class="bloque">
+        <h2>Posición financiera de hoy</h2>
+        <div class="kpis">
+          ${tarjetaKpi('Caja y bancos', formatoMoneda(posicion.caja), COLOR.texto)}
+          ${tarjetaKpi('Falta cobrar', formatoMoneda(posicion.aCobrar.total), COLOR.texto)}
+          ${tarjetaKpi('Falta pagar', formatoMoneda(posicion.aPagar.total), COLOR.texto)}
+          ${tarjetaKpi(
+            'Posición neta',
+            formatoMoneda(posicion.posicionNeta),
+            posicion.posicionNeta >= 0 ? COLOR.bueno : COLOR.critico,
+            'Si entra y sale todo lo pendiente',
+          )}
+        </div>
+      </section>`
+    : `<section class="bloque">
+        <h2>Resumen</h2>
+        <div class="kpis">
+          ${tarjetaKpi(
+            lado === 'cobros' ? 'Vencido sin cobrar' : 'Vencido sin pagar',
+            formatoMoneda(totalVencido),
+            totalVencido > 0 ? COLOR.critico : COLOR.texto,
+            `${vencidos.length} ${vencidos.length === 1 ? 'pendiente' : 'pendientes'}`,
+          )}
+          ${tarjetaKpi('En estas 4 semanas', formatoMoneda(totalPeriodo), COLOR.texto)}
+          ${tarjetaKpi('Total a gestionar', formatoMoneda(totalVencido + totalPeriodo), COLOR.texto)}
+        </div>
+      </section>`
 
-  const vencidos =
-    vencidosPendientes.length > 0
+  const resumenSemanas = esTodo
+    ? `<section class="bloque">
+        <h2>Semana a semana</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Semana</th><th class="num">Cobros</th><th class="num">Pagos</th>
+              <th class="num">Resultado</th><th class="num">Saldo al cierre</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${semanas
+              .map((s, i) => {
+                const t = totalesPorSemana[i]
+                return `<tr>
+                  <td>${escapeHtml(`${s.inicio.toLocaleDateString('es-AR')} al ${s.fin.toLocaleDateString('es-AR')}`)}</td>
+                  <td class="num">${t.cobros > 0 ? formatoMoneda(t.cobros) : ''}</td>
+                  <td class="num">${t.pagos > 0 ? formatoMoneda(t.pagos) : ''}</td>
+                  <td class="num">${formatoMoneda(t.saldo)}</td>
+                  <td class="num" style="color:${t.saldoAcumulado < 0 ? COLOR.critico : COLOR.texto};font-weight:700">${formatoMoneda(t.saldoAcumulado)}</td>
+                </tr>`
+              })
+              .join('')}
+          </tbody>
+        </table>
+        <p style="margin:10px 0 0;font-size:11px;color:${COLOR.textoMuted}">
+          El saldo al cierre arrastra el de la semana anterior y arranca de ${escapeHtml(formatoMoneda(agrupacion.saldoInicial))}:
+          la caja de hoy más lo vencido que todavía está pendiente.
+        </p>
+      </section>`
+    : ''
+
+  const encabezadosDetalle = esTodo
+    ? '<th class="num">Cobro</th><th class="num">Pago</th>'
+    : `<th class="num">${lado === 'cobros' ? 'A cobrar' : 'A pagar'}</th>`
+
+  const bloqueVencidos =
+    vencidos.length > 0
       ? `<section class="bloque">
-          <h2>Vencido y todavía pendiente</h2>
+          <h2>${esTodo ? 'Vencido y todavía pendiente' : `Vencido — ${formatoMoneda(totalVencido)}`}</h2>
           <table>
-            <thead><tr><th>Fecha</th><th>Concepto</th><th class="num">A cobrar</th><th class="num">A pagar</th></tr></thead>
-            <tbody>${filasMovimientos(vencidosPendientes)}</tbody>
+            <thead><tr><th>Fecha</th><th>Concepto</th>${encabezadosDetalle}</tr></thead>
+            <tbody>${vencidos.map((m) => filaMovimiento(m, esTodo ? 'ambas' : 'una')).join('')}</tbody>
           </table>
         </section>`
       : ''
 
-  // El detalle va después del resumen y no mezclado: primero se mira cómo viene cada semana, y
-  // recién cuando una preocupa se va a ver qué la compone.
   const detalle = semanas
     .map((s, i) => {
+      const movs = deLaSemana(i)
+      if (movs.length === 0) return ''
       const t = totalesPorSemana[i]
-      const delaSemana = agrupacion.movimientosPorSemana[i] ?? []
-      if (delaSemana.length === 0) return ''
+      const totalFila = esTodo
+        ? `<td class="num">${formatoMoneda(t.cobros)}</td><td class="num">${formatoMoneda(t.pagos)}</td>`
+        : `<td class="num">${formatoMoneda(movs.reduce((x, m) => x + m.monto, 0))}</td>`
       return `<section class="bloque">
         <h2>${escapeHtml(`${s.inicio.toLocaleDateString('es-AR')} al ${s.fin.toLocaleDateString('es-AR')}`)}</h2>
         <table>
-          <thead><tr><th>Fecha</th><th>Concepto</th><th class="num">Cobro</th><th class="num">Pago</th></tr></thead>
-          <tbody>${filasMovimientos(delaSemana)}</tbody>
-          <tfoot><tr>
-            <td colspan="2">Resultado de la semana</td>
-            <td class="num">${formatoMoneda(t.cobros)}</td>
-            <td class="num">${formatoMoneda(t.pagos)}</td>
-          </tr></tfoot>
+          <thead><tr><th>Fecha</th><th>Concepto</th>${encabezadosDetalle}</tr></thead>
+          <tbody>${movs.map((m) => filaMovimiento(m, esTodo ? 'ambas' : 'una')).join('')}</tbody>
+          <tfoot><tr><td colspan="2">Total de la semana</td>${totalFila}</tr></tfoot>
         </table>
       </section>`
     })
     .join('')
 
+  const sinNada =
+    !esTodo && vencidos.length === 0 && totalPeriodo === 0
+      ? `<p style="color:${COLOR.textoSecundario}">No hay nada pendiente en este período.</p>`
+      : ''
+
+  const subtitulo = esTodo
+    ? periodo
+    : `${periodo} · ${lado === 'cobros' ? 'Clientes a reclamar' : 'Obligaciones a pagar'}`
+
   const cuerpo = `
-    ${encabezadoDocumento(`Cobranzas y pagos — ${tituloNegocio}`, periodo)}
-    ${posicionHtml}
+    ${encabezadoDocumento(`${titulo} — ${tituloNegocio}`, subtitulo)}
+    ${cabecera}
     ${resumenSemanas}
-    ${vencidos}
+    ${bloqueVencidos}
     ${detalle}
+    ${sinNada}
   `
-  abrirDocumentoHtml(documentoBase('Cobranzas y pagos', tituloNegocio, cuerpo, PIE_SEMANAL))
+  const pie = esTodo ? PIE_SEMANAL : lado === 'cobros' ? PIE_COBRANZA : PIE_PAGOS
+  abrirDocumentoHtml(documentoBase(titulo, tituloNegocio, cuerpo, pie))
 }
