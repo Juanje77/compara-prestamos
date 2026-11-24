@@ -44,6 +44,7 @@ import { InputMoneda } from './InputMoneda'
 import { IconButton } from './IconButton'
 import { Card } from './Card'
 import { Button } from './Button'
+import { abrirInformeCobranzasPagos } from '../lib/htmlReport'
 
 
 function hoyISO(): string {
@@ -727,6 +728,8 @@ interface Props {
    * src/lib/empresa.ts). Sin esto, un usuario invitado guardaría la planilla en su propia cuenta
    * vacía y el dueño nunca la vería. */
   uidDatos?: string | null
+  /** Para encabezar el informe imprimible. */
+  nombreNegocio?: string
 }
 
 export function CobranzasPagosSemanal({
@@ -739,6 +742,7 @@ export function CobranzasPagosSemanal({
   pagosDeFacturas = [],
   onIrAlOrigen,
   uidDatos,
+  nombreNegocio = '',
 }: Props) {
   const { user } = useAuth()
   // Sin acceso resuelto se cae en el uid propio, que es como funcionaba antes de que existieran
@@ -939,9 +943,30 @@ export function CobranzasPagosSemanal({
         className="mb-6 rounded-xl border p-5"
         style={{ borderColor: 'var(--border)', background: 'var(--surface-1)' }}
       >
-        <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
-          Posición financiera
-        </h2>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
+            Posición financiera
+          </h2>
+          <button
+            type="button"
+            onClick={() =>
+              abrirInformeCobranzasPagos({
+                nombreNegocio,
+                posicion,
+                agrupacion,
+                // Solo lo vencido que sigue sin cumplirse: lo cumplido ya entró o salió y está
+                // dentro del saldo de las cuentas. Es el mismo criterio con el que se arma el
+                // acumulado de las semanas, y por eso el papel cierra igual que la pantalla.
+                vencidosPendientes: agrupacion.vencidos.filter((m) => !m.cumplido),
+              })
+            }
+            title="Abre el informe en una pestaña nueva para imprimirlo o guardarlo como PDF"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold"
+            style={{ borderColor: 'var(--series-blue)', color: 'var(--series-blue)' }}
+          >
+            <FileDown size={13} aria-hidden="true" /> PDF
+          </button>
+        </div>
         <p className="mb-4 text-xs" style={{ color: 'var(--text-muted)' }}>
           Lo que tenés hoy más lo que falta cobrar, menos lo que falta pagar. Solo entra lo
           pendiente: lo ya cobrado o pagado se movió y está en el saldo de tus cuentas.

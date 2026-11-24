@@ -104,3 +104,35 @@ describe('agruparPorSemana', () => {
     expect(r.totalesPorSemana[3].saldoAcumulado).toBe(suma)
   })
 })
+
+describe('movimientosPorSemana', () => {
+  const mov = (id: string, fecha: string, tipo: 'cobro' | 'pago', monto = 1000): Movimiento => ({
+    id, concepto: id, fecha, tipo, monto, cumplido: false,
+  })
+
+  it('guarda en cada semana los movimientos que le tocan', () => {
+    const lunes = new Date('2026-11-16T10:00:00')
+    const a = agruparPorSemana(
+      [mov('a', '2026-11-18', 'cobro'), mov('b', '2026-11-25', 'pago'), mov('c', '2026-11-20', 'pago')],
+      4,
+      lunes,
+    )
+    expect(a.movimientosPorSemana[0].map((m) => m.id)).toEqual(['a', 'c'])
+    expect(a.movimientosPorSemana[1].map((m) => m.id)).toEqual(['b'])
+    expect(a.movimientosPorSemana[2]).toEqual([])
+  })
+
+  it('los ordena por fecha adentro de cada semana', () => {
+    const lunes = new Date('2026-11-16T10:00:00')
+    const a = agruparPorSemana([mov('tarde', '2026-11-20', 'cobro'), mov('temprano', '2026-11-17', 'cobro')], 4, lunes)
+    expect(a.movimientosPorSemana[0].map((m) => m.id)).toEqual(['temprano', 'tarde'])
+  })
+
+  it('lo vencido y lo lejano no entran en ninguna semana', () => {
+    const lunes = new Date('2026-11-16T10:00:00')
+    const a = agruparPorSemana([mov('viejo', '2026-10-01', 'cobro'), mov('lejano', '2027-05-01', 'cobro')], 4, lunes)
+    expect(a.movimientosPorSemana.every((s) => s.length === 0)).toBe(true)
+    expect(a.vencidos.map((m) => m.id)).toEqual(['viejo'])
+    expect(a.aFuturo.map((m) => m.id)).toEqual(['lejano'])
+  })
+})

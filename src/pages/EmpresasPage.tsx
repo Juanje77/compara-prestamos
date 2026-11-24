@@ -1976,6 +1976,7 @@ export function EmpresasPage({ esPremium, esFull = false, acceso, aviso }: Props
           pagosSueldos={esFull ? pagosSueldosMesActual : undefined}
           pagosDeFacturas={pagos}
           onIrAlOrigen={irAlOrigen}
+          nombreNegocio={nombreNegocio}
         />
       )}
 

@@ -4,6 +4,9 @@
 // dibujar rectángulos a mano, sin agregar ninguna dependencia nueva.
 import { formatoMoneda, formatoPorcentaje } from './finance'
 import type { Extracto } from './extractoCuentaCorriente'
+import type { AgrupacionSemanal } from './semanas'
+import type { Movimiento } from './movimientosSemana'
+import type { PosicionFinanciera } from './posicionFinanciera'
 import type {
   AgingCuentas,
   CategoriaGasto,
@@ -801,4 +804,145 @@ export function abrirInformeCuentasCorrientes({ nombreNegocio, lado, extractos }
       PIE_EXTRACTO,
     ),
   )
+}
+
+// ---------------------------------------------------------------------------
+// Cobranzas y pagos de las próximas semanas
+// ---------------------------------------------------------------------------
+//
+// La planilla de la semana, en papel. Es la que se lleva a la reunión con el socio o al banco:
+// con cuánta caja se arranca, qué entra y qué sale cada semana, y con cuánto se termina.
+
+export interface InformeCobranzasPagosData {
+  nombreNegocio: string
+  posicion: PosicionFinanciera
+  agrupacion: AgrupacionSemanal
+  /** Lo vencido que sigue sin cumplirse, que es lo que arrastra el acumulado. */
+  vencidosPendientes: Movimiento[]
+}
+
+function filasMovimientos(movimientos: Movimiento[]): string {
+  return movimientos
+    .map(
+      (m) => `<tr>
+        <td>${escapeHtml(new Date(`${m.fecha}T00:00:00`).toLocaleDateString('es-AR'))}</td>
+        <td>${escapeHtml(m.concepto)}${m.cumplido ? ' <span style="color:' + COLOR.textoMuted + '">(cumplido)</span>' : ''}</td>
+        <td class="num">${m.tipo === 'cobro' ? formatoMoneda(m.monto) : ''}</td>
+        <td class="num">${m.tipo === 'pago' ? formatoMoneda(m.monto) : ''}</td>
+      </tr>`,
+    )
+    .join('')
+}
+
+const PIE_SEMANAL =
+  'Proyección armada con los comprobantes, cheques y movimientos cargados a la fecha. Las fechas de cobro y pago son las estimadas: un cambio en cualquiera de ellas mueve el saldo de las semanas siguientes. Elaborado con FinCorp · Juan Costantini, Contador Público (MP: T20F94).'
+
+export function abrirInformeCobranzasPagos({
+  nombreNegocio,
+  posicion,
+  agrupacion,
+  vencidosPendientes,
+}: InformeCobranzasPagosData) {
+  const tituloNegocio = nombreNegocio.trim() || 'Tu negocio'
+  const { semanas, totalesPorSemana } = agrupacion
+  const desde = semanas[0]?.inicio
+  const hasta = semanas[semanas.length - 1]?.fin
+  const periodo =
+    desde && hasta
+      ? `Del ${desde.toLocaleDateString('es-AR')} al ${hasta.toLocaleDateString('es-AR')}`
+      : 'Próximas semanas'
+
+  const posicionHtml = `
+    <section class="bloque">
+      <h2>Posición financiera de hoy</h2>
+      <div class="kpis">
+        ${tarjetaKpi('Caja y bancos', formatoMoneda(posicion.caja), COLOR.texto)}
+        ${tarjetaKpi('Falta cobrar', formatoMoneda(posicion.aCobrar.total), COLOR.texto)}
+        ${tarjetaKpi('Falta pagar', formatoMoneda(posicion.aPagar.total), COLOR.texto)}
+        ${tarjetaKpi(
+          'Posición neta',
+          formatoMoneda(posicion.posicionNeta),
+          posicion.posicionNeta >= 0 ? COLOR.bueno : COLOR.critico,
+          'Si entra y sale todo lo pendiente',
+        )}
+      </div>
+    </section>
+  `
+
+  const resumenSemanas = `
+    <section class="bloque">
+      <h2>Semana a semana</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Semana</th>
+            <th class="num">Cobros</th>
+            <th class="num">Pagos</th>
+            <th class="num">Resultado</th>
+            <th class="num">Saldo al cierre</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${semanas
+            .map((s, i) => {
+              const t = totalesPorSemana[i]
+              return `<tr>
+                <td>${escapeHtml(`${s.inicio.toLocaleDateString('es-AR')} al ${s.fin.toLocaleDateString('es-AR')}`)}</td>
+                <td class="num">${t.cobros > 0 ? formatoMoneda(t.cobros) : ''}</td>
+                <td class="num">${t.pagos > 0 ? formatoMoneda(t.pagos) : ''}</td>
+                <td class="num">${formatoMoneda(t.saldo)}</td>
+                <td class="num" style="color:${t.saldoAcumulado < 0 ? COLOR.critico : COLOR.texto};font-weight:700">${formatoMoneda(t.saldoAcumulado)}</td>
+              </tr>`
+            })
+            .join('')}
+        </tbody>
+      </table>
+      <p style="margin:10px 0 0;font-size:11px;color:${COLOR.textoMuted}">
+        El saldo al cierre arrastra el de la semana anterior y arranca de ${escapeHtml(formatoMoneda(agrupacion.saldoInicial))}:
+        la caja de hoy más lo vencido que todavía está pendiente.
+      </p>
+    </section>
+  `
+
+  const vencidos =
+    vencidosPendientes.length > 0
+      ? `<section class="bloque">
+          <h2>Vencido y todavía pendiente</h2>
+          <table>
+            <thead><tr><th>Fecha</th><th>Concepto</th><th class="num">A cobrar</th><th class="num">A pagar</th></tr></thead>
+            <tbody>${filasMovimientos(vencidosPendientes)}</tbody>
+          </table>
+        </section>`
+      : ''
+
+  // El detalle va después del resumen y no mezclado: primero se mira cómo viene cada semana, y
+  // recién cuando una preocupa se va a ver qué la compone.
+  const detalle = semanas
+    .map((s, i) => {
+      const t = totalesPorSemana[i]
+      const delaSemana = agrupacion.movimientosPorSemana[i] ?? []
+      if (delaSemana.length === 0) return ''
+      return `<section class="bloque">
+        <h2>${escapeHtml(`${s.inicio.toLocaleDateString('es-AR')} al ${s.fin.toLocaleDateString('es-AR')}`)}</h2>
+        <table>
+          <thead><tr><th>Fecha</th><th>Concepto</th><th class="num">Cobro</th><th class="num">Pago</th></tr></thead>
+          <tbody>${filasMovimientos(delaSemana)}</tbody>
+          <tfoot><tr>
+            <td colspan="2">Resultado de la semana</td>
+            <td class="num">${formatoMoneda(t.cobros)}</td>
+            <td class="num">${formatoMoneda(t.pagos)}</td>
+          </tr></tfoot>
+        </table>
+      </section>`
+    })
+    .join('')
+
+  const cuerpo = `
+    ${encabezadoDocumento(`Cobranzas y pagos — ${tituloNegocio}`, periodo)}
+    ${posicionHtml}
+    ${resumenSemanas}
+    ${vencidos}
+    ${detalle}
+  `
+  abrirDocumentoHtml(documentoBase('Cobranzas y pagos', tituloNegocio, cuerpo, PIE_SEMANAL))
 }

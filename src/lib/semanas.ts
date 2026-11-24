@@ -67,6 +67,9 @@ export interface TotalesSemana {
 export interface AgrupacionSemanal {
   semanas: RangoSemana[]
   totalesPorSemana: TotalesSemana[]
+  /** Qué movimientos cayeron en cada semana, en el mismo orden que `semanas`. Los totales dicen
+   * cómo viene la semana; esto dice por qué, que es lo que hace falta cuando una preocupa. */
+  movimientosPorSemana: Movimiento[][]
   vencidos: Movimiento[]
   aFuturo: Movimiento[]
   /** El saldo con el que arrancó el acumulado, para poder mostrarlo en pantalla. */
@@ -91,6 +94,7 @@ export function agruparPorSemana(
 ): AgrupacionSemanal {
   const semanas = obtenerProximasSemanas(cantidadSemanas, hoy)
   const totalesPorSemana: TotalesSemana[] = semanas.map(() => ({ cobros: 0, pagos: 0, saldo: 0, saldoAcumulado: 0 }))
+  const movimientosPorSemana: Movimiento[][] = semanas.map(() => [])
   const vencidos: Movimiento[] = []
   const aFuturo: Movimiento[] = []
 
@@ -101,6 +105,7 @@ export function agruparPorSemana(
       else aFuturo.push(m)
       continue
     }
+    movimientosPorSemana[idx].push(m)
     if (m.tipo === 'cobro') totalesPorSemana[idx].cobros += m.monto
     else totalesPorSemana[idx].pagos += m.monto
     totalesPorSemana[idx].saldo = totalesPorSemana[idx].cobros - totalesPorSemana[idx].pagos
@@ -114,5 +119,6 @@ export function agruparPorSemana(
     t.saldoAcumulado = acumulado
   }
 
-  return { semanas, totalesPorSemana, vencidos, aFuturo, saldoInicial }
+  for (const lista of movimientosPorSemana) lista.sort((a, b) => a.fecha.localeCompare(b.fecha))
+  return { semanas, totalesPorSemana, movimientosPorSemana, vencidos, aFuturo, saldoInicial }
 }
